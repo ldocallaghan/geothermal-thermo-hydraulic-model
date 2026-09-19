@@ -18,6 +18,42 @@ The models are built from first principles with real material data: IAPWS-95 wat
 | 4 | `model4_hole_stability.py` | Does cooling the hot ductile rock keep the hole open? | Cooling slows time-dependent creep closure by a factor of 10^5 to 10^6. Convective heat resupply to the cooled zone is negligible, with a Péclet number well below 1. |
 | 5 | `model5_convergence_confinement.py` | Is breakout at depth a collapse or a manageable yielded zone? | Breakout produces a millimetre-scale yielded zone held by fluid pressure, well short of collapse. Cooling adds 3 to 6 km of stable depth. The limit is stress anisotropy (SHmax/Shmin); temperature matters less. |
 
+### The equations
+
+The core of each model, in the notation the code uses.
+
+**Model 1** solves two coupled advection balances for the down and up legs, with the rock wall as a fixed-temperature boundary:
+
+$$\dot{m}\,c_p\frac{dT_d}{dz}=U\!A_i\,(T_u-T_d)$$
+
+$$\dot{m}\,c_p\frac{dT_u}{dz}=U\!A_i\,(T_u-T_d)-U\!A_o\big(T_{\text{rock}}(z)-T_u\big)$$
+
+with $T_d(0)=T_{\text{inj}}$ and $T_u(L)=T_d(L)+\dfrac{Q_{\text{face}}}{\dot m\,c_p}$. Output per unit length is set by conduction into the rock, which is why diameter barely helps:
+
+$$q'(z)=\frac{2\pi k_{\text{rock}}\,\Delta T}{\ln(r_\infty/r_w)},\qquad r_\infty\approx 2\sqrt{\alpha t}$$
+
+**Model 2** puts the quenched face under constrained thermal stress and asks whether it beats the confining stress plus the rock's tensile strength:
+
+$$\sigma_T=\frac{E\,\alpha\,\Delta T}{1-\nu},\qquad \sigma_T-K_0\,\rho g z>T_0$$
+
+The transient temperature field is the convective half-space solution:
+
+$$T(x,t)=T_{\text{rock}}+(T_{\text{cold}}-T_{\text{rock}})\big[\operatorname{erfc}\eta-e^{-\eta^2}\operatorname{erfcx}(\eta+\beta)\big],\qquad \eta=\frac{x}{2\sqrt{\alpha t}},\ \ \beta=\frac{h\sqrt{\alpha t}}{k}$$
+
+**Model 3** turns the quench into an effective cutting energy and a penetration rate, then feeds the face heat back into Model 1:
+
+$$\text{MSE}_{\text{eff}}=\text{MSE}\,(1-D),\qquad \text{ROP}=\frac{P_{\text{mech}}}{\text{MSE}_{\text{eff}}\,A_{\text{bit}}}$$
+
+$$Q_{\text{face}}=\underbrace{\text{MSE}\,A\,\text{ROP}}_{\text{cutting}}+\underbrace{\rho c\,A\,\text{ROP}\,\Delta T}_{\text{cuttings sensible heat}}+Q_{\text{cond}}$$
+
+**Model 4** rates time-dependent creep closure with an Arrhenius power law, and checks that convective resupply stays negligible:
+
+$$\dot\varepsilon=A\,\sigma^{n}\exp\!\left(-\frac{Q}{R\,T}\right),\qquad \text{Pe}=\frac{vL}{\alpha}\ll 1$$
+
+**Model 5** takes the plastic zone from the ground-reaction curve, and the breakout stress at a vertical wall from the Kirsch solution:
+
+$$k=\frac{1+\sin\phi}{1-\sin\phi},\qquad p_{\text{cr}}=\frac{2p_0-\sigma_{cm}}{1+k},\qquad \sigma_\theta=3S_H-S_h-P_i$$
+
 ### Model figures
 
 ![Model 1 coupled counterflow temperature profiles](figures/model1_profiles.png)

@@ -28,7 +28,11 @@ $$\dot{m}c_p\frac{dT_d}{dz}=UA_i(T_u-T_d)$$
 
 $$\dot{m}c_p\frac{dT_u}{dz}=UA_i(T_u-T_d)-UA_o\big(T_{\text{rock}}(z)-T_u\big)$$
 
-with $T_d(0)=T_{\text{inj}}$ and $T_u(L)=T_d(L)+\dfrac{Q_{\text{face}}}{\dot{m}c_p}$. Output per unit length is set by conduction into the rock, which is why diameter barely helps:
+with boundary conditions at the surface and at the bit:
+
+$$T_d(0)=T_{\text{inj}},\qquad T_u(L)=T_d(L)+\frac{Q_{\text{face}}}{\dot{m}c_p}$$
+
+Output per unit length is set by conduction into the rock, which is why diameter barely helps:
 
 $$q'(z)=\frac{2\pi k_{\text{rock}}\Delta T}{\ln(r_\infty/r_w)},\qquad r_\infty\approx 2\sqrt{\alpha t}$$
 

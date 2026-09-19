@@ -43,5 +43,7 @@ ax.set_title("Model 2: mode-I quench spallation feasibility vs depth\n"
 ax.legend(fontsize=8, loc="lower right")
 ax.grid(alpha=0.3)
 fig.tight_layout()
-fig.savefig("model2_feasibility.png", dpi=130)
+import os
+_figdir = os.path.join(os.path.dirname(__file__), "..", "figures")
+fig.savefig(os.path.join(_figdir, "model2_feasibility.png"), dpi=130)
 print(f"saved model2_feasibility.png  (BDT at {zbdt:.1f} km)")

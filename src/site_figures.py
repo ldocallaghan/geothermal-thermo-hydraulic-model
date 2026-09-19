@@ -64,5 +64,7 @@ ax[2].set_title("Scorecard", fontsize=10)
 
 fig.suptitle("Site evaluation dashboard: Upper Rhine Graben / Soultz-sous-Forets", fontsize=12)
 fig.tight_layout()
-fig.savefig("site_dashboard.png", dpi=130)
+import os
+_figdir = os.path.join(os.path.dirname(__file__), "..", "figures")
+fig.savefig(os.path.join(_figdir, "site_dashboard.png"), dpi=130)
 print("saved site_dashboard.png")

@@ -58,5 +58,7 @@ ax.set_title(f"Coupled optimiser siting map (G={G*1000:.0f} K/km, m={m_dot} kg/s
              f"vacuum tubing)\nSPALL = pure quench spallation available; "
              f"red hatch = tool does not survive", fontsize=9)
 fig.tight_layout()
-fig.savefig("model3_siting_map.png", dpi=130)
+import os
+_figdir = os.path.join(os.path.dirname(__file__), "..", "figures")
+fig.savefig(os.path.join(_figdir, "model3_siting_map.png"), dpi=130)
 print("saved model3_siting_map.png")

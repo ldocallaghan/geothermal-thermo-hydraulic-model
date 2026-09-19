@@ -40,5 +40,7 @@ ax.set_title("European superhot candidates: the two axes that decide feasibility
              fontsize=10)
 ax.grid(alpha=0.3)
 fig.tight_layout()
-fig.savefig("comparative_sites.png", dpi=130)
+import os
+_figdir = os.path.join(os.path.dirname(__file__), "..", "figures")
+fig.savefig(os.path.join(_figdir, "comparative_sites.png"), dpi=130)
 print("saved comparative_sites.png")

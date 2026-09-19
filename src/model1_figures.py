@@ -33,5 +33,7 @@ axes[0].legend(fontsize=8, loc="lower left")
 fig.suptitle("Model 1: coupled counterflow borehole temperature profiles "
              "(G=35 K/km, 450 C at 12.4 km)", fontsize=11)
 fig.tight_layout()
-fig.savefig("model1_profiles.png", dpi=130)
+import os
+_figdir = os.path.join(os.path.dirname(__file__), "..", "figures")
+fig.savefig(os.path.join(_figdir, "model1_profiles.png"), dpi=130)
 print("saved model1_profiles.png")

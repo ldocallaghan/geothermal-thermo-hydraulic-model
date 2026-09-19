@@ -20,15 +20,15 @@ The models are built from first principles with real material data: IAPWS-95 wat
 
 ### Model figures
 
-![Model 1 coupled counterflow temperature profiles](model1_profiles.png)
+![Model 1 coupled counterflow temperature profiles](figures/model1_profiles.png)
 
 Model 1, G = 35 K/km with 450 °C at 12.4 km. Baseline insulation leaves the bit at 318 °C. Vacuum tubing brings it to 171 °C. Raising flow to 10 kg/s brings it to 59 °C and the export to 1.90 MW.
 
-![Model 2 quench spallation feasibility against depth](model2_feasibility.png)
+![Model 2 quench spallation feasibility against depth](figures/model2_feasibility.png)
 
 Model 2, available quench tension against the tension required at each confining ratio K0. Spallation needs the red curve above the dashed line and the rock still brittle, which is the shaded window at low K0.
 
-![Model 3 coupled optimiser siting map](model3_siting_map.png)
+![Model 3 coupled optimiser siting map](figures/model3_siting_map.png)
 
 Model 3, ROP gain from quench across target temperature and stress ratio. The 7.5x band is pure spallation, at K0 below 0.5 and below the brittle-ductile transition. Everywhere else the gain runs 1.5 to 2.3x.
 
@@ -37,7 +37,7 @@ Model 3, ROP gain from quench across target temperature and stress ratio. The 7.
 - `site_evaluation.py` takes a `SiteProfile`, which holds a site's geothermal gradient, stress state and rock data. It runs Models 1 to 5 against it and returns a verdict with the operating envelope.
 - `comparative_sites.py` scores four European provinces side by side.
 
-![Site evaluation dashboard for Soultz-sous-Forets](site_dashboard.png)
+![Site evaluation dashboard for Soultz-sous-Forets](figures/site_dashboard.png)
 
 `site_evaluation.py` output for Soultz-sous-Forêts: thermal profile, stress state and scorecard. Target 400 °C at 10.7 km, tool survival OK at 148 °C, 4.1 MW_th, breakout needs +3 MPa of mud weight. Verdict CONDITIONAL GO.
 
@@ -52,7 +52,7 @@ Model 3, ROP gain from quench across target temperature and stress ratio. The 7.
 
 Two axes govern it and both fall out of the physics: geothermal gradient sets the depth to superhot, and stress anisotropy sets stability.
 
-![European superhot candidates plotted on depth to 400 C against stress anisotropy](comparative_sites.png)
+![European superhot candidates plotted on depth to 400 C against stress anisotropy](figures/comparative_sites.png)
 
 ---
 
@@ -66,30 +66,36 @@ Two axes govern it and both fall out of the physics: geothermal gradient sets th
 
 ## Running it
 
+From the repository root:
+
 ```bash
 pip install -r requirements.txt
-python water_table.py        # one-time: build the cached IAPWS-95 property table (~2.5 min)
-python site_evaluation.py    # full verdict for the Upper Rhine Graben / Soultz site
-python comparative_sites.py  # four-site comparison table
+python src/water_table.py        # one-time: build the cached IAPWS-95 property table (~2.5 min)
+python src/site_evaluation.py    # full verdict for the Upper Rhine Graben / Soultz site
+python src/comparative_sites.py  # four-site comparison table
 ```
 
-Each model file runs standalone and prints its own analysis (`python model1_coupled.py`, and so on). The figure scripts (`*_figures.py`) regenerate the PNGs.
+Each model file runs standalone and prints its own analysis (`python src/model1_coupled.py`, and so on). The figure scripts (`src/*_figures.py`) regenerate the PNGs into `figures/`.
 
 ### Layout
 ```
-geo_constants.py          sourced constants (geotherm, rock, drilling, geometry)
-water_props.py            IAPWS-95 wrapper (point queries)
-water_table.py            cached, vectorised IAPWS-95 property table (T,P grid)
-model1_coupled.py         coupled 1-D counterflow borehole heat exchanger (BVP)
-model1_steadystate.py     single-depth bottom-hole heat balance
-model1_diameter_scaling.py / model1_depth_limits.py   scaling analyses
-model2_spallation.py      thermoelastic quench fracture vs confining stress
-model3_optimiser.py       coupled drilling and thermal optimiser, siting map
-model4_hole_stability.py  creep closure and convection (Péclet) check
-model5_convergence_confinement.py   ground-reaction-curve hole stability
-site_evaluation.py        SiteProfile and integrated verdict
-comparative_sites.py      four European provinces
-*_figures.py              figure generators
+README.md                 this file
+requirements.txt
+figures/                  generated PNGs (embedded above)
+src/
+  geo_constants.py        sourced constants (geotherm, rock, drilling, geometry)
+  water_props.py          IAPWS-95 wrapper (point queries)
+  water_table.py          cached, vectorised IAPWS-95 property table (T,P grid)
+  model1_coupled.py       coupled 1-D counterflow borehole heat exchanger (BVP)
+  model1_steadystate.py   single-depth bottom-hole heat balance
+  model1_diameter_scaling.py, model1_depth_limits.py   scaling analyses
+  model2_spallation.py    thermoelastic quench fracture vs confining stress
+  model3_optimiser.py     coupled drilling and thermal optimiser, siting map
+  model4_hole_stability.py            creep closure and convection (Péclet) check
+  model5_convergence_confinement.py   ground-reaction-curve hole stability
+  site_evaluation.py      SiteProfile and integrated verdict
+  comparative_sites.py    four European provinces
+  *_figures.py            figure generators (write PNGs to ../figures)
 ```
 
 ---

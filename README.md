@@ -24,31 +24,31 @@ The core of each model, in the notation the code uses.
 
 **Model 1** solves two coupled advection balances for the down and up legs, with the rock wall as a fixed-temperature boundary:
 
-$$\dot{m}\,c_p\frac{dT_d}{dz}=U\!A_i\,(T_u-T_d)$$
+$$\dot{m}c_p\frac{dT_d}{dz}=UA_i(T_u-T_d)$$
 
-$$\dot{m}\,c_p\frac{dT_u}{dz}=U\!A_i\,(T_u-T_d)-U\!A_o\big(T_{\text{rock}}(z)-T_u\big)$$
+$$\dot{m}c_p\frac{dT_u}{dz}=UA_i(T_u-T_d)-UA_o\big(T_{\text{rock}}(z)-T_u\big)$$
 
-with $T_d(0)=T_{\text{inj}}$ and $T_u(L)=T_d(L)+\dfrac{Q_{\text{face}}}{\dot m\,c_p}$. Output per unit length is set by conduction into the rock, which is why diameter barely helps:
+with $T_d(0)=T_{\text{inj}}$ and $T_u(L)=T_d(L)+\dfrac{Q_{\text{face}}}{\dot{m}c_p}$. Output per unit length is set by conduction into the rock, which is why diameter barely helps:
 
-$$q'(z)=\frac{2\pi k_{\text{rock}}\,\Delta T}{\ln(r_\infty/r_w)},\qquad r_\infty\approx 2\sqrt{\alpha t}$$
+$$q'(z)=\frac{2\pi k_{\text{rock}}\Delta T}{\ln(r_\infty/r_w)},\qquad r_\infty\approx 2\sqrt{\alpha t}$$
 
 **Model 2** puts the quenched face under constrained thermal stress and asks whether it beats the confining stress plus the rock's tensile strength:
 
-$$\sigma_T=\frac{E\,\alpha\,\Delta T}{1-\nu},\qquad \sigma_T-K_0\,\rho g z>T_0$$
+$$\sigma_T=\frac{E\alpha\Delta T}{1-\nu},\qquad \sigma_T-K_0\rho g z>T_0$$
 
 The transient temperature field is the convective half-space solution:
 
-$$T(x,t)=T_{\text{rock}}+(T_{\text{cold}}-T_{\text{rock}})\big[\operatorname{erfc}\eta-e^{-\eta^2}\operatorname{erfcx}(\eta+\beta)\big],\qquad \eta=\frac{x}{2\sqrt{\alpha t}},\ \ \beta=\frac{h\sqrt{\alpha t}}{k}$$
+$$T(x,t)=T_{\text{rock}}+(T_{\text{cold}}-T_{\text{rock}})\big[\mathrm{erfc}(\eta)-e^{-\eta^2}\mathrm{erfcx}(\eta+\beta)\big],\qquad \eta=\frac{x}{2\sqrt{\alpha t}},\quad \beta=\frac{h\sqrt{\alpha t}}{k}$$
 
 **Model 3** turns the quench into an effective cutting energy and a penetration rate, then feeds the face heat back into Model 1:
 
-$$\text{MSE}_{\text{eff}}=\text{MSE}\,(1-D),\qquad \text{ROP}=\frac{P_{\text{mech}}}{\text{MSE}_{\text{eff}}\,A_{\text{bit}}}$$
+$$\text{MSE}_{\text{eff}}=\text{MSE}(1-D),\qquad \text{ROP}=\frac{P_{\text{mech}}}{\text{MSE}_{\text{eff}}\cdot A_{\text{bit}}}$$
 
-$$Q_{\text{face}}=\underbrace{\text{MSE}\,A\,\text{ROP}}_{\text{cutting}}+\underbrace{\rho c\,A\,\text{ROP}\,\Delta T}_{\text{cuttings sensible heat}}+Q_{\text{cond}}$$
+$$Q_{\text{face}}=\underbrace{\text{MSE}\cdot A\cdot\text{ROP}}_{\text{cutting}}+\underbrace{\rho c\cdot A\cdot\text{ROP}\cdot\Delta T}_{\text{cuttings sensible heat}}+Q_{\text{cond}}$$
 
 **Model 4** rates time-dependent creep closure with an Arrhenius power law, and checks that convective resupply stays negligible:
 
-$$\dot\varepsilon=A\,\sigma^{n}\exp\!\left(-\frac{Q}{R\,T}\right),\qquad \text{Pe}=\frac{vL}{\alpha}\ll 1$$
+$$\dot\varepsilon=A\sigma^{n}\exp\left(-\frac{Q}{RT}\right),\qquad \mathrm{Pe}=\frac{vL}{\alpha}\ll 1$$
 
 **Model 5** takes the plastic zone from the ground-reaction curve, and the breakout stress at a vertical wall from the Kirsch solution:
 

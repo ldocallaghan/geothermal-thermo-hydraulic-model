@@ -48,6 +48,18 @@ def sigma_cm(T_C, UCS=None):
     return UCS * max(1.0 - 0.0009 * max(T_C - 25.0, 0.0), 0.4)
 
 
+def hoop_stress(theta_deg, SHmax, Shmin, Pw, dsigma_T=0.0):
+    """Kirsch hoop stress [Pa] at the wall of a vertical hole (spec v1.1, C3).
+
+    theta is measured from the SHmax azimuth, so the compressive peak,
+    3 SHmax - Shmin - Pw, is at 90 deg (the Shmin azimuth, where breakouts
+    form) and the minimum, 3 Shmin - SHmax - Pw, at 0 deg. dsigma_T is the
+    thermal hoop stress (C7); zero when that is off. Vectorised over theta.
+    """
+    th = np.radians(np.asarray(theta_deg, dtype=float))
+    return SHmax + Shmin - 2.0 * (SHmax - Shmin) * np.cos(2.0 * th) - Pw + dsigma_T
+
+
 def frictional_cap(mu):
     """Largest effective S1/S3 a crust of optimally oriented faults with
     friction mu can sustain: ((1 + mu^2)^0.5 + mu)^2 (Jaeger & Cook)."""

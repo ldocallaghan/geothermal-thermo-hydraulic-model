@@ -187,7 +187,9 @@ SOULTZ = SiteProfile(
 def stability_inputs(site, z, T_rock, v10=False, mu=C.FRICTION_MU, UCS=None):
     """Stress state, admissibility (C2) and breakout for every stress case at z.
 
-    v10=True reproduces v1.0: the site ratios, nothing else. Otherwise each of
+    v10=True reproduces v1.0: the site ratios and the total-stress breakout
+    check, nothing else. Otherwise the breakout check is in effective stress
+    (C3) with the case's own pore pressure, and each of
     the site's stress cases is evaluated, SHmax is capped at the frictional
     limit below the depth its data cover, and the reference case is the one
     needing the most mud to suppress breakout (the worst case in the range).
@@ -212,7 +214,8 @@ def stability_inputs(site, z, T_rock, v10=False, mu=C.FRICTION_MU, UCS=None):
             profile=p, Sv=Sv, Shmin=Shmin, SHmax=SHmax, Pp=Pp,
             beyond_data=beyond, cap_binds=cap_binds, cap_depth=p.cap_depth(mu),
             admissible=m5.stress_admissible(Sv, Shmin, SHmax, Pp, mu),
-            breakout=breakout_v10(Shmin, SHmax, P_mud, T_rock, UCS=UCS)))
+            breakout=(breakout_v10(Shmin, SHmax, P_mud, T_rock, UCS=UCS) if v10 else
+                      breakout_eff(Shmin, SHmax, P_mud, Pp, T_rock, UCS=UCS))))
     ref = max(cases, key=lambda c: c["breakout"]["P_need"])
     return ref, cases
 
@@ -260,6 +263,31 @@ def breakout_v10(Shmin, SHmax, P_fluid, T_rock, T_wall=None, UCS=None):
                 P_need=P_need, over_hydro=P_need / P_fluid,
                 overbalance_MPa=(P_need - P_fluid) / 1e6,
                 breaks=sth > mc_cold, frac_limited=P_need > Shmin)
+
+
+def breakout_eff(Shmin, SHmax, Pw, Pp, T_rock, T_wall=None, UCS=None, dsigma_T=0.0):
+    """Effective-stress breakout check at the Shmin azimuth (spec v1.1, C3).
+
+    Fails when sigma_theta - Pp > sigma_cm(T_wall, UCS) + KMC (Pw - Pp): the
+    Kirsch hoop stress from model5.hoop_stress, Mohr-Coulomb in effective
+    stress, with no filter-cake credit beyond Pw - Pp. With Pp = 0 and
+    dsigma_T = 0 it is breakout_v10 exactly. Same keys as breakout_v10, with
+    sigma_theta the total hoop stress and mc_cold / mc_hot the total-stress
+    limits (Pp plus the effective strength), so the two stay comparable.
+    """
+    if T_wall is None:
+        T_wall = min(T_rock, T_WALL_CAP)
+    K = m5.KMC
+    sth = float(m5.hoop_stress(90.0, SHmax, Shmin, Pw, dsigma_T))
+    mc_cold = Pp + m5.sigma_cm(T_wall, UCS) + K * (Pw - Pp)
+    mc_hot = Pp + m5.sigma_cm(T_rock, UCS) + K * (Pw - Pp)
+    # the Pw at which sigma_theta - Pp equals the cold limit
+    P_need = (3 * SHmax - Shmin + dsigma_T - m5.sigma_cm(T_wall, UCS)
+              + (K - 1) * Pp) / (1 + K)
+    return dict(sigma_theta=sth, mc_hot=mc_hot, mc_cold=mc_cold,
+                P_need=P_need, over_hydro=P_need / Pw,
+                overbalance_MPa=(P_need - Pw) / 1e6,
+                breaks=bool(sth > mc_cold), frac_limited=bool(P_need > Shmin))
 
 
 # ------------------------------------------------------------- the evaluation

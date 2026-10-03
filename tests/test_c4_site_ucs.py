@@ -66,8 +66,10 @@ def test_every_site_run_passes_its_own_ucs(site):
     o = se.evaluate(site)
     assert o["UCS"] == site.UCS
     b = o["breakout"]
+    # effective-stress limit since C3: Pp + sigma_cm + KMC (Pw - Pp)
+    Pp = o["Pp"]
     assert b["mc_cold"] == pytest.approx(
-        m5.KMC * o["P_fluid"] + m5.sigma_cm(200.0, site.UCS))
+        Pp + m5.sigma_cm(200.0, site.UCS) + m5.KMC * (o["P_fluid"] - Pp))
     assert o["grc"]["reg_c"] == m5.grc(o["P_fluid"], o["Shmin"], 200.0,
                                        UCS=site.UCS)[3]
 

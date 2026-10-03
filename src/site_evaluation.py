@@ -44,6 +44,89 @@ def urg_geotherm(z):
         default=200.0 + 0.035 * np.clip(z - 5000.0, 0, None))
 
 
+# ------------------------------------------------------------ stress profiles
+@dataclass(frozen=True)
+class StressProfile:
+    """Linear in-situ stress with depth: S(z) = grad * z + intercept [Pa, z in m].
+
+    Pore pressure is Pp_grad * (z - Pp_datum) below a static fluid level at
+    Pp_datum [m], zero above it. z_data is the depth range [m] the magnitude data
+    actually cover, or None when the profile rests on regime bounds alone.
+    """
+    label: str
+    Sv_grad: float
+    Shmin_grad: float
+    SHmax_grad: float
+    Sv_int: float = 0.0
+    Shmin_int: float = 0.0
+    SHmax_int: float = 0.0
+    Pp_grad: float = C.HYDROSTATIC_GRAD
+    Pp_datum: float = 0.0
+    source: str = ""
+    z_data: tuple = None
+
+    @classmethod
+    def from_ratios(cls, Sv_grad, K0_min, SHmax_over_Sv, label="v1.0 ratios",
+                    Pp_grad=C.HYDROSTATIC_GRAD, **kw):
+        """v1.0's constant ratios against a linear overburden (no intercepts)."""
+        return cls(label=label, Sv_grad=Sv_grad, Shmin_grad=K0_min * Sv_grad,
+                   SHmax_grad=SHmax_over_Sv * Sv_grad, Pp_grad=Pp_grad, **kw)
+
+    def Sv(self, z):
+        return self.Sv_grad * z + self.Sv_int
+
+    def Shmin(self, z):
+        return self.Shmin_grad * z + self.Shmin_int
+
+    def SHmax(self, z):
+        return self.SHmax_grad * z + self.SHmax_int
+
+    def Pp(self, z):
+        return self.Pp_grad * np.maximum(np.asarray(z, dtype=float) - self.Pp_datum, 0.0)
+
+    def beyond_data(self, z):
+        """Metres by which z lies below the deepest data; None with no data."""
+        return None if self.z_data is None else max(z - self.z_data[1], 0.0)
+
+    def cap_depth(self, mu):
+        """Depth [m] below which SHmax exceeds the frictional limit at mu, or None.
+
+        Below the static fluid level every term is linear in z, so the crossing
+        of SHmax - Pp = R (Shmin - Pp) is solved in closed form.
+        """
+        R = m5.frictional_cap(mu)
+        a = self.SHmax_grad - self.Pp_grad - R * (self.Shmin_grad - self.Pp_grad)
+        b = (self.SHmax_int - R * self.Shmin_int
+             - (R - 1) * self.Pp_grad * self.Pp_datum)
+        a_tol = m5.CAP_RTOL * (abs(self.SHmax_grad) + R * abs(self.Shmin_grad))
+        if abs(a) <= a_tol:              # parallel to the cap: on it, or over it everywhere
+            return 0.0 if b > 1.0 else None
+        if a < 0:
+            return None                  # moves away from the cap with depth
+        return float(max(-b / a, self.Pp_datum))
+
+
+def transitional_bounds(Sv_grad, source, Sv_int=0.0, Pp_grad=C.HYDROSTATIC_GRAD,
+                        mu=C.FRICTION_MU, fractions=(0.0, 0.25, 0.5, 0.75, 1.0)):
+    """Profiles for a normal/strike-slip transition regime (SHmax ~ Sv) where no
+    magnitudes are measured (spec v1.1, D5).
+
+    SHmax = Sv; Shmin runs from the frictional floor Pp + (Sv - Pp)/R(mu), at
+    fraction 0, to Sv at fraction 1. Hydrostatic Pp from surface keeps every
+    profile linear. The floor case is the most anisotropic one the regime allows.
+    """
+    R = m5.frictional_cap(mu)
+    floor_g = Pp_grad + (Sv_grad - Pp_grad) / R
+    floor_i = Sv_int / R
+    return tuple(
+        StressProfile(label=f"Shmin {f:.0%} of floor-to-Sv", Sv_grad=Sv_grad,
+                      Sv_int=Sv_int, SHmax_grad=Sv_grad, SHmax_int=Sv_int,
+                      Shmin_grad=floor_g + f * (Sv_grad - floor_g),
+                      Shmin_int=floor_i + f * (Sv_int - floor_i),
+                      Pp_grad=Pp_grad, source=source, z_data=None)
+        for f in fractions)
+
+
 @dataclass
 class SiteProfile:
     name: str
@@ -56,6 +139,17 @@ class SiteProfile:
     rho_fluid_grad: float       # Pa/m, in-hole fluid pressure gradient
     k_rock: float; E_rock: float; UCS: float
     T_inj: float = 40.0
+    # v1.1 (C1): the stress cases the site's data support. One for a fully
+    # measured profile, several where a magnitude is a range or the stresses
+    # rest on regime bounds. Empty means v1.0's ratios, via from_ratios.
+    stress_cases: tuple = ()
+    stress_basis: str = "v1.0 ratios"     # "measured", "measured range" or "regime bounds"
+
+    def __post_init__(self):
+        if not self.stress_cases:
+            self.stress_cases = (StressProfile.from_ratios(
+                self.Sv_grad, self.K0_min, self.SHmax_over_Sv,
+                Pp_grad=self.rho_fluid_grad, source="v1.0 site ratios"),)
 
     @property
     def anisotropy(self):
@@ -74,7 +168,53 @@ SOULTZ = SiteProfile(
     k_rock=2.9,                 # URG biotite granite ~2.5-3.2 W/m/K
     E_rock=55e9,                # granite ~50-60 GPa
     UCS=170e6,                  # crystalline basement ~150-200 MPa
+    # Valley & Evans (2007), Stanford Geothermal Workshop SGP-TR-183, valid
+    # 1.5-5.0 km: Sv = -1.30 + 25.50z, Shmin = -1.78 + 14.06z,
+    # -1.17 + 22.95z <= SHmax < -1.37 + 26.78z  [MPa, z in km], i.e.
+    # 0.90 Sv <= SHmax <= 1.05 Sv. Near-hydrostatic pore pressure.
+    stress_cases=tuple(
+        StressProfile(label=lab, Sv_grad=25.50e3, Sv_int=-1.30e6,
+                      Shmin_grad=14.06e3, Shmin_int=-1.78e6,
+                      SHmax_grad=g * 1e3, SHmax_int=i * 1e6,
+                      source="Valley & Evans (2007)", z_data=(1500.0, 5000.0))
+        for lab, g, i in (("SHmax lower bound (0.90 Sv)", 22.95, -1.17),
+                          ("SHmax mid-range", 24.865, -1.27),
+                          ("SHmax upper bound (1.05 Sv)", 26.78, -1.37))),
+    stress_basis="measured range",
 )
+
+
+def stability_inputs(site, z, T_rock, v10=False, mu=C.FRICTION_MU, UCS=None):
+    """Stress state, admissibility (C2) and breakout for every stress case at z.
+
+    v10=True reproduces v1.0: the site ratios, nothing else. Otherwise each of
+    the site's stress cases is evaluated, SHmax is capped at the frictional
+    limit below the depth its data cover, and the reference case is the one
+    needing the most mud to suppress breakout (the worst case in the range).
+    Needs no Model 1-4 calls.
+    """
+    P_mud = site.rho_fluid_grad * z
+    if v10:
+        Sv, Shmin, SHmax, _ = stresses_v10(site, z)
+        profiles = [(site.stress_cases[0], Sv, Shmin, SHmax, C.HYDROSTATIC_GRAD * z)]
+    else:
+        profiles = [(p, p.Sv(z), p.Shmin(z), p.SHmax(z), float(p.Pp(z)))
+                    for p in site.stress_cases]
+    cases = []
+    for p, Sv, Shmin, SHmax, Pp in profiles:
+        beyond = None if v10 else p.beyond_data(z)
+        SHmax_lim = m5.SHmax_frictional_limit(Shmin, Pp, mu)
+        cap_binds = bool(beyond is not None and beyond > 0
+                         and SHmax > SHmax_lim * (1 + m5.CAP_RTOL))
+        if cap_binds:
+            SHmax = SHmax_lim
+        cases.append(dict(
+            profile=p, Sv=Sv, Shmin=Shmin, SHmax=SHmax, Pp=Pp,
+            beyond_data=beyond, cap_binds=cap_binds, cap_depth=p.cap_depth(mu),
+            admissible=m5.stress_admissible(Sv, Shmin, SHmax, Pp, mu),
+            breakout=breakout_v10(Shmin, SHmax, P_mud, T_rock, UCS=UCS)))
+    ref = max(cases, key=lambda c: c["breakout"]["P_need"])
+    return ref, cases
 
 
 def stresses_v10(site, z):
@@ -133,11 +273,17 @@ def evaluate(site: SiteProfile, v10=False):
     z = site.target_depth
     UCS = None if v10 else site.UCS
     T_rock = float(site.geotherm(z))
-    Sv, Shmin, SHmax, P_fluid = stresses_v10(site, z)
+    ref, cases = stability_inputs(site, z, T_rock, v10=v10, UCS=UCS)
+    Sv, Shmin, SHmax = ref["Sv"], ref["Shmin"], ref["SHmax"]
+    P_fluid = site.rho_fluid_grad * z
+    # Shmin/Sv at the target from the reference case; v1.0 used the site ratio
+    K0 = site.K0_min if v10 else Shmin / Sv
     # effective gradient that reproduces the real target depth in scalar-G models
     G_deep = (T_rock - C.SURFACE_TEMP) / z
     out = dict(site=site, z=z, T_rock=T_rock, Sv=Sv, Shmin=Shmin, SHmax=SHmax,
-               P_fluid=P_fluid, UCS=C.UCS if UCS is None else UCS)
+               P_fluid=P_fluid, UCS=C.UCS if UCS is None else UCS, v10=v10,
+               K0=K0, anisotropy=SHmax / Shmin, Pp=ref["Pp"],
+               stress=ref, stress_cases=cases)
 
     # --- (1) SURVIVAL & ENERGY: Model 1 with the real LAYERED geotherm ---
     # scan flow for the minimum that keeps the bit < survival ceiling
@@ -153,9 +299,9 @@ def evaluate(site: SiteProfile, v10=False):
     out["m_min"], out["m1"] = surv
 
     # --- (2/3) DRILLABILITY: regime + quench ROP gain (spallation uses K0=Shmin)
-    drill = m3.evaluate(G_deep, site.K0_min, out["m_min"], k_ins=0.02,
+    drill = m3.evaluate(G_deep, K0, out["m_min"], k_ins=0.02,
                         target_rock_T=T_rock, quench=True)
-    drill_nq = m3.evaluate(G_deep, site.K0_min, out["m_min"], k_ins=0.02,
+    drill_nq = m3.evaluate(G_deep, K0, out["m_min"], k_ins=0.02,
                            target_rock_T=T_rock, quench=False)
     out["drill"] = drill
     out["rop_gain"] = drill["ROP"] / drill_nq["ROP"] if drill_nq["ROP"] > 0 else np.nan
@@ -169,7 +315,7 @@ def evaluate(site: SiteProfile, v10=False):
     u_cold, rp_cold, pcr_c, reg_c = m5.grc(P_fluid, Shmin, 200.0, UCS=UCS)
     out["grc"] = dict(u_hot=u_hot, u_cold=u_cold, rp_hot=rp_hot, rp_cold=rp_cold,
                       reg_h=reg_h, reg_c=reg_c)
-    out["breakout"] = breakout_v10(Shmin, SHmax, P_fluid, T_rock, UCS=UCS)
+    out["breakout"] = ref["breakout"]
 
     # production-flow energy (the survival run uses min flow, which minimises MW)
     rp = m1.solve(m_dot=10.0, T_inj=site.T_inj, k_ins=0.02, k_rock=site.k_rock,
@@ -187,7 +333,12 @@ def report(o):
     print(f"  Target: {o['T_rock']:.0f} C rock at {o['z']/1000:.1f} km "
           f"(layered geotherm; supercritical-class)")
     print(f"  In-situ stress: Sv={o['Sv']/1e6:.0f}  SHmax={o['SHmax']/1e6:.0f}  "
-          f"Shmin={o['Shmin']/1e6:.0f} MPa  | K0={s.K0_min:.2f}  anisotropy={s.anisotropy:.2f}")
+          f"Shmin={o['Shmin']/1e6:.0f} MPa  | K0={o['K0']:.2f}  anisotropy={o['anisotropy']:.2f}")
+    print(f"  Stress basis: {s.stress_basis} ({o['stress']['profile'].source}); "
+          f"pore pressure {o['Pp']/1e6:.0f} MPa")
+    a = o["stress"]["admissible"]
+    print(f"  Admissibility at mu {a['mu']}: effective S1/S3 {a['ratio']:.2f} vs cap "
+          f"{a['cap']:.2f} -> {'admissible' if a['admissible'] else 'INADMISSIBLE'}")
     print(f"  Fluid pressure (hydrostatic): {o['P_fluid']/1e6:.0f} MPa")
     print("-" * 80)
     md, r = o["m_min"], o["m1"]
@@ -198,7 +349,7 @@ def report(o):
     print(f"      at production flow 10 kg/s: {o['MW_prod']:.1f} MW_th, return {o['Tret_prod']:.0f} C")
     print("-" * 80)
     d = o["drill"]
-    print(f"  [2/3] DRILLABILITY (quench-assist; spallation uses Shmin/Sv={s.K0_min:.2f})")
+    print(f"  [2/3] DRILLABILITY (quench-assist; spallation uses Shmin/Sv={o['K0']:.2f})")
     print(f"      regime: {d['regime']} | effective MSE {d['MSE_eff']/1e6:.0f} MPa | "
           f"ROP {d['ROP']*3600:.1f} m/hr | quench gain {o['rop_gain']:.1f}x")
     print("-" * 80)
@@ -224,10 +375,10 @@ def report(o):
 
 def verdict_lines(o):
     s = o["site"]; b = o["breakout"]
-    print(f"   + Extensional graben (K0={s.K0_min:.2f}): low confinement aids quench & limits")
+    print(f"   + Extensional graben (K0={o['K0']:.2f}): low confinement aids quench & limits")
     print(f"     the minimum-stress; tool survival closes with active cooling.")
     print(f"   + Cooling controls time-dependent creep by ~{o['creep_hot']/max(o['creep_cold'],1e-30):.0e}x.")
-    print(f"   - HIGH anisotropy (SHmax/Shmin={s.anisotropy:.2f}) drives breakout, but only marginally:")
+    print(f"   - HIGH anisotropy (SHmax/Shmin={o['anisotropy']:.2f}) drives breakout, but only marginally:")
     print(f"     +{b['overbalance_MPa']:.0f} MPa overbalance ({b['over_hydro']:.2f}x hydrostatic) suppresses it,")
     print(f"     plus cooling margin. The binding constraint -- as in the real GPK wells, which")
     print(f"     broke out yet were drilled to 5 km -- not a showstopper.")

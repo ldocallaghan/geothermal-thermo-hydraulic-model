@@ -44,6 +44,12 @@ TARGET_ROCK_TEMP = 450.0           # degC
 # We use 10 MPa/km as a round, slightly conservative (high) value; the model
 # can also integrate rho(z)*g for a self-consistent column.
 HYDROSTATIC_GRAD = 10.0e6 / 1000.0  # Pa/m  (10 MPa/km)
+# Friction coefficient of optimally oriented faults, for the frictional
+# admissibility cap on effective S1/S3 (spec v1.1, D1). 0.8 is the value
+# Reinecker et al. (2021) build the United Downs SHmax on; 0.6 (KTB, Ito &
+# Zoback 2000) and 0.85 (Byerlee 1978) are reported as sensitivities.
+FRICTION_MU = 0.8
+FRICTION_MU_SENSITIVITY = (0.6, 0.85)
 # Lithostatic (overburden) gradient, for the confining-stress reality check in
 # Model 2: rho_rock * g ~ 2700*9.81 = 26.5 kPa/m ~ 26.5 MPa/km.
 LITHOSTATIC_GRAD = 2700.0 * 9.81    # Pa/m  (~26.5 MPa/km)

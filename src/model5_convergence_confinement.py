@@ -48,6 +48,36 @@ def sigma_cm(T_C, UCS=None):
     return UCS * max(1.0 - 0.0009 * max(T_C - 25.0, 0.0), 0.4)
 
 
+def frictional_cap(mu):
+    """Largest effective S1/S3 a crust of optimally oriented faults with
+    friction mu can sustain: ((1 + mu^2)^0.5 + mu)^2 (Jaeger & Cook)."""
+    return (np.sqrt(1.0 + mu ** 2) + mu) ** 2
+
+
+# Relative tolerance for "at the cap": regime-bound profiles are built exactly on
+# it, and rounding must not tip them over.
+CAP_RTOL = 1e-9
+
+
+def stress_admissible(Sv, Shmin, SHmax, Pp, mu):
+    """Frictional admissibility of a stress state (spec v1.1, C2).
+
+    Compares effective S1/S3 with frictional_cap(mu). Returns ratio, cap,
+    margin (cap - ratio, negative when over) and the admissible flag. Works on
+    any regime: S1 and S3 are the largest and smallest of the three.
+    """
+    S1, S3 = max(Sv, Shmin, SHmax), min(Sv, Shmin, SHmax)
+    cap = frictional_cap(mu)
+    ratio = (S1 - Pp) / (S3 - Pp) if S3 > Pp else np.inf
+    return dict(ratio=ratio, cap=cap, margin=cap - ratio,
+                admissible=bool(ratio <= cap * (1 + CAP_RTOL)), mu=mu)
+
+
+def SHmax_frictional_limit(Shmin, Pp, mu):
+    """Largest SHmax the frictional cap allows given Shmin: Pp + R(mu)(Shmin - Pp)."""
+    return Pp + frictional_cap(mu) * (Shmin - Pp)
+
+
 def E_of_T(T_C):
     return max(C.E_ROCK * (1.0 - 0.0007 * max(T_C - 25.0, 0.0)), 0.3 * C.E_ROCK)
 

@@ -104,8 +104,13 @@ def test_regime_bounds_run_from_the_frictional_floor_to_sv(site):
 
 @pytest.mark.parametrize("site", SITES, ids=lambda s: s.name.split()[0])
 def test_reference_case_is_the_worst_in_range(site):
+    """Worst verdict first, then the narrowest window (closest to NO-GO)."""
     ref, cases = at_target(site)
-    assert ref["breakout"]["P_need"] == max(c["breakout"]["P_need"] for c in cases)
+    worst = se.worst_verdict([c["window"]["verdict"] for c in cases])
+    assert ref["window"]["verdict"] == worst
+    margin = lambda c: c["window"]["Pw_hi"] - c["window"]["Pw_lo"]
+    assert margin(ref) == min(margin(c) for c in cases
+                              if c["window"]["verdict"] == worst)
 
 
 def test_regime_bound_reference_is_the_floor_case():

@@ -50,6 +50,16 @@ HYDROSTATIC_GRAD = 10.0e6 / 1000.0  # Pa/m  (10 MPa/km)
 # Zoback 2000) and 0.85 (Byerlee 1978) are reported as sensitivities.
 FRICTION_MU = 0.8
 FRICTION_MU_SENSITIVITY = (0.6, 0.85)
+# Drillability verdict (spec v1.1, C6). W_max: the widest breakout lobe a well
+# is drilled with, the empirical criterion in Zoback (2007), ch. 10 (D2).
+# T0: wall tensile strength for the tensile-fracture report; zero because a
+# critically stressed wall fails from existing flaws (D4). The window's upper
+# bound is Shmin less a margin; 0.05 SG (~0.4 ppg) is a typical drilling margin
+# against losses and is NOT set by the spec -- adjust if a better value exists.
+BREAKOUT_W_MAX_DEG = 90.0
+WALL_T0 = 0.0
+MUD_MARGIN_SG = 0.05
+MUD_SG_GRAD = 1000.0 * 9.81           # Pa/m per unit SG
 # Lithostatic (overburden) gradient, for the confining-stress reality check in
 # Model 2: rho_rock * g ~ 2700*9.81 = 26.5 kPa/m ~ 26.5 MPa/km.
 LITHOSTATIC_GRAD = 2700.0 * 9.81    # Pa/m  (~26.5 MPa/km)

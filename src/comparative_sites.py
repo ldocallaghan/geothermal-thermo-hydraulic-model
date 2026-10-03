@@ -21,6 +21,7 @@ flagged as the key uncertainty):
 """
 import numpy as np
 import geo_constants as C
+import site_evaluation as se
 from site_evaluation import (SiteProfile, SOULTZ, StressProfile, evaluate,
                              transitional_bounds)
 
@@ -89,10 +90,38 @@ SITES = [SOULTZ, LARDERELLO, CORNWALL, PANNONIAN]
 
 
 def classify(o):
-    """(survives, stability, verdict). Since C2 a stress state over the
-    frictional cap can't be GO; the v1.0 adapter skips that rule."""
-    b = o["breakout"]
+    """(survives, stability, verdict).
+
+    v1.0 adapter: the v1.0 rule, breakout fully suppressed below Shmin.
+    v1.1 (C6): the mud-window verdict on breakout width, worst case in the
+    site's stress range, with the range appended when the cases disagree. A
+    stress state over the frictional cap (C2) can't be GO.
+    """
     surv = o["m1"]["T_bottom_delivered"] < C.BHA_SURVIVAL_TEMP
+    if o.get("v10"):
+        return (surv,) + _classify_v10(o)
+    w = o["stress"]["window"]
+    if w["verdict"] == "GO":
+        stab = f"OK ({w['width_hydro']:.0f} deg)"
+    elif w["verdict"] == "CONDITIONAL":
+        stab = f"+{w['overbalance_MPa']:.0f}MPa ({w['SG_lo']:.2f} SG)"
+    else:
+        stab = "NO (window shut)"
+    verdict = w["verdict"]
+    if verdict != "NO-GO" and o["T_rock"] >= 420:
+        verdict = "GO* (ductile-drill)"
+    verdicts = {c["window"]["verdict"] for c in o["stress_cases"]}
+    if len(verdicts) > 1:
+        lo, hi = min(verdicts, key=se.VERDICT_ORDER.index), se.worst_verdict(verdicts)
+        verdict += f" [{lo}..{hi}]"
+    if not o["stress"]["admissible"]["admissible"]:
+        verdict = verdict.replace("GO", "CONDITIONAL", 1) if verdict.startswith("GO") else verdict
+        verdict += " (stress inadmissible)"
+    return surv, stab, verdict
+
+
+def _classify_v10(o):
+    b = o["breakout"]
     if b["frac_limited"]:
         stab = "NO (frac-limited)"
     elif not b["breaks"]:
@@ -108,12 +137,12 @@ def classify(o):
         verdict = "CONDITIONAL"
     else:
         verdict = "GO"
-    if not o.get("v10") and not o["stress"]["admissible"]["admissible"]:
-        verdict = ("CONDITIONAL" if verdict == "GO" else verdict) + " (stress inadmissible)"
-    return surv, stab, verdict
+    return stab, verdict
+
 
 def print_stress_cases(o):
-    """Stress basis, data coverage, admissibility (C2) and the range of cases."""
+    """Stress basis, data coverage, admissibility (C2), mud window (C6) and the
+    range of stress cases."""
     s, ref = o["site"], o["stress"]
     beyond = ref["beyond_data"]
     cover = ("no magnitude data" if beyond is None else
@@ -124,13 +153,22 @@ def print_stress_cases(o):
     print(f"    admissibility at mu {a['mu']}: effective S1/S3 {a['ratio']:.2f} vs cap "
           f"{a['cap']:.2f} -> {'admissible' if a['admissible'] else 'INADMISSIBLE'}"
           + ("; SHmax capped at the frictional limit" if ref["cap_binds"] else ""))
+    w = ref["window"]
+    print(f"    mud window (W_max {w['W_max']:.0f} deg, wall {w['T_wall']:.0f} C): "
+          f"{w['SG_lo']:.2f}-{w['SG_hi']:.2f} SG "
+          f"({w['Pw_lo']/1e6:.0f}-{w['Pw_hi']/1e6:.0f} MPa){'' if w['open'] else ', SHUT'}; "
+          f"breakout {w['width_hydro']:.0f} deg at hydrostatic, "
+          f"{w['width_hi']:.0f} deg at the heaviest mud")
+    tf = ("at every mud weight above pore pressure" if w["Pw_tensile"] <= ref["Pp"] else
+          f"above {w['Pw_tensile']/1e6:.0f} MPa ({w['Pw_tensile']/(C.MUD_SG_GRAD*o['z']):.2f} SG)")
+    print(f"    tensile fractures (T0 {C.WALL_T0/1e6:.0f} MPa) initiate {tf}; reported, not a bound")
     if len(o["stress_cases"]) > 1:
         for c in o["stress_cases"]:
-            b = c["breakout"]
+            cw = c["window"]
             mark = "*" if c is ref else " "
             print(f"     {mark} {c['profile'].label:<30} Shmin {c['Shmin']/1e6:5.0f} "
-                  f"SHmax {c['SHmax']/1e6:5.0f}  P_need {b['P_need']/1e6:5.0f}  "
-                  f"{'frac-limited' if b['frac_limited'] else 'breaks' if b['breaks'] else 'stable'}")
+                  f"SHmax {c['SHmax']/1e6:5.0f}  window {cw['SG_lo']:.2f}-{cw['SG_hi']:.2f} SG  "
+                  f"{cw['width_hydro']:3.0f} deg at hydro  {cw['verdict']}")
         print("       (* = worst case in range, used for the table row)")
 
 
@@ -139,7 +177,7 @@ if __name__ == "__main__":
     results = [evaluate(s) for s in SITES]
 
     hdr = (f"{'Site':<26}{'depth':>7}{'T_rock':>7}{'K0':>5}{'aniso':>6}"
-           f"{'bitC':>6}{'MW':>5}{'ROP':>5}{'gain':>5}{'stability':>18}{'verdict':>20}")
+           f"{'bitC':>6}{'MW':>5}{'ROP':>5}{'gain':>5}{'stability':>20}  {'verdict'}")
     print("=" * len(hdr))
     print("COMPARATIVE SITING TABLE  (target 400 C, vacuum tubing, quench-assist)")
     print("=" * len(hdr))
@@ -152,11 +190,12 @@ if __name__ == "__main__":
         print(f"{short:<26}{o['z']/1000:6.1f}k{o['T_rock']:7.0f}{o['K0']:5.2f}"
               f"{o['anisotropy']:6.2f}{o['m1']['T_bottom_delivered']:6.0f}"
               f"{o['MW_prod']:5.1f}{d['ROP']*3600:5.1f}{o['rop_gain']:5.1f}"
-              f"{stab:>18}{verdict:>20}")
+              f"{stab:>20}  {verdict}")
     print("-" * len(hdr))
     print("notes: MW at 10 kg/s early-life; ROP m/hr; gain = quench ROP multiplier;")
-    print("       'frac-limited' = mud weight to stop breakout would exceed Shmin")
-    print("       (hydraulic-fracture the wall) -> not mud-controllable.")
+    print(f"       stability: breakout lobe width at hydrostatic mud, or the overbalance")
+    print(f"       (and mud SG) that brings it within {C.BREAKOUT_W_MAX_DEG:.0f} deg below Shmin less")
+    print(f"       {C.MUD_MARGIN_SG} SG; [a..b] = verdict range across the site's stress cases.")
     print()
     # one-line readout per site
     for s, o in zip(SITES, results):

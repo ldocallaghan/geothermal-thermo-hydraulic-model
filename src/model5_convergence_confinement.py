@@ -60,6 +60,51 @@ def hoop_stress(theta_deg, SHmax, Shmin, Pw, dsigma_T=0.0):
     return SHmax + Shmin - 2.0 * (SHmax - Shmin) * np.cos(2.0 * th) - Pw + dsigma_T
 
 
+def _width_threshold(SHmax, Shmin, Pw, Pp, T_wall, UCS, dsigma_T):
+    """Effective failure margin at the Shmin azimuth, and the anisotropy term.
+
+    Breakout where sigma_theta(theta) - Pp > sigma_cm + KMC (Pw - Pp). Writing
+    phi = theta - 90 deg, sigma_theta = SHmax + Shmin + 2 (SHmax - Shmin) cos 2phi
+    - Pw + dsigma_T, so the wall fails where cos 2phi > -a / d, with
+    a = SHmax + Shmin - Pw + dsigma_T - Pp - limit and d = 2 (SHmax - Shmin).
+    """
+    limit = sigma_cm(T_wall, UCS) + KMC * (Pw - Pp)
+    a = SHmax + Shmin - Pw + dsigma_T - Pp - limit
+    return a, 2.0 * (SHmax - Shmin)
+
+
+def breakout_width(SHmax, Shmin, Pw, Pp, T_wall, UCS=None, dsigma_T=0.0):
+    """Width [deg] of one breakout lobe, centred on the Shmin azimuth (C5).
+
+    Closed form of the C3 criterion around the circumference: the lobe spans
+    |phi| < arccos(-a/d) / 2, so its full width is arccos(-a/d). 0 when the
+    wall holds everywhere, 180 when it fails all round (two lobes meeting).
+    """
+    a, d = _width_threshold(SHmax, Shmin, Pw, Pp, T_wall, UCS, dsigma_T)
+    if d < 0.0:
+        raise ValueError("SHmax < Shmin: the horizontal stresses are mislabelled")
+    if d == 0.0:                         # equal horizontal stresses: all or nothing
+        return 180.0 if a > 0 else 0.0
+    c = -a / d
+    if c >= 1.0:
+        return 0.0
+    if c <= -1.0:
+        return 180.0
+    return float(np.degrees(np.arccos(c)))
+
+
+def mud_for_width(SHmax, Shmin, Pp, T_wall, W_deg, UCS=None, dsigma_T=0.0):
+    """Lightest Pw [Pa] that keeps the lobe at or below W_deg (C6 lower bound).
+
+    Width <= W  <=>  -a/d >= cos W  <=>  Pw >= (SHmax + Shmin + dsigma_T
+    + (KMC - 1) Pp - sigma_cm + d cos W) / (1 + KMC). W = 0 gives the v1.0
+    full-suppression pressure.
+    """
+    d = 2.0 * (SHmax - Shmin)
+    return (SHmax + Shmin + dsigma_T + (KMC - 1.0) * Pp - sigma_cm(T_wall, UCS)
+            + d * np.cos(np.radians(W_deg))) / (1.0 + KMC)
+
+
 def frictional_cap(mu):
     """Largest effective S1/S3 a crust of optimally oriented faults with
     friction mu can sustain: ((1 + mu^2)^0.5 + mu)^2 (Jaeger & Cook)."""

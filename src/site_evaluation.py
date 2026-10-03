@@ -192,7 +192,9 @@ def stability_inputs(site, z, T_rock, v10=False, mu=C.FRICTION_MU, UCS=None):
     (C3) with the case's own pore pressure, and each of
     the site's stress cases is evaluated, SHmax is capped at the frictional
     limit below the depth its data cover, and the reference case is the one
-    needing the most mud to suppress breakout (the worst case in the range).
+    with the worst verdict, then the narrowest mud window, i.e. the one closest
+    to NO-GO (C6); under v10, the one needing the most mud to suppress
+    breakout outright.
     Needs no Model 1-4 calls.
     """
     P_mud = site.rho_fluid_grad * z
@@ -204,19 +206,26 @@ def stability_inputs(site, z, T_rock, v10=False, mu=C.FRICTION_MU, UCS=None):
                     for p in site.stress_cases]
     cases = []
     for p, Sv, Shmin, SHmax, Pp in profiles:
+        window = None
         beyond = None if v10 else p.beyond_data(z)
         SHmax_lim = m5.SHmax_frictional_limit(Shmin, Pp, mu)
         cap_binds = bool(beyond is not None and beyond > 0
                          and SHmax > SHmax_lim * (1 + m5.CAP_RTOL))
         if cap_binds:
             SHmax = SHmax_lim
-        cases.append(dict(
+        if not v10:
+            window = mud_window(Shmin, SHmax, Pp, z, P_mud, T_rock, UCS=UCS)
+        cases.append(dict(window=window,
             profile=p, Sv=Sv, Shmin=Shmin, SHmax=SHmax, Pp=Pp,
             beyond_data=beyond, cap_binds=cap_binds, cap_depth=p.cap_depth(mu),
             admissible=m5.stress_admissible(Sv, Shmin, SHmax, Pp, mu),
             breakout=(breakout_v10(Shmin, SHmax, P_mud, T_rock, UCS=UCS) if v10 else
                       breakout_eff(Shmin, SHmax, P_mud, Pp, T_rock, UCS=UCS))))
-    ref = max(cases, key=lambda c: c["breakout"]["P_need"])
+    if v10:
+        ref = max(cases, key=lambda c: c["breakout"]["P_need"])
+    else:   # worst case: the worst verdict, then the narrowest mud window
+        ref = max(cases, key=lambda c: (VERDICT_ORDER.index(c["window"]["verdict"]),
+                                        c["window"]["Pw_lo"] - c["window"]["Pw_hi"]))
     return ref, cases
 
 
@@ -288,6 +297,54 @@ def breakout_eff(Shmin, SHmax, Pw, Pp, T_rock, T_wall=None, UCS=None, dsigma_T=0
                 P_need=P_need, over_hydro=P_need / Pw,
                 overbalance_MPa=(P_need - Pw) / 1e6,
                 breaks=bool(sth > mc_cold), frac_limited=bool(P_need > Shmin))
+
+
+VERDICT_ORDER = ("GO", "CONDITIONAL", "NO-GO")
+
+
+def mud_window(Shmin, SHmax, Pp, z, Pw_hydro, T_rock, T_wall=None, UCS=None,
+               dsigma_T=0.0, W_max=C.BREAKOUT_W_MAX_DEG, margin_SG=C.MUD_MARGIN_SG,
+               T0=C.WALL_T0):
+    """Mud window and drillability verdict (spec v1.1, C5 and C6).
+
+    Lower bound: the lightest mud keeping the breakout lobe at or below W_max,
+    and never below pore pressure (no underbalanced drilling). Upper bound:
+    Shmin less margin_SG of mud (lost returns). Verdict: GO if the lobe is
+    within W_max at hydrostatic mud, CONDITIONAL if a mud weight inside the
+    window gets it there, NO-GO if none does. Tensile-fracture initiation at
+    the wall (effective 3 Shmin - SHmax - Pw - Pp + dsigma_T < -T0) is
+    reported and does not bound the window (C6, D4).
+    """
+    if T_wall is None:
+        T_wall = min(T_rock, T_WALL_CAP)
+    sg = C.MUD_SG_GRAD * z                       # Pa per unit SG at this depth
+    width = lambda Pw: m5.breakout_width(SHmax, Shmin, Pw, Pp, T_wall, UCS, dsigma_T)
+    Pw_lo = max(m5.mud_for_width(SHmax, Shmin, Pp, T_wall, W_max, UCS, dsigma_T), Pp)
+    Pw_hi = Shmin - margin_SG * sg
+    w_hydro = width(Pw_hydro)
+    if w_hydro <= W_max:
+        verdict, Pw_mud = "GO", Pw_hydro
+    elif Pw_lo <= Pw_hi:
+        verdict, Pw_mud = "CONDITIONAL", Pw_lo
+    else:
+        verdict, Pw_mud = "NO-GO", None
+    # tensile initiation once Pw exceeds this
+    Pw_tensile = 3 * Shmin - SHmax + dsigma_T - Pp + T0
+    return dict(
+        verdict=verdict, W_max=W_max, T_wall=T_wall,
+        Pw_hydro=Pw_hydro, Pw_lo=Pw_lo, Pw_hi=Pw_hi, open=bool(Pw_lo <= Pw_hi),
+        SG_hydro=Pw_hydro / sg, SG_lo=Pw_lo / sg, SG_hi=Pw_hi / sg,
+        width_hydro=w_hydro, width_hi=width(Pw_hi),
+        Pw_mud=Pw_mud,
+        overbalance_MPa=None if Pw_mud is None else (Pw_mud - Pw_hydro) / 1e6,
+        overbalance_SG=None if Pw_mud is None else (Pw_mud - Pw_hydro) / sg,
+        Pw_tensile=Pw_tensile,
+        tensile_at_hydro=bool(Pw_hydro > Pw_tensile),
+        tensile_at_mud=None if Pw_mud is None else bool(Pw_mud > Pw_tensile))
+
+
+def worst_verdict(verdicts):
+    return max(verdicts, key=VERDICT_ORDER.index)
 
 
 # ------------------------------------------------------------- the evaluation
@@ -395,6 +452,11 @@ def report(o):
     print(f"      mud weight to suppress breakout: {b['P_need']/1e6:.0f} MPa vs "
           f"hydrostatic {o['P_fluid']/1e6:.0f} MPa = +{b['overbalance_MPa']:.0f} MPa "
           f"({b['over_hydro']:.2f}x hydrostatic)")
+    w = o["stress"]["window"]
+    if w is not None:
+        print(f"      breakout WIDTH (C5/C6): {w['width_hydro']:.0f} deg at hydrostatic, "
+              f"limit {w['W_max']:.0f} deg; mud window {w['SG_lo']:.2f}-{w['SG_hi']:.2f} SG "
+              f"-> {w['verdict']}")
     print("=" * 80)
     print("  VERDICT")
     verdict_lines(o)

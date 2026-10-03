@@ -77,14 +77,56 @@ SOULTZ = SiteProfile(
 )
 
 
+def stresses_v10(site, z):
+    """v1.0 stress state at depth z [m]: (Sv, Shmin, SHmax, P_fluid) in Pa.
+
+    Constant ratios against a linear overburden gradient, so SHmax/Shmin is the
+    same at every depth -- which is what C1 of v1.1 replaces with measured,
+    depth-dependent profiles.
+    """
+    Sv = site.Sv_grad * z
+    return Sv, site.K0_min * Sv, site.SHmax_over_Sv * Sv, site.rho_fluid_grad * z
+
+
+# ------------------------------------------------- v1.0 breakout arithmetic
+# Wall temperature cap [degC]: the v1.0 checks assume the circulating fluid
+# holds the wall at or below this, so strength is evaluated at the lower of the
+# rock temperature and this cap.
+T_WALL_CAP = 200.0
+
+
+def breakout_v10(Shmin, SHmax, P_fluid, T_rock, T_wall=None):
+    """v1.0 anisotropic breakout check at the Shmin azimuth of a vertical hole.
+
+    Kirsch hoop stress sigma_theta = 3*SHmax - Shmin - P_i, failed against a
+    Mohr-Coulomb limit KMC*P_i + sigma_cm(T). NOTE (and the reason v1.1 exists):
+    pore pressure never enters -- the in-hole fluid pressure P_i is used both as
+    the hoop-relieving term and as the confining term on the strength side.
+
+    Returns the dict v1.0 reports as out["breakout"]. Extracted verbatim from
+    evaluate() so the v1.0 numbers can be regression-tested without building the
+    water table or running Models 1-4.
+    """
+    if T_wall is None:
+        T_wall = min(T_rock, T_WALL_CAP)
+    sth = 3 * SHmax - Shmin - P_fluid
+    mc_cold = m5.KMC * P_fluid + m5.sigma_cm(T_wall)
+    mc_hot = m5.KMC * P_fluid + m5.sigma_cm(T_rock)
+    # mud weight needed to suppress breakout even when cold
+    P_need = (3 * SHmax - Shmin - m5.sigma_cm(T_wall)) / (1 + m5.KMC)
+    # If the mud weight needed to stop breakout exceeds Shmin, you would
+    # hydraulically fracture the formation (lose returns) -> NOT mud-controllable.
+    return dict(sigma_theta=sth, mc_hot=mc_hot, mc_cold=mc_cold,
+                P_need=P_need, over_hydro=P_need / P_fluid,
+                overbalance_MPa=(P_need - P_fluid) / 1e6,
+                breaks=sth > mc_cold, frac_limited=P_need > Shmin)
+
+
 # ------------------------------------------------------------- the evaluation
 def evaluate(site: SiteProfile):
     z = site.target_depth
     T_rock = float(site.geotherm(z))
-    P_fluid = site.rho_fluid_grad * z
-    Sv = site.Sv_grad * z
-    Shmin = site.K0_min * Sv
-    SHmax = site.SHmax_over_Sv * Sv
+    Sv, Shmin, SHmax, P_fluid = stresses_v10(site, z)
     # effective gradient that reproduces the real target depth in scalar-G models
     G_deep = (T_rock - C.SURFACE_TEMP) / z
     out = dict(site=site, z=z, T_rock=T_rock, Sv=Sv, Shmin=Shmin, SHmax=SHmax,
@@ -120,18 +162,7 @@ def evaluate(site: SiteProfile):
     u_cold, rp_cold, pcr_c, reg_c = m5.grc(P_fluid, Shmin, 200.0)
     out["grc"] = dict(u_hot=u_hot, u_cold=u_cold, rp_hot=rp_hot, rp_cold=rp_cold,
                       reg_h=reg_h, reg_c=reg_c)
-    # anisotropic breakout: sigma_theta = 3 SHmax - Shmin - P_i at the Shmin azimuth
-    sth = 3 * SHmax - Shmin - P_fluid
-    mc_cold = m5.KMC * P_fluid + m5.sigma_cm(200.0)
-    mc_hot = m5.KMC * P_fluid + m5.sigma_cm(T_rock)
-    # mud weight needed to suppress breakout even when cold
-    P_need = (3 * SHmax - Shmin - m5.sigma_cm(200.0)) / (1 + m5.KMC)
-    # If the mud weight needed to stop breakout exceeds Shmin, you would
-    # hydraulically fracture the formation (lose returns) -> NOT mud-controllable.
-    out["breakout"] = dict(sigma_theta=sth, mc_hot=mc_hot, mc_cold=mc_cold,
-                           P_need=P_need, over_hydro=P_need / P_fluid,
-                           overbalance_MPa=(P_need - P_fluid) / 1e6,
-                           breaks=sth > mc_cold, frac_limited=P_need > Shmin)
+    out["breakout"] = breakout_v10(Shmin, SHmax, P_fluid, T_rock)
 
     # production-flow energy (the survival run uses min flow, which minimises MW)
     rp = m1.solve(m_dot=10.0, T_inj=site.T_inj, k_ins=0.02, k_rock=site.k_rock,

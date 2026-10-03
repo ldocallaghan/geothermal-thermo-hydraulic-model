@@ -2,4 +2,5 @@ numpy>=1.26
 scipy>=1.11
 matplotlib>=3.7
 iapws>=1.5
+pytest>=7.4
 # pymupdf  # optional, only for the prior-art PDF parsing used during research

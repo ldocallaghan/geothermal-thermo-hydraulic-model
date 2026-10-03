@@ -117,6 +117,14 @@ python src/comparative_sites.py  # four-site comparison table
 
 Each model file runs standalone and prints its own analysis (`python src/model1_coupled.py`, and so on). The figure scripts (`src/*_figures.py`) regenerate the PNGs into `figures/`.
 
+Tests:
+
+```bash
+pytest                           # stability regression anchors (fast, no water table)
+pytest -m slow                   # adds the four-site table, needs the water table
+python tests/report_v10_anchors.py   # print the anchors as a table
+```
+
 ### Layout
 ```
 README.md                 this file

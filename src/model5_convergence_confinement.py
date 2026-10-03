@@ -37,18 +37,24 @@ PHI = np.radians(35.0)
 KMC = (1 + np.sin(PHI)) / (1 - np.sin(PHI))
 
 
-def sigma_cm(T_C):
-    """Rock-mass compressive strength [Pa], declining with T (cooling -> stronger)."""
-    return C.UCS * max(1.0 - 0.0009 * max(T_C - 25.0, 0.0), 0.4)
+def sigma_cm(T_C, UCS=None):
+    """Rock-mass compressive strength [Pa], declining with T (cooling -> stronger).
+
+    UCS [Pa] is the strength at 25 C; None means the global C.UCS, read at call
+    time. Site runs pass their own SiteProfile.UCS.
+    """
+    if UCS is None:
+        UCS = C.UCS
+    return UCS * max(1.0 - 0.0009 * max(T_C - 25.0, 0.0), 0.4)
 
 
 def E_of_T(T_C):
     return max(C.E_ROCK * (1.0 - 0.0007 * max(T_C - 25.0, 0.0)), 0.3 * C.E_ROCK)
 
 
-def grc(p_i, p0, T_wall, a=C.CAVITY_RADIUS, nu=C.NU_ROCK):
+def grc(p_i, p0, T_wall, a=C.CAVITY_RADIUS, nu=C.NU_ROCK, UCS=None):
     """Ground reaction: returns (u_i [m] wall convergence, r_p/a, p_cr [Pa], regime)."""
-    scm = sigma_cm(T_wall)
+    scm = sigma_cm(T_wall, UCS)
     E = E_of_T(T_wall)
     p_cr = (2 * p0 - scm) / (1 + KMC)
     if p_i >= p_cr:

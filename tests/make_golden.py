@@ -23,7 +23,7 @@ OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "golden",
 
 
 def row(site):
-    o = evaluate(site)
+    o = evaluate(site, v10=True)
     surv, stab, verdict = classify(o)
     b = o["breakout"]
     return {

@@ -95,7 +95,7 @@ def stresses_v10(site, z):
 T_WALL_CAP = 200.0
 
 
-def breakout_v10(Shmin, SHmax, P_fluid, T_rock, T_wall=None):
+def breakout_v10(Shmin, SHmax, P_fluid, T_rock, T_wall=None, UCS=None):
     """v1.0 anisotropic breakout check at the Shmin azimuth of a vertical hole.
 
     Kirsch hoop stress sigma_theta = 3*SHmax - Shmin - P_i, failed against a
@@ -105,15 +105,15 @@ def breakout_v10(Shmin, SHmax, P_fluid, T_rock, T_wall=None):
 
     Returns the dict v1.0 reports as out["breakout"]. Extracted verbatim from
     evaluate() so the v1.0 numbers can be regression-tested without building the
-    water table or running Models 1-4.
+    water table or running Models 1-4. UCS=None is v1.0's global C.UCS.
     """
     if T_wall is None:
         T_wall = min(T_rock, T_WALL_CAP)
     sth = 3 * SHmax - Shmin - P_fluid
-    mc_cold = m5.KMC * P_fluid + m5.sigma_cm(T_wall)
-    mc_hot = m5.KMC * P_fluid + m5.sigma_cm(T_rock)
+    mc_cold = m5.KMC * P_fluid + m5.sigma_cm(T_wall, UCS)
+    mc_hot = m5.KMC * P_fluid + m5.sigma_cm(T_rock, UCS)
     # mud weight needed to suppress breakout even when cold
-    P_need = (3 * SHmax - Shmin - m5.sigma_cm(T_wall)) / (1 + m5.KMC)
+    P_need = (3 * SHmax - Shmin - m5.sigma_cm(T_wall, UCS)) / (1 + m5.KMC)
     # If the mud weight needed to stop breakout exceeds Shmin, you would
     # hydraulically fracture the formation (lose returns) -> NOT mud-controllable.
     return dict(sigma_theta=sth, mc_hot=mc_hot, mc_cold=mc_cold,
@@ -123,14 +123,21 @@ def breakout_v10(Shmin, SHmax, P_fluid, T_rock, T_wall=None):
 
 
 # ------------------------------------------------------------- the evaluation
-def evaluate(site: SiteProfile):
+def evaluate(site: SiteProfile, v10=False):
+    """Run Models 1-5 for one site.
+
+    v10=True is the v1.0 adapter: it reproduces v1.0 exactly (the global C.UCS
+    instead of the site's own), for the regression tests. Each v1.1 change that
+    alters the stability numbers is switched off by it.
+    """
     z = site.target_depth
+    UCS = None if v10 else site.UCS
     T_rock = float(site.geotherm(z))
     Sv, Shmin, SHmax, P_fluid = stresses_v10(site, z)
     # effective gradient that reproduces the real target depth in scalar-G models
     G_deep = (T_rock - C.SURFACE_TEMP) / z
     out = dict(site=site, z=z, T_rock=T_rock, Sv=Sv, Shmin=Shmin, SHmax=SHmax,
-               P_fluid=P_fluid)
+               P_fluid=P_fluid, UCS=C.UCS if UCS is None else UCS)
 
     # --- (1) SURVIVAL & ENERGY: Model 1 with the real LAYERED geotherm ---
     # scan flow for the minimum that keeps the bit < survival ceiling
@@ -158,11 +165,11 @@ def evaluate(site: SiteProfile):
     out["creep_cold"] = m4.closure_rate(z, T_rock, 200.0, 7*86400, cooled=True) * YEAR * 100
 
     # --- (5) STABILITY: isotropic GRC (uses Shmin as p0) + anisotropic breakout ---
-    u_hot, rp_hot, pcr_h, reg_h = m5.grc(P_fluid, Shmin, T_rock)
-    u_cold, rp_cold, pcr_c, reg_c = m5.grc(P_fluid, Shmin, 200.0)
+    u_hot, rp_hot, pcr_h, reg_h = m5.grc(P_fluid, Shmin, T_rock, UCS=UCS)
+    u_cold, rp_cold, pcr_c, reg_c = m5.grc(P_fluid, Shmin, 200.0, UCS=UCS)
     out["grc"] = dict(u_hot=u_hot, u_cold=u_cold, rp_hot=rp_hot, rp_cold=rp_cold,
                       reg_h=reg_h, reg_c=reg_c)
-    out["breakout"] = breakout_v10(Shmin, SHmax, P_fluid, T_rock)
+    out["breakout"] = breakout_v10(Shmin, SHmax, P_fluid, T_rock, UCS=UCS)
 
     # production-flow energy (the survival run uses min flow, which minimises MW)
     rp = m1.solve(m_dot=10.0, T_inj=site.T_inj, k_ins=0.02, k_rock=site.k_rock,
@@ -200,7 +207,7 @@ def report(o):
     print(f"      cooling factor ~ {o['creep_hot']/max(o['creep_cold'],1e-30):.1e}x  (squeezing controlled)")
     print("-" * 80)
     g = o["grc"]; b = o["breakout"]
-    print(f"  [5] HOLE STABILITY")
+    print(f"  [5] HOLE STABILITY (rock-mass UCS {o['UCS']/1e6:.0f} MPa at 25 C)")
     print(f"      isotropic GRC (p0=Shmin): {g['reg_c']}, convergence {g['u_cold']*1000:.1f} mm, "
           f"plastic r/a {g['rp_cold']:.2f}")
     print(f"      ANISOTROPIC breakout: sigma_theta={b['sigma_theta']/1e6:.0f} MPa vs "

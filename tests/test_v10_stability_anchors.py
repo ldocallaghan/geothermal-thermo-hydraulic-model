@@ -29,13 +29,13 @@ def test_mohr_coulomb_coefficient_is_35_degree_friction_angle():
 
 @pytest.mark.parametrize("T_C, expected_MPa", [
     (25.0, 200.0),      # no derating at the reference temperature
-    (185.0, 171.2),     # UD-1 wall at 5,058 m
+    (180.0, 172.1),     # UD-1 wall at 5,058 m
     (200.0, 168.5),     # the v1.0 cooled-wall assumption
     (400.0, 132.5),     # rock temperature at the 400 C targets
 ])
 def test_sigma_cm_temperature_derating(T_C, expected_MPa):
-    """sigma_cm reads the GLOBAL C.UCS = 200 MPa, not the per-site value.
-    That is the v1.0 behaviour C4 of the spec replaces."""
+    """With no UCS passed, sigma_cm reads the GLOBAL C.UCS = 200 MPa: the v1.0
+    behaviour, kept as the default so the v1.0 adapter reproduces it."""
     assert C.UCS == 200.0 * MPa
     assert m5.sigma_cm(T_C) / MPa == pytest.approx(expected_MPa, abs=0.1)
 
@@ -141,8 +141,8 @@ def test_v10_frac_limited_flag_per_site(site, frac_limited):
     assert bool(b["frac_limited"]) is frac_limited
 
 
-def test_per_site_ucs_is_defined_and_ignored():
-    """Each SiteProfile carries a UCS; v1.0 never uses it. C4 fixes this, so
-    this anchor is expected to be REPLACED (not kept) when C4 lands."""
+def test_per_site_ucs_is_ignored_by_the_v10_default():
+    """Each SiteProfile carries a UCS; v1.0 never used it. Since C4 site runs
+    pass it explicitly (tests/test_c4_site_ucs.py), and the default stays v1.0's."""
     assert CORNWALL.UCS == 180.0 * MPa
     assert m5.sigma_cm(200.0) == pytest.approx(C.UCS * (1 - 0.0009 * 175))

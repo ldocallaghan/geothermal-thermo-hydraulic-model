@@ -80,3 +80,16 @@ cleaning." The spec had this the other way round. The logged breakout interval
 - Dynamic losses up to **11 m³/h** in the 8.5" section below 4,000 m, especially
   4,850–5,080 m MD, around an open fracture zone at 4,890 m MD.
 - Losses occurred in both wells; no measures beyond reducing circulation rate.
+
+## Decision taken on the back of this (D1, revised 3 October)
+
+The friction coefficient defaults to **μ = 0.8**, the value Reinecker et al. use
+to derive SHmax and to assess slip tendency, with **0.6 and 0.85 reported as
+sensitivities**. Caps: 3.12, 4.33, 4.68.
+
+Consequence for C2's "done when": the published profile, extrapolated to
+12.5 km, is **admissible at every one of those μ values** under the paper's pore
+pressure (effective S1/S3 = 4.25). The spec's expectation that the cap binds
+there holds only with 10 MPa/km hydrostatic Pp *and* μ = 0.85 (4.77 against
+4.68). C2 should still implement the cap and report where it binds; it just does
+not bind on United Downs.

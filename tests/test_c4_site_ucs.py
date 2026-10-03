@@ -66,11 +66,13 @@ def test_every_site_run_passes_its_own_ucs(site):
     o = se.evaluate(site)
     assert o["UCS"] == site.UCS
     b = o["breakout"]
-    # effective-stress limit since C3: Pp + sigma_cm + KMC (Pw - Pp)
-    Pp = o["Pp"]
+    # effective-stress limit since C3: Pp + sigma_cm + KMC (Pw - Pp), with the
+    # wall at Model 1's circulating bottom-hole temperature since C7
+    Pp, T_wall = o["Pp"], o["T_wall"]
+    assert T_wall == pytest.approx(o["m1"]["T_bottom_delivered"])
     assert b["mc_cold"] == pytest.approx(
-        Pp + m5.sigma_cm(200.0, site.UCS) + m5.KMC * (o["P_fluid"] - Pp))
-    assert o["grc"]["reg_c"] == m5.grc(o["P_fluid"], o["Shmin"], 200.0,
+        Pp + m5.sigma_cm(T_wall, site.UCS) + m5.KMC * (o["P_fluid"] - Pp))
+    assert o["grc"]["reg_c"] == m5.grc(o["P_fluid"], o["Shmin"], T_wall,
                                        UCS=site.UCS)[3]
 
 

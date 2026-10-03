@@ -163,10 +163,10 @@ def test_v10_adapter_has_no_window():
     ("Pannonian Basin (Hungary)", "CONDITIONAL"),
 ])
 def test_site_verdicts_after_c6(site, verdict):
-    """Wall at 200 C, no thermal hoop stress (C7 is next)."""
+    """Wall at 200 C, no thermal hoop stress: the state step 5 left."""
     s = next(x for x in SITES if x.name == site)
     z = s.target_depth
-    ref, _ = se.stability_inputs(s, z, float(s.geotherm(z)), UCS=s.UCS)
+    ref, _ = se.stability_inputs(s, z, float(s.geotherm(z)), UCS=s.UCS, thermal=False)
     assert ref["window"]["verdict"] == verdict
 
 

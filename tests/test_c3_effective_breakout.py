@@ -83,7 +83,7 @@ def test_pore_pressure_raises_the_mud_needed():
 
 def test_site_runs_use_the_profile_pore_pressure():
     z = CORNWALL.target_depth
-    ref, _ = se.stability_inputs(CORNWALL, z, 400.0, UCS=CORNWALL.UCS)
+    ref, _ = se.stability_inputs(CORNWALL, z, 400.0, UCS=CORNWALL.UCS, thermal=False)
     assert ref["Pp"] == pytest.approx(float(UD.Pp(z)))
     expect = se.breakout_eff(ref["Shmin"], ref["SHmax"], C.HYDROSTATIC_GRAD * z,
                              ref["Pp"], 400.0, UCS=CORNWALL.UCS)
@@ -95,7 +95,7 @@ def test_united_downs_at_12p5_km():
     the mud needed rises by (KMC-1)/(KMC+1) * Pp over the total-stress check,
     from 143 to 210 MPa, past Shmin (168). C5-C7 revisit this."""
     z = CORNWALL.target_depth
-    ref, _ = se.stability_inputs(CORNWALL, z, 400.0, UCS=CORNWALL.UCS)
+    ref, _ = se.stability_inputs(CORNWALL, z, 400.0, UCS=CORNWALL.UCS, thermal=False)
     b = ref["breakout"]
     assert b["P_need"] / MPa == pytest.approx(210.9, abs=0.5)
     assert b["frac_limited"] is True

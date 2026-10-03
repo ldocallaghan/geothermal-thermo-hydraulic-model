@@ -120,6 +120,14 @@ def classify(o):
     return surv, stab, verdict
 
 
+def classify_no_thermal(o):
+    """The C7 sensitivity: the verdict with the wall thermal stress off."""
+    nt = o.get("no_thermal")
+    if nt is None:
+        return None
+    return classify(dict(o, stress=nt["stress"], stress_cases=nt["stress_cases"]))[2]
+
+
 def _classify_v10(o):
     b = o["breakout"]
     if b["frac_limited"]:
@@ -153,6 +161,9 @@ def print_stress_cases(o):
     print(f"    admissibility at mu {a['mu']}: effective S1/S3 {a['ratio']:.2f} vs cap "
           f"{a['cap']:.2f} -> {'admissible' if a['admissible'] else 'INADMISSIBLE'}"
           + ("; SHmax capped at the frictional limit" if ref["cap_binds"] else ""))
+    print(f"    wall {o['T_wall']:.0f} C (Model 1, {o['m_min']} kg/s) against rock "
+          f"{o['T_rock']:.0f} C: thermal hoop stress {o['dsigma_T']/1e6:+.0f} MPa"
+          + ("" if o["thermal"] else " (C7 OFF)"))
     w = ref["window"]
     print(f"    mud window (W_max {w['W_max']:.0f} deg, wall {w['T_wall']:.0f} C): "
           f"{w['SG_lo']:.2f}-{w['SG_hi']:.2f} SG "
@@ -177,7 +188,7 @@ if __name__ == "__main__":
     results = [evaluate(s) for s in SITES]
 
     hdr = (f"{'Site':<26}{'depth':>7}{'T_rock':>7}{'K0':>5}{'aniso':>6}"
-           f"{'bitC':>6}{'MW':>5}{'ROP':>5}{'gain':>5}{'stability':>20}  {'verdict'}")
+           f"{'bitC':>6}{'MW':>5}{'ROP':>5}{'gain':>5}{'stability':>20}  {'verdict':<34}{'C7 off'}")
     print("=" * len(hdr))
     print("COMPARATIVE SITING TABLE  (target 400 C, vacuum tubing, quench-assist)")
     print("=" * len(hdr))
@@ -190,12 +201,13 @@ if __name__ == "__main__":
         print(f"{short:<26}{o['z']/1000:6.1f}k{o['T_rock']:7.0f}{o['K0']:5.2f}"
               f"{o['anisotropy']:6.2f}{o['m1']['T_bottom_delivered']:6.0f}"
               f"{o['MW_prod']:5.1f}{d['ROP']*3600:5.1f}{o['rop_gain']:5.1f}"
-              f"{stab:>20}  {verdict}")
+              f"{stab:>20}  {verdict:<34}{classify_no_thermal(o) or ''}")
     print("-" * len(hdr))
     print("notes: MW at 10 kg/s early-life; ROP m/hr; gain = quench ROP multiplier;")
     print(f"       stability: breakout lobe width at hydrostatic mud, or the overbalance")
     print(f"       (and mud SG) that brings it within {C.BREAKOUT_W_MAX_DEG:.0f} deg below Shmin less")
     print(f"       {C.MUD_MARGIN_SG} SG; [a..b] = verdict range across the site's stress cases.")
+    print("       C7 off = sensitivity: the verdict without the wall's thermal hoop stress.")
     print()
     # one-line readout per site
     for s, o in zip(SITES, results):

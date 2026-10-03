@@ -184,7 +184,20 @@ SOULTZ = SiteProfile(
 )
 
 
-def stability_inputs(site, z, T_rock, v10=False, mu=C.FRICTION_MU, UCS=None):
+def thermal_hoop_stress(T_rock, T_wall):
+    """Thermal hoop stress [Pa] at a wall cooled from T_rock to T_wall (C7).
+
+    dsigma_T = -E alpha / (1 - nu) * (T_rock - T_wall): the fully constrained
+    thermoelastic stress Model 2 applies at the cutting face, with E and alpha
+    from Model 2 at the rock temperature, as Model 2 evaluates them. Negative
+    (less compressive) when the wall is cooled.
+    """
+    E, al = m2.E_of_T(T_rock), m2.alpha_of_T(T_rock)
+    return -E * al / (1.0 - C.NU_ROCK) * (T_rock - T_wall)
+
+
+def stability_inputs(site, z, T_rock, v10=False, mu=C.FRICTION_MU, UCS=None,
+                     T_wall=None, thermal=True):
     """Stress state, admissibility (C2) and breakout for every stress case at z.
 
     v10=True reproduces v1.0: the site ratios and the total-stress breakout
@@ -193,11 +206,18 @@ def stability_inputs(site, z, T_rock, v10=False, mu=C.FRICTION_MU, UCS=None):
     the site's stress cases is evaluated, SHmax is capped at the frictional
     limit below the depth its data cover, and the reference case is the one
     with the worst verdict, then the narrowest mud window, i.e. the one closest
-    to NO-GO (C6); under v10, the one needing the most mud to suppress
+    to NO-GO (C6), then the widest breakout at hydrostatic mud; under v10, the one needing the most mud to suppress
     breakout outright.
-    Needs no Model 1-4 calls.
+
+    T_wall is the wall temperature for strength and, with thermal=True, for the
+    thermal hoop stress (C7); evaluate() passes Model 1's circulating
+    bottom-hole temperature. None means v1.0's min(T_rock, 200 C). The v1.0
+    adapter ignores both. Needs no Model 1-4 calls.
     """
     P_mud = site.rho_fluid_grad * z
+    if T_wall is None:
+        T_wall = min(T_rock, T_WALL_CAP)
+    dsigma_T = thermal_hoop_stress(T_rock, T_wall) if thermal and not v10 else 0.0
     if v10:
         Sv, Shmin, SHmax, _ = stresses_v10(site, z)
         profiles = [(site.stress_cases[0], Sv, Shmin, SHmax, C.HYDROSTATIC_GRAD * z)]
@@ -214,18 +234,21 @@ def stability_inputs(site, z, T_rock, v10=False, mu=C.FRICTION_MU, UCS=None):
         if cap_binds:
             SHmax = SHmax_lim
         if not v10:
-            window = mud_window(Shmin, SHmax, Pp, z, P_mud, T_rock, UCS=UCS)
-        cases.append(dict(window=window,
+            window = mud_window(Shmin, SHmax, Pp, z, P_mud, T_rock, T_wall=T_wall,
+                                UCS=UCS, dsigma_T=dsigma_T)
+        cases.append(dict(window=window, T_wall=T_wall, dsigma_T=dsigma_T,
             profile=p, Sv=Sv, Shmin=Shmin, SHmax=SHmax, Pp=Pp,
             beyond_data=beyond, cap_binds=cap_binds, cap_depth=p.cap_depth(mu),
             admissible=m5.stress_admissible(Sv, Shmin, SHmax, Pp, mu),
             breakout=(breakout_v10(Shmin, SHmax, P_mud, T_rock, UCS=UCS) if v10 else
-                      breakout_eff(Shmin, SHmax, P_mud, Pp, T_rock, UCS=UCS))))
+                      breakout_eff(Shmin, SHmax, P_mud, Pp, T_rock, T_wall=T_wall,
+                                   UCS=UCS, dsigma_T=dsigma_T))))
     if v10:
         ref = max(cases, key=lambda c: c["breakout"]["P_need"])
-    else:   # worst case: the worst verdict, then the narrowest mud window
+    else:   # worst verdict, then narrowest window, then widest breakout at hydro
         ref = max(cases, key=lambda c: (VERDICT_ORDER.index(c["window"]["verdict"]),
-                                        c["window"]["Pw_lo"] - c["window"]["Pw_hi"]))
+                                        c["window"]["Pw_lo"] - c["window"]["Pw_hi"],
+                                        c["window"]["width_hydro"]))
     return ref, cases
 
 
@@ -348,27 +371,18 @@ def worst_verdict(verdicts):
 
 
 # ------------------------------------------------------------- the evaluation
-def evaluate(site: SiteProfile, v10=False):
+def evaluate(site: SiteProfile, v10=False, thermal=True):
     """Run Models 1-5 for one site.
 
     v10=True is the v1.0 adapter: it reproduces v1.0 exactly (the global C.UCS
     instead of the site's own), for the regression tests. Each v1.1 change that
-    alters the stability numbers is switched off by it.
+    alters the stability numbers is switched off by it. thermal=False switches
+    off the C7 thermal hoop stress alone; either way the result carries the
+    verdict with it off as a sensitivity.
     """
     z = site.target_depth
     UCS = None if v10 else site.UCS
     T_rock = float(site.geotherm(z))
-    ref, cases = stability_inputs(site, z, T_rock, v10=v10, UCS=UCS)
-    Sv, Shmin, SHmax = ref["Sv"], ref["Shmin"], ref["SHmax"]
-    P_fluid = site.rho_fluid_grad * z
-    # Shmin/Sv at the target from the reference case; v1.0 used the site ratio
-    K0 = site.K0_min if v10 else Shmin / Sv
-    # effective gradient that reproduces the real target depth in scalar-G models
-    G_deep = (T_rock - C.SURFACE_TEMP) / z
-    out = dict(site=site, z=z, T_rock=T_rock, Sv=Sv, Shmin=Shmin, SHmax=SHmax,
-               P_fluid=P_fluid, UCS=C.UCS if UCS is None else UCS, v10=v10,
-               K0=K0, anisotropy=SHmax / Shmin, Pp=ref["Pp"],
-               stress=ref, stress_cases=cases)
 
     # --- (1) SURVIVAL & ENERGY: Model 1 with the real LAYERED geotherm ---
     # scan flow for the minimum that keeps the bit < survival ceiling
@@ -381,7 +395,30 @@ def evaluate(site: SiteProfile, v10=False):
             surv = (md, r); break
     if surv is None:
         surv = (20, r)
-    out["m_min"], out["m1"] = surv
+    m_min, m1_run = surv
+
+    # wall temperature (C7): the circulating bottom-hole temperature at the
+    # minimum survivable flow, for strength and thermal stress alike; v1.0's
+    # 200 C cap under the adapter
+    T_wall = None if v10 else float(m1_run["T_bottom_delivered"])
+    ref, cases = stability_inputs(site, z, T_rock, v10=v10, UCS=UCS,
+                                  T_wall=T_wall, thermal=thermal)
+    no_thermal = None if v10 else stability_inputs(
+        site, z, T_rock, UCS=UCS, T_wall=T_wall, thermal=False)
+    Sv, Shmin, SHmax = ref["Sv"], ref["Shmin"], ref["SHmax"]
+    P_fluid = site.rho_fluid_grad * z
+    # Shmin/Sv at the target from the reference case; v1.0 used the site ratio
+    K0 = site.K0_min if v10 else Shmin / Sv
+    # effective gradient that reproduces the real target depth in scalar-G models
+    G_deep = (T_rock - C.SURFACE_TEMP) / z
+    out = dict(site=site, z=z, T_rock=T_rock, Sv=Sv, Shmin=Shmin, SHmax=SHmax,
+               P_fluid=P_fluid, UCS=C.UCS if UCS is None else UCS, v10=v10,
+               K0=K0, anisotropy=SHmax / Shmin, Pp=ref["Pp"],
+               stress=ref, stress_cases=cases, thermal=thermal and not v10,
+               T_wall=ref["T_wall"], dsigma_T=ref["dsigma_T"],
+               no_thermal=None if no_thermal is None else
+               dict(stress=no_thermal[0], stress_cases=no_thermal[1]))
+    out["m_min"], out["m1"] = m_min, m1_run
 
     # --- (2/3) DRILLABILITY: regime + quench ROP gain (spallation uses K0=Shmin)
     drill = m3.evaluate(G_deep, K0, out["m_min"], k_ins=0.02,
@@ -397,7 +434,7 @@ def evaluate(site: SiteProfile, v10=False):
 
     # --- (5) STABILITY: isotropic GRC (uses Shmin as p0) + anisotropic breakout ---
     u_hot, rp_hot, pcr_h, reg_h = m5.grc(P_fluid, Shmin, T_rock, UCS=UCS)
-    u_cold, rp_cold, pcr_c, reg_c = m5.grc(P_fluid, Shmin, 200.0, UCS=UCS)
+    u_cold, rp_cold, pcr_c, reg_c = m5.grc(P_fluid, Shmin, ref["T_wall"], UCS=UCS)
     out["grc"] = dict(u_hot=u_hot, u_cold=u_cold, rp_hot=rp_hot, rp_cold=rp_cold,
                       reg_h=reg_h, reg_c=reg_c)
     out["breakout"] = ref["breakout"]
@@ -454,6 +491,8 @@ def report(o):
           f"({b['over_hydro']:.2f}x hydrostatic)")
     w = o["stress"]["window"]
     if w is not None:
+        print(f"      wall {o['T_wall']:.0f} C from Model 1: thermal hoop stress "
+              f"{o['dsigma_T']/1e6:+.0f} MPa{'' if o['thermal'] else ' (C7 OFF)'}")
         print(f"      breakout WIDTH (C5/C6): {w['width_hydro']:.0f} deg at hydrostatic, "
               f"limit {w['W_max']:.0f} deg; mud window {w['SG_lo']:.2f}-{w['SG_hi']:.2f} SG "
               f"-> {w['verdict']}")

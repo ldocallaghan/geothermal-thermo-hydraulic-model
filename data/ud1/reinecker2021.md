@@ -14,7 +14,7 @@ flagged **CORRECTION**.
 | Quantity | Paper | How it was obtained |
 |---|---|---|
 | `Sv` | **25.275 MPa/km** | best fit to wireline density logs |
-| `Shmin` | **13.21 MPa/km + 3 MPa** | linear fit to refracture pressures from the Rosemanowes hydrofracture tests (Pine et al. 1983b), *not* a UD-1 measurement |
+| `Shmin` | **13.21 MPa/km + 3 MPa** | linear fit to refracture pressures from the Rosemanowes hydrofracture tests (Pine et al. 1983b, "to depths of 2000 m"), *not* a UD-1 measurement |
 | `SHmax` | **25.99 MPa/km + 5.9 MPa** | derived from Shmin, formation pressure and the fracture fluid pressure needed to initiate slip, **assuming a coefficient of friction μ = 0.8** |
 | Pore pressure | **9.494 MPa/km below a static fluid level at ~61 m below ground level** | reported directly |
 | Regime | strike-slip, "critically stressed for shearing on appropriately oriented fractures" | |

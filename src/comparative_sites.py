@@ -59,15 +59,16 @@ CORNWALL = SiteProfile(
     Sv_grad=2630 * 9.81, K0_min=0.55, SHmax_over_Sv=1.40,   # strike-slip, HIGH aniso
     rho_fluid_grad=C.HYDROSTATIC_GRAD, k_rock=3.3, E_rock=60e9, UCS=180e6,
     # Reinecker et al. (2021) section 6.3; see data/ud1/reinecker2021.md. Shmin
-    # is a fit to Rosemanowes hydrofracture tests, in boreholes no deeper than
-    # 2.8 km, so that is where the data end; SHmax is derived from it at mu 0.8.
+    # is a fit to the Rosemanowes hydrofracture tests of Pine et al. (1983b),
+    # "to depths of 2000 m", so that is where the data end; SHmax is derived
+    # from it at mu 0.8.
     # Pore pressure 9.494 MPa/km below a static fluid level 61 m down.
     stress_cases=(StressProfile(
         label="Reinecker et al. (2021)",
         Sv_grad=25.275e3, Shmin_grad=13.21e3, Shmin_int=3.0e6,
         SHmax_grad=25.99e3, SHmax_int=5.9e6, Pp_grad=9.494e3, Pp_datum=61.0,
         source="Reinecker et al. (2021), Geothermics 97, 102226",
-        z_data=(0.0, 2800.0)),),
+        z_data=(0.0, 2000.0)),),
     stress_basis="measured")
 
 PANNONIAN = SiteProfile(

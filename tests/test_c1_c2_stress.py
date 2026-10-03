@@ -70,7 +70,7 @@ def test_united_downs_anisotropy_is_about_1p97(z):
 
 def test_target_depth_beyond_the_data_is_reported():
     ref, _ = at_target(CORNWALL)
-    assert ref["beyond_data"] == pytest.approx(12500.0 - 2800.0)
+    assert ref["beyond_data"] == pytest.approx(12500.0 - 2000.0)
     ref, _ = at_target(SOULTZ)
     assert ref["beyond_data"] == pytest.approx(10700.0 - 5000.0)
     for site in (LARDERELLO, PANNONIAN):

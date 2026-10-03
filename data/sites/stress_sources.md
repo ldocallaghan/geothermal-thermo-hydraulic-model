@@ -27,6 +27,19 @@ Read from the paper directly. Conclusions, verbatim, "valid between depths of
 - The upper bound from frictional strength alone, at μ = 1.0, is 1.21 Sv
   (Evans 2005), so the wellbore-failure bound is the tighter one.
 
+Wellbore observations used by the C9 cross-check (`src/crosscheck_soultz.py`),
+same paper, GPK3 and GPK4 ultrasonic (UBI) logs run 12-15 hours after drilling:
+
+- About 10% of the logged length broken out in each well; breakouts at 5 km.
+- GPK4: no high-confidence breakouts above 3,000 m TVD, sparse to 3,670 m TVD,
+  dense below. Reproducing the 3,670 m onset needs SHmax ≥ 0.9 Sv.
+- Tensile fractures almost continuous to 2,180 m TVD in GPK4, sporadic below.
+- Wall thermal stress at logging time −17.1 MPa (3,160 m TVD) to −31.3 MPa
+  (2,235 m TVD), from MWD bit temperatures and the logging tool's temperature.
+- UCS of ten samples of unaltered Soultz granite: **100–130 MPa**. The model's
+  Soultz UCS is 170 MPa (v1.0, unsourced).
+- Annulus pressure kept near hydrostatic while drilling.
+
 The code carries three cases: the SHmax lower bound, its midpoint, and its upper
 bound. Pore pressure is hydrostatic (the paper treats the wells as near-
 hydrostatic). Shmin/Sv = 0.54 at 5 km, matching v1.0's ratio.

@@ -429,8 +429,10 @@ def evaluate(site: SiteProfile, v10=False, thermal=True):
     out["rop_gain"] = drill["ROP"] / drill_nq["ROP"] if drill_nq["ROP"] > 0 else np.nan
 
     # --- (4) CREEP closure: hot vs cooled wall ---
-    out["creep_hot"] = m4.closure_rate(z, T_rock, 200.0, 7*86400, cooled=False) * YEAR * 100
-    out["creep_cold"] = m4.closure_rate(z, T_rock, 200.0, 7*86400, cooled=True) * YEAR * 100
+    # cooled wall at the same temperature as the stability checks (C7); 200 C
+    # under the v1.0 adapter
+    out["creep_hot"] = m4.closure_rate(z, T_rock, ref["T_wall"], 7*86400, cooled=False) * YEAR * 100
+    out["creep_cold"] = m4.closure_rate(z, T_rock, ref["T_wall"], 7*86400, cooled=True) * YEAR * 100
 
     # --- (5) STABILITY: isotropic GRC (uses Shmin as p0) + anisotropic breakout ---
     u_hot, rp_hot, pcr_h, reg_h = m5.grc(P_fluid, Shmin, T_rock, UCS=UCS)
@@ -476,7 +478,7 @@ def report(o):
           f"ROP {d['ROP']*3600:.1f} m/hr | quench gain {o['rop_gain']:.1f}x")
     print("-" * 80)
     print(f"  [4] CREEP CLOSURE (time-dependent)")
-    print(f"      hot wall: {o['creep_hot']:.2e} %/yr  ->  cooled 200C: {o['creep_cold']:.2e} %/yr")
+    print(f"      hot wall: {o['creep_hot']:.2e} %/yr  ->  cooled {o['T_wall']:.0f}C: {o['creep_cold']:.2e} %/yr")
     print(f"      cooling factor ~ {o['creep_hot']/max(o['creep_cold'],1e-30):.1e}x  (squeezing controlled)")
     print("-" * 80)
     g = o["grc"]; b = o["breakout"]

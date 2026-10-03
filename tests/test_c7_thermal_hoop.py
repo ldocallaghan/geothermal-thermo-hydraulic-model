@@ -101,3 +101,16 @@ def test_v10_evaluate_has_no_sensitivity_line():
     o = se.evaluate(CORNWALL, v10=True)
     assert o["thermal"] is False and o["no_thermal"] is None
     assert classify_no_thermal(o) is None
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("v10", [False, True])
+def test_creep_closure_uses_the_same_wall_temperature(v10):
+    """Model 4's cooled creep rate takes the wall temperature the stability
+    checks use: Model 1's in v1.1, v1.0's 200 C under the adapter."""
+    import model4_hole_stability as m4
+    o = se.evaluate(CORNWALL, v10=v10)
+    T_wall = 200.0 if v10 else o["m1"]["T_bottom_delivered"]
+    assert o["T_wall"] == pytest.approx(T_wall)
+    expect = m4.closure_rate(o["z"], o["T_rock"], T_wall, 7 * 86400, cooled=True) * se.YEAR * 100
+    assert o["creep_cold"] == pytest.approx(expect)

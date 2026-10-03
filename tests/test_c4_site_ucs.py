@@ -63,20 +63,27 @@ def test_breakout_uses_the_ucs_it_is_given():
 @pytest.mark.slow
 @pytest.mark.parametrize("site", SITES, ids=lambda s: s.name.split()[0])
 def test_every_site_run_passes_its_own_ucs(site):
+    """Each site's own strength cases (C8 gives United Downs four; the rest
+    have one, their UCS); the row's case carries its UCS through."""
     o = se.evaluate(site)
-    assert o["UCS"] == site.UCS
+    assert o["UCS"] in [u for _, u in site.strength_cases]
+    assert o["UCS"] == o["stress"]["UCS"]
+    assert {c["UCS"] for c in o["stress_cases"]} == {u for _, u in site.strength_cases}
     b = o["breakout"]
     # effective-stress limit since C3: Pp + sigma_cm + KMC (Pw - Pp), with the
     # wall at Model 1's circulating bottom-hole temperature since C7
     Pp, T_wall = o["Pp"], o["T_wall"]
     assert T_wall == pytest.approx(o["m1"]["T_bottom_delivered"])
     assert b["mc_cold"] == pytest.approx(
-        Pp + m5.sigma_cm(T_wall, site.UCS) + m5.KMC * (o["P_fluid"] - Pp))
+        Pp + m5.sigma_cm(T_wall, o["UCS"]) + m5.KMC * (o["P_fluid"] - Pp))
     assert o["grc"]["reg_c"] == m5.grc(o["P_fluid"], o["Shmin"], T_wall,
-                                       UCS=site.UCS)[3]
+                                       UCS=o["UCS"])[3]
 
 
 @pytest.mark.slow
-def test_cornwall_run_uses_180_mpa_and_the_v10_adapter_does_not():
-    assert se.evaluate(CORNWALL)["UCS"] == 180.0 * MPa
+def test_cornwall_run_uses_the_c8_calibration_and_the_v10_adapter_does_not():
+    """C4's done-when: 180 MPa, 'or the calibrated value from C8 once that
+    exists'. It does; the v1.0 adapter keeps the global 200 MPa."""
+    o = se.evaluate(CORNWALL)
+    assert {c["UCS"] for c in o["stress_cases"]} == {203e6, 172e6, 147e6, 118e6}
     assert se.evaluate(CORNWALL, v10=True)["UCS"] == C.UCS == 200.0 * MPa

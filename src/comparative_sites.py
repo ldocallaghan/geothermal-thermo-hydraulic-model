@@ -70,7 +70,13 @@ CORNWALL = SiteProfile(
         SHmax_grad=25.99e3, SHmax_int=5.9e6, Pp_grad=9.494e3, Pp_datum=61.0,
         source="Reinecker et al. (2021), Geothermics 97, 102226",
         z_data=(0.0, 2000.0)),),
-    stress_basis="measured")
+    stress_basis="measured",
+    # C8, src/calibrate_ud1.py against the BGS UD-1 image log, wall cooling
+    # bracketed 0-40 K (decided 3 October): intact rock (no breakout to 4 km)
+    # and the breakout zones' median, at both ends of the bracket. UCS=180e6
+    # above stays as v1.0's uncalibrated value.
+    strength_cases=(("intact, 0 K", 203e6), ("intact, 40 K", 172e6),
+                    ("weak zones, 0 K", 147e6), ("weak zones, 40 K", 118e6)))
 
 PANNONIAN = SiteProfile(
     name="Pannonian Basin (Hungary)",
@@ -120,12 +126,18 @@ def classify(o):
     return surv, stab, verdict
 
 
+def classify_sensitivity(o, key):
+    """A sensitivity verdict: "C7 off" (no wall thermal stress) or the
+    site-calibrated "W_max 63" (D2). None under the v1.0 adapter."""
+    s = (o.get("sensitivity") or {}).get(key)
+    if s is None:
+        return None
+    return classify(dict(o, stress=s["stress"], stress_cases=s["stress_cases"]))[2]
+
+
 def classify_no_thermal(o):
     """The C7 sensitivity: the verdict with the wall thermal stress off."""
-    nt = o.get("no_thermal")
-    if nt is None:
-        return None
-    return classify(dict(o, stress=nt["stress"], stress_cases=nt["stress_cases"]))[2]
+    return classify_sensitivity(o, "C7 off")
 
 
 def _classify_v10(o):
@@ -177,7 +189,7 @@ def print_stress_cases(o):
         for c in o["stress_cases"]:
             cw = c["window"]
             mark = "*" if c is ref else " "
-            print(f"     {mark} {c['profile'].label:<30} Shmin {c['Shmin']/1e6:5.0f} "
+            print(f"     {mark} {c['label']:<44} Shmin {c['Shmin']/1e6:5.0f} "
                   f"SHmax {c['SHmax']/1e6:5.0f}  window {cw['SG_lo']:.2f}-{cw['SG_hi']:.2f} SG  "
                   f"{cw['width_hydro']:3.0f} deg at hydro  {cw['verdict']}")
         print("       (* = worst case in range, used for the table row)")
@@ -188,7 +200,8 @@ if __name__ == "__main__":
     results = [evaluate(s) for s in SITES]
 
     hdr = (f"{'Site':<26}{'depth':>7}{'T_rock':>7}{'K0':>5}{'aniso':>6}"
-           f"{'bitC':>6}{'MW':>5}{'ROP':>5}{'gain':>5}{'stability':>20}  {'verdict':<34}{'C7 off'}")
+           f"{'bitC':>6}{'MW':>5}{'ROP':>5}{'gain':>5}{'stability':>20}  {'verdict':<34}"
+           f"{'C7 off':<34}{'W_max ' + format(C.BREAKOUT_W_MAX_SITE_DEG, '.0f')}")
     print("=" * len(hdr))
     print("COMPARATIVE SITING TABLE  (target 400 C, vacuum tubing, quench-assist)")
     print("=" * len(hdr))
@@ -201,13 +214,16 @@ if __name__ == "__main__":
         print(f"{short:<26}{o['z']/1000:6.1f}k{o['T_rock']:7.0f}{o['K0']:5.2f}"
               f"{o['anisotropy']:6.2f}{o['m1']['T_bottom_delivered']:6.0f}"
               f"{o['MW_prod']:5.1f}{d['ROP']*3600:5.1f}{o['rop_gain']:5.1f}"
-              f"{stab:>20}  {verdict:<34}{classify_no_thermal(o) or ''}")
+              f"{stab:>20}  {verdict:<34}{classify_no_thermal(o) or '':<34}"
+              f"{classify_sensitivity(o, 'W_max ' + format(C.BREAKOUT_W_MAX_SITE_DEG, '.0f')) or ''}")
     print("-" * len(hdr))
     print("notes: MW at 10 kg/s early-life; ROP m/hr; gain = quench ROP multiplier;")
     print(f"       stability: breakout lobe width at hydrostatic mud, or the overbalance")
     print(f"       (and mud SG) that brings it within {C.BREAKOUT_W_MAX_DEG:.0f} deg below Shmin less")
     print(f"       {C.MUD_MARGIN_SG} SG; [a..b] = verdict range across the site's stress cases.")
     print("       C7 off = sensitivity: the verdict without the wall's thermal hoop stress.")
+    print(f"       W_max {C.BREAKOUT_W_MAX_SITE_DEG:.0f} = sensitivity: the widest breakout UD-1 logged in a")
+    print("       trouble-free section (site-calibrated, D2), in place of 90 deg.")
     print()
     # one-line readout per site
     for s, o in zip(SITES, results):

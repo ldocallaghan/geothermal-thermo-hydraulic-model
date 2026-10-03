@@ -144,8 +144,13 @@ class SiteProfile:
     # rest on regime bounds. Empty means v1.0's ratios, via from_ratios.
     stress_cases: tuple = ()
     stress_basis: str = "v1.0 ratios"     # "measured", "measured range" or "regime bounds"
+    # v1.1 (C8): rock-strength cases, (label, UCS at 25 C [Pa]). Each is run
+    # against every stress case. Empty means the single value UCS.
+    strength_cases: tuple = ()
 
     def __post_init__(self):
+        if not self.strength_cases:
+            self.strength_cases = (("site UCS", self.UCS),)
         if not self.stress_cases:
             self.stress_cases = (StressProfile.from_ratios(
                 self.Sv_grad, self.K0_min, self.SHmax_over_Sv,
@@ -197,7 +202,7 @@ def thermal_hoop_stress(T_rock, T_wall):
 
 
 def stability_inputs(site, z, T_rock, v10=False, mu=C.FRICTION_MU, UCS=None,
-                     T_wall=None, thermal=True):
+                     T_wall=None, thermal=True, W_max=C.BREAKOUT_W_MAX_DEG):
     """Stress state, admissibility (C2) and breakout for every stress case at z.
 
     v10=True reproduces v1.0: the site ratios and the total-stress breakout
@@ -208,6 +213,9 @@ def stability_inputs(site, z, T_rock, v10=False, mu=C.FRICTION_MU, UCS=None,
     with the worst verdict, then the narrowest mud window, i.e. the one closest
     to NO-GO (C6), then the widest breakout at hydrostatic mud; under v10, the one needing the most mud to suppress
     breakout outright.
+
+    Strength: UCS if given, else each of the site's strength cases (C8), run
+    against every stress case; the v1.0 adapter uses the global C.UCS.
 
     T_wall is the wall temperature for strength and, with thermal=True, for the
     thermal hoop stress (C7); evaluate() passes Model 1's circulating
@@ -224,8 +232,11 @@ def stability_inputs(site, z, T_rock, v10=False, mu=C.FRICTION_MU, UCS=None,
     else:
         profiles = [(p, p.Sv(z), p.Shmin(z), p.SHmax(z), float(p.Pp(z)))
                     for p in site.stress_cases]
+    strengths = ([("", UCS)] if v10 or UCS is not None else
+                 list(site.strength_cases))
     cases = []
-    for p, Sv, Shmin, SHmax, Pp in profiles:
+    for (p, Sv, Shmin, SHmax, Pp), (s_label, UCS) in (
+            (pr, st) for pr in profiles for st in strengths):
         window = None
         beyond = None if v10 else p.beyond_data(z)
         SHmax_lim = m5.SHmax_frictional_limit(Shmin, Pp, mu)
@@ -235,8 +246,10 @@ def stability_inputs(site, z, T_rock, v10=False, mu=C.FRICTION_MU, UCS=None,
             SHmax = SHmax_lim
         if not v10:
             window = mud_window(Shmin, SHmax, Pp, z, P_mud, T_rock, T_wall=T_wall,
-                                UCS=UCS, dsigma_T=dsigma_T)
+                                UCS=UCS, dsigma_T=dsigma_T, W_max=W_max)
         cases.append(dict(window=window, T_wall=T_wall, dsigma_T=dsigma_T,
+            UCS=C.UCS if UCS is None else UCS, strength_label=s_label,
+            label=p.label + (f", {s_label}" if len(strengths) > 1 else ""),
             profile=p, Sv=Sv, Shmin=Shmin, SHmax=SHmax, Pp=Pp,
             beyond_data=beyond, cap_binds=cap_binds, cap_depth=p.cap_depth(mu),
             admissible=m5.stress_admissible(Sv, Shmin, SHmax, Pp, mu),
@@ -381,7 +394,6 @@ def evaluate(site: SiteProfile, v10=False, thermal=True):
     verdict with it off as a sensitivity.
     """
     z = site.target_depth
-    UCS = None if v10 else site.UCS
     T_rock = float(site.geotherm(z))
 
     # --- (1) SURVIVAL & ENERGY: Model 1 with the real LAYERED geotherm ---
@@ -401,10 +413,15 @@ def evaluate(site: SiteProfile, v10=False, thermal=True):
     # minimum survivable flow, for strength and thermal stress alike; v1.0's
     # 200 C cap under the adapter
     T_wall = None if v10 else float(m1_run["T_bottom_delivered"])
-    ref, cases = stability_inputs(site, z, T_rock, v10=v10, UCS=UCS,
-                                  T_wall=T_wall, thermal=thermal)
-    no_thermal = None if v10 else stability_inputs(
-        site, z, T_rock, UCS=UCS, T_wall=T_wall, thermal=False)
+    ref, cases = stability_inputs(site, z, T_rock, v10=v10, T_wall=T_wall,
+                                  thermal=thermal)
+    # sensitivities, each a full re-run of the stability check (no Model 1)
+    sens = {} if v10 else {
+        "C7 off": stability_inputs(site, z, T_rock, T_wall=T_wall, thermal=False),
+        f"W_max {C.BREAKOUT_W_MAX_SITE_DEG:.0f}": stability_inputs(
+            site, z, T_rock, T_wall=T_wall, thermal=thermal,
+            W_max=C.BREAKOUT_W_MAX_SITE_DEG)}
+    UCS = ref["UCS"]
     Sv, Shmin, SHmax = ref["Sv"], ref["Shmin"], ref["SHmax"]
     P_fluid = site.rho_fluid_grad * z
     # Shmin/Sv at the target from the reference case; v1.0 used the site ratio
@@ -412,12 +429,13 @@ def evaluate(site: SiteProfile, v10=False, thermal=True):
     # effective gradient that reproduces the real target depth in scalar-G models
     G_deep = (T_rock - C.SURFACE_TEMP) / z
     out = dict(site=site, z=z, T_rock=T_rock, Sv=Sv, Shmin=Shmin, SHmax=SHmax,
-               P_fluid=P_fluid, UCS=C.UCS if UCS is None else UCS, v10=v10,
+               P_fluid=P_fluid, UCS=UCS, v10=v10,
                K0=K0, anisotropy=SHmax / Shmin, Pp=ref["Pp"],
                stress=ref, stress_cases=cases, thermal=thermal and not v10,
                T_wall=ref["T_wall"], dsigma_T=ref["dsigma_T"],
-               no_thermal=None if no_thermal is None else
-               dict(stress=no_thermal[0], stress_cases=no_thermal[1]))
+               sensitivity={k: dict(stress=r, stress_cases=c) for k, (r, c) in sens.items()},
+               no_thermal=None if v10 else dict(stress=sens["C7 off"][0],
+                                                stress_cases=sens["C7 off"][1]))
     out["m_min"], out["m1"] = m_min, m1_run
 
     # --- (2/3) DRILLABILITY: regime + quench ROP gain (spallation uses K0=Shmin)

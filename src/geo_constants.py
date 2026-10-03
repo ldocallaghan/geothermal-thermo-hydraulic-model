@@ -57,6 +57,10 @@ FRICTION_MU_SENSITIVITY = (0.6, 0.85)
 # bound is Shmin less a margin; 0.05 SG (~0.4 ppg) is a typical drilling margin
 # against losses and is NOT set by the spec -- adjust if a better value exists.
 BREAKOUT_W_MAX_DEG = 90.0
+# The widest breakout UD-1 logged in a section drilled without trouble (the
+# 12.25", BGS image log; src/calibrate_ud1.py). D2: verdicts are also reported
+# at this site-calibrated W_max.
+BREAKOUT_W_MAX_SITE_DEG = 63.0
 WALL_T0 = 0.0
 MUD_MARGIN_SG = 0.05
 MUD_SG_GRAD = 1000.0 * 9.81           # Pa/m per unit SG

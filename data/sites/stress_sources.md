@@ -81,6 +81,22 @@ earthquakes (M < 2, 2–6 km deep, bracketing the 2.85 km target):
 σ2 switching between vertical and horizontal means Sv ≈ SHmax, which is the
 `transitional_bounds()` construction.
 
+**Temperature (D6).** Bertani, R. et al. (2018). "The first results of the
+DESCRAMBLE project." *Proc. 43rd Workshop on Geothermal Reservoir
+Engineering*, Stanford, SGP-TR-213. Venelle-2 was deepened from 2.2 km
+(350 °C) to 2.9 km: static logs give ≥ 504 °C at 2,815 m and 507–517 °C at
+~2.9 km (not fully re-equilibrated, so lower bounds). v1.0's profile read
+400 °C at 2.85 km, over 100 K too cold there. v1.1 follows Venelle-2:
+15 °C + 152 °C/km to 2.2 km, 250 °C/km to 2,815 m, 100 °C/km below, which puts
+400 °C at ~2.4 km.
+
+Drilling record, same paper: leak-off tests at 2,500, 2,585 and 2,616 m (no
+values given), total circulation loss at 2,334 m, two differentially stuck
+pipes at 2,695 and 2,709 m with 1.35-1.5 SG mud, then water to TD. No
+breakout or image-log data are published, so Venelle-2 can't check the
+stability model. A search for Larderello rock strength found only an
+analogue study of micaschist exposed on Elba (CNR).
+
 Pore pressure: hydrostatic by default, and the paper gives no basis to change
 it. It points both ways: the shallow reservoir is vapour-dominated, so likely
 underpressured, while the paper reports over-pressured fluid injection and
@@ -96,6 +112,21 @@ Basin and the surrounding Alpine-Carpathian-Dinaric orogens." *Földtani Közlö
 strike-slip, locally transtensional. Thrusting and transpression are at the
 margins. This contradicts v1.0's normal-faulting ratios (Shmin 0.60 Sv,
 SHmax 0.90 Sv), which reflected the Miocene back-arc extension, no longer active.
+
+Stress magnitudes: none found. The newest compilation, Békési, Porkoláb &
+Wéber (2023), "Stress field of the Pannonian region", *Földtani Közlöny*
+153(4), DOI 10.23928/foldt.kozl.2023.153.4.mapB, maps SHmax orientations only.
+
+Pore pressure: the deep regime of the Great Hungarian Plain is reported as
+overpressured by 1–35 MPa above hydrostatic (Almási 2001, PhD thesis,
+University of Alberta, seen only through a search summary; **not yet
+verified**). The model keeps hydrostatic Pp and labels it "assumed". Those
+data are from the Neogene basin fill; the 9.7 km target is in basement,
+where nothing is known.
+
+Rock strength and temperature: no basement strength data found; the
+45–50 °C/km gradient is regional and is extrapolated to 9.7 km with no deep
+well cited.
 
 Bounded as transtensional (decided 3 October): SHmax = Sv, with Shmin from the
 frictional floor to Sv. The wider strike-slip range, with SHmax up to the

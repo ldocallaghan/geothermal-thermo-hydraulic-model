@@ -182,7 +182,7 @@ def _o(verdicts, ref_index=0, admissible=True, T_rock=400.0):
 def test_classify_single_case():
     from comparative_sites import classify
     assert classify(_o(["GO"]))[2] == "GO"
-    assert classify(_o(["CONDITIONAL"]))[1] == "+5MPa (1.10 SG)"
+    assert classify(_o(["CONDITIONAL"]))[1] == "+5.0MPa (1.10 SG)"
     assert classify(_o(["NO-GO"]))[2] == "NO-GO"
 
 

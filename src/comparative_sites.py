@@ -50,8 +50,24 @@ LARDERELLO = SiteProfile(
     # Basin; full citation to confirm), i.e. SHmax ~ Sv. Hydrostatic Pp is the
     # default; the vapour-dominated reservoir is likely underpressured.
     stress_cases=transitional_bounds(
-        2600 * 9.81, source="regime: normal/strike-slip transition (Brogi et al.)"),
-    stress_basis="regime bounds")
+        2600 * 9.81, source="regime: normal/strike-slip transition (Liotta & Brogi)"),
+    stress_basis="regime bounds",
+    # D6: Venelle-2 (Bertani et al. 2018, SGP-TR-213): 350 C at 2.2 km, >= 504 C
+    # at 2,815 m, 507-517 C at ~2.9 km. v1.0's profile read 400 C at 2.85 km,
+    # more than 100 K too cold there; 400 C is at ~2.4 km.
+    geotherm_v11=make_geotherm([(0, 15, 0.152), (2200, 350, 0.2504), (2815, 504, 0.1)]),
+    target_depth_v11=2400.0,
+    temperature_data_to=2900.0,
+    data_basis={
+        "stress": ("regime bounds", "Liotta & Brogi (manuscript, Geothermics); no "
+                   "magnitudes published"),
+        "strength": ("unsourced", "v1.0 140 MPa; only an Elba micaschist analogue found"),
+        "pore pressure": ("assumed", "hydrostatic; vapour-dominated field, with "
+                          "over-pressured fluids reported along active faults"),
+        "temperature": ("measured", "Venelle-2 to 2.9 km (Bertani et al. 2018)"),
+        "well check": ("none", "Venelle-2 drilled to 2.9 km (losses, stuck pipe), but no "
+                       "breakout data published"),
+    })
 
 CORNWALL = SiteProfile(
     name="United Downs / Carnmenellis (UK)",
@@ -76,7 +92,22 @@ CORNWALL = SiteProfile(
     # and the breakout zones' median, at both ends of the bracket. UCS=180e6
     # above stays as v1.0's uncalibrated value.
     strength_cases=(("intact, 0 K", 203e6), ("intact, 40 K", 172e6),
-                    ("weak zones, 0 K", 147e6), ("weak zones, 40 K", 118e6)))
+                    ("weak zones, 0 K", 147e6), ("weak zones, 40 K", 118e6)),
+    # D6: Reinecker et al. (2021) give ~180 C at 5 km; v1.0's 190 C was 10 K
+    # hot. v1.0's 28 C/km below 5 km is kept (unsourced), which puts 400 C at
+    # ~12.86 km instead of 12.5 km.
+    geotherm_v11=make_geotherm([(0, 15, 0.033), (5000, 180, 0.028)]),
+    target_depth_v11=5000.0 + (400.0 - 180.0) / 0.028,
+    temperature_data_to=5058.0,
+    data_basis={
+        "stress": ("measured", "Reinecker et al. (2021); Shmin data to 2.0 km, "
+                   "SHmax derived at mu 0.8"),
+        "strength": ("calibrated", "UD-1 breakouts, BGS image log (C8)"),
+        "pore pressure": ("measured", "Reinecker et al. (2021)"),
+        "temperature": ("extrapolated", "~180 C at 5 km (Reinecker et al. 2021); "
+                        "28 C/km assumed below"),
+        "well check": ("calibrated", "UD-1 to 5,058 m TVD (C8)"),
+    })
 
 PANNONIAN = SiteProfile(
     name="Pannonian Basin (Hungary)",
@@ -90,7 +121,17 @@ PANNONIAN = SiteProfile(
     # Bounded as transtensional, SHmax ~ Sv (decided 3 October).
     stress_cases=transitional_bounds(
         2550 * 9.81, source="regime: strike-slip, locally transtensional (Bada et al. 2007)"),
-    stress_basis="regime bounds")
+    stress_basis="regime bounds",
+    data_basis={
+        "stress": ("regime bounds", "Bada et al. (2007); orientation maps only "
+                   "(Bekesi et al. 2023), no magnitudes"),
+        "strength": ("unsourced", "v1.0 160 MPa; no basement data found"),
+        "pore pressure": ("assumed", "hydrostatic, but the deep Great Hungarian Plain "
+                          "is reported overpressured by 1-35 MPa (not yet verified)"),
+        "temperature": ("regional", "45-50 C/km regional gradient, extrapolated to "
+                        "9.7 km; no deep well cited"),
+        "well check": ("none", "no well with wellbore-failure data"),
+    })
 
 SITES = [SOULTZ, LARDERELLO, CORNWALL, PANNONIAN]
 
@@ -110,7 +151,8 @@ def classify(o):
     if w["verdict"] == "GO":
         stab = f"OK ({w['width_hydro']:.0f} deg)"
     elif w["verdict"] == "CONDITIONAL":
-        stab = f"+{w['overbalance_MPa']:.0f}MPa ({w['SG_lo']:.2f} SG)"
+        ob = w["overbalance_MPa"]
+        stab = f"+{ob:.1f}MPa ({w['SG_lo']:.2f} SG)" if ob < 10 else f"+{ob:.0f}MPa ({w['SG_lo']:.2f} SG)"
     else:
         stab = "NO (window shut)"
     verdict = w["verdict"]
@@ -195,43 +237,80 @@ def print_stress_cases(o):
         print("       (* = worst case in range, used for the table row)")
 
 
-if __name__ == "__main__":
-    import sys; sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    results = [evaluate(s) for s in SITES]
+def beyond_data_km(o):
+    """(stress, temperature): km by which the target lies below the deepest
+    data; None where there is no data at all (D6)."""
+    s = o["site"]
+    stress = o["stress"]["beyond_data"]
+    temp = (None if s.temperature_data_to is None
+            else max(o["z"] - s.temperature_data_to, 0.0))
+    return (None if stress is None else stress / 1000.0,
+            None if temp is None else temp / 1000.0)
 
+
+def print_table(title, sites, results):
+    w63 = "W_max " + format(C.BREAKOUT_W_MAX_SITE_DEG, ".0f")
     hdr = (f"{'Site':<26}{'depth':>7}{'T_rock':>7}{'K0':>5}{'aniso':>6}"
            f"{'bitC':>6}{'MW':>5}{'ROP':>5}{'gain':>5}{'stability':>20}  {'verdict':<34}"
-           f"{'C7 off':<34}{'W_max ' + format(C.BREAKOUT_W_MAX_SITE_DEG, '.0f')}")
+           f"{'C7 off':<34}{w63:<34}{'beyond data (stress / T)'}")
     print("=" * len(hdr))
-    print("COMPARATIVE SITING TABLE  (target 400 C, vacuum tubing, quench-assist)")
+    print(title)
     print("=" * len(hdr))
     print(hdr)
     print("-" * len(hdr))
-    for s, o in zip(SITES, results):
+    for s, o in zip(sites, results):
         surv, stab, verdict = classify(o)
         d = o["drill"]
         short = s.name.split("(")[0].strip()[:25]
+        bs, bt = beyond_data_km(o)
+        beyond = (f"{'no data' if bs is None else f'{bs:.1f} km'} / "
+                  f"{'no data' if bt is None else f'{bt:.1f} km'}")
         print(f"{short:<26}{o['z']/1000:6.1f}k{o['T_rock']:7.0f}{o['K0']:5.2f}"
               f"{o['anisotropy']:6.2f}{o['m1']['T_bottom_delivered']:6.0f}"
               f"{o['MW_prod']:5.1f}{d['ROP']*3600:5.1f}{o['rop_gain']:5.1f}"
               f"{stab:>20}  {verdict:<34}{classify_no_thermal(o) or '':<34}"
-              f"{classify_sensitivity(o, 'W_max ' + format(C.BREAKOUT_W_MAX_SITE_DEG, '.0f')) or ''}")
+              f"{classify_sensitivity(o, w63) or '':<34}{beyond}")
+        if s.tier == "speculative":
+            gaps = ", ".join(f"{k} ({b})" for k, b in s.missing())
+            print(f"{'':<26}   missing for evidence-based: {gaps}")
     print("-" * len(hdr))
+
+
+def print_basis(site):
+    """Each input's data basis and source (D6)."""
+    for k in ("stress", "strength", "pore pressure", "temperature", "well check"):
+        basis, src = site.data_basis.get(k, ("none", ""))
+        print(f"    {k + ':':<15}{basis:<16}{src}")
+
+
+if __name__ == "__main__":
+    import sys; sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    results = [evaluate(s) for s in SITES]
+    tiers = {t: [(s, o) for s, o in zip(SITES, results) if s.tier == t]
+             for t in ("evidence-based", "speculative")}
+
+    print_table("EVIDENCE-BASED SITES  (target 400 C; stress and strength measured or "
+                "calibrated at the site, stability checked against a well there)",
+                *zip(*tiers["evidence-based"]))
+    print()
+    print_table("SPECULATIVE SITES  (inputs missing, so the verdict rests on assumptions; "
+                "NOT comparable with the table above)", *zip(*tiers["speculative"]))
     print("notes: MW at 10 kg/s early-life; ROP m/hr; gain = quench ROP multiplier;")
     print(f"       stability: breakout lobe width at hydrostatic mud, or the overbalance")
     print(f"       (and mud SG) that brings it within {C.BREAKOUT_W_MAX_DEG:.0f} deg below Shmin less")
-    print(f"       {C.MUD_MARGIN_SG} SG; [a..b] = verdict range across the site's stress cases.")
+    print(f"       {C.MUD_MARGIN_SG} SG; [a..b] = verdict range across the site's stress and strength cases.")
     print("       C7 off = sensitivity: the verdict without the wall's thermal hoop stress.")
     print(f"       W_max {C.BREAKOUT_W_MAX_SITE_DEG:.0f} = sensitivity: the widest breakout UD-1 logged in a")
     print("       trouble-free section (site-calibrated, D2), in place of 90 deg.")
+    print("       beyond data: how far the target lies below the deepest stress / temperature data.")
     print()
-    # one-line readout per site
-    for s, o in zip(SITES, results):
-        b = o["breakout"]
-        print(f"* {s.name}:")
-        print(f"    depth {o['z']/1000:.1f} km to {o['T_rock']:.0f} C; "
-              f"Sv {o['Sv']/1e6:.0f} / SHmax {o['SHmax']/1e6:.0f} / Shmin {o['Shmin']/1e6:.0f} MPa; "
-              f"breakout sig_th {b['sigma_theta']/1e6:.0f} vs MC {b['mc_cold']/1e6:.0f} MPa, "
-              f"P_need {b['P_need']/1e6:.0f} vs Shmin {o['Shmin']/1e6:.0f} MPa")
-        print_stress_cases(o)
-
+    for tier in ("evidence-based", "speculative"):
+        for s, o in tiers[tier]:
+            b = o["breakout"]
+            print(f"* {s.name}  [{tier}]:")
+            print_basis(s)
+            print(f"    depth {o['z']/1000:.1f} km to {o['T_rock']:.0f} C; "
+                  f"Sv {o['Sv']/1e6:.0f} / SHmax {o['SHmax']/1e6:.0f} / Shmin {o['Shmin']/1e6:.0f} MPa; "
+                  f"breakout sig_th {b['sigma_theta']/1e6:.0f} vs MC {b['mc_cold']/1e6:.0f} MPa, "
+                  f"P_need {b['P_need']/1e6:.0f} vs Shmin {o['Shmin']/1e6:.0f} MPa")
+            print_stress_cases(o)

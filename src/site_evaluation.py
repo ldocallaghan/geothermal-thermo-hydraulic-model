@@ -147,6 +147,16 @@ class SiteProfile:
     # v1.1 (C8): rock-strength cases, (label, UCS at 25 C [Pa]). Each is run
     # against every stress case. Empty means the single value UCS.
     strength_cases: tuple = ()
+    # v1.1 (D6): data basis. data_basis maps each input -- "stress",
+    # "strength", "pore pressure", "temperature", "well check" -- to
+    # (basis, source), basis one of BASES. geotherm_v11 / target_depth_v11
+    # replace the v1.0 temperature profile where measurements contradict it
+    # (the v1.0 adapter keeps the old ones); temperature_data_to is the
+    # deepest measured temperature [m], None if there is none.
+    data_basis: dict = field(default_factory=dict)
+    geotherm_v11: callable = None
+    target_depth_v11: float = None
+    temperature_data_to: float = None
 
     def __post_init__(self):
         if not self.strength_cases:
@@ -160,6 +170,38 @@ class SiteProfile:
     def anisotropy(self):
         return self.SHmax_over_Sv / self.K0_min   # SHmax / Shmin
 
+    def temperature(self, v10=False):
+        """The temperature profile a run uses: v1.0's under the adapter."""
+        return self.geotherm if v10 or self.geotherm_v11 is None else self.geotherm_v11
+
+    def target(self, v10=False):
+        return (self.target_depth if v10 or self.target_depth_v11 is None
+                else self.target_depth_v11)
+
+    @property
+    def tier(self):
+        """D6: "evidence-based" only if stress magnitudes and rock strength are
+        both measured or calibrated at the site and the stability model has
+        been checked against a real well there; otherwise "speculative"."""
+        b = {k: v[0] for k, v in self.data_basis.items()}
+        ok = (b.get("stress") in ("measured", "measured range")
+              and b.get("strength") in ("calibrated", "measured (lab)")
+              and b.get("well check") in ("calibrated", "checked"))
+        return "evidence-based" if ok else "speculative"
+
+    def missing(self):
+        """Inputs that keep a site speculative, as (input, basis)."""
+        need = {"stress": ("measured", "measured range"),
+                "strength": ("calibrated", "measured (lab)"),
+                "well check": ("calibrated", "checked")}
+        return [(k, self.data_basis.get(k, ("none", ""))[0]) for k, good in need.items()
+                if self.data_basis.get(k, ("none", ""))[0] not in good]
+
+
+# D6 basis labels, strongest first
+BASES = ("calibrated", "measured", "measured range", "measured (lab)", "checked",
+         "regime bounds", "extrapolated", "regional", "assumed", "unsourced", "none")
+
 
 SOULTZ = SiteProfile(
     name="Upper Rhine Graben / Soultz-sous-Forets (France)",
@@ -172,7 +214,7 @@ SOULTZ = SiteProfile(
     rho_fluid_grad=C.HYDROSTATIC_GRAD,
     k_rock=2.9,                 # URG biotite granite ~2.5-3.2 W/m/K
     E_rock=55e9,                # granite ~50-60 GPa
-    UCS=170e6,                  # crystalline basement ~150-200 MPa
+    UCS=170e6,                  # v1.0: "crystalline basement ~150-200 MPa", unsourced
     # Valley & Evans (2007), Stanford Geothermal Workshop SGP-TR-183, valid
     # 1.5-5.0 km: Sv = -1.30 + 25.50z, Shmin = -1.78 + 14.06z,
     # -1.17 + 22.95z <= SHmax < -1.37 + 26.78z  [MPa, z in km], i.e.
@@ -186,6 +228,19 @@ SOULTZ = SiteProfile(
                           ("SHmax mid-range", 24.865, -1.27),
                           ("SHmax upper bound (1.05 Sv)", 26.78, -1.37))),
     stress_basis="measured range",
+    # D6: lab UCS of ten samples of unaltered Soultz granite, 100-130 MPa
+    # (Valley & Evans 2007), replacing the unsourced 170 MPa
+    strength_cases=(("lab UCS 100", 100e6), ("lab UCS 115", 115e6), ("lab UCS 130", 130e6)),
+    temperature_data_to=5000.0,
+    data_basis={
+        "stress": ("measured range", "Valley & Evans (2007), 1.5-5.0 km"),
+        "strength": ("measured (lab)", "Valley & Evans (2007): 10 samples, 100-130 MPa; "
+                     "not calibrated in situ"),
+        "pore pressure": ("measured", "near-hydrostatic (Valley & Evans 2007)"),
+        "temperature": ("extrapolated", "200 C at 5 km measured (GPK wells); 35 C/km "
+                        "assumed below"),
+        "well check": ("checked", "GPK3/GPK4 breakout onset and occurrence (C9)"),
+    },
 )
 
 
@@ -393,15 +448,16 @@ def evaluate(site: SiteProfile, v10=False, thermal=True):
     off the C7 thermal hoop stress alone; either way the result carries the
     verdict with it off as a sensitivity.
     """
-    z = site.target_depth
-    T_rock = float(site.geotherm(z))
+    z = site.target(v10)
+    geotherm = site.temperature(v10)
+    T_rock = float(geotherm(z))
 
     # --- (1) SURVIVAL & ENERGY: Model 1 with the real LAYERED geotherm ---
     # scan flow for the minimum that keeps the bit < survival ceiling
     surv = None
     for md in (2, 4, 7, 10, 14, 20):
         r = m1.solve(m_dot=md, T_inj=site.T_inj, k_ins=0.02, k_rock=site.k_rock,
-                     geotherm=site.geotherm, target_depth=z, Q_face=30000.0,
+                     geotherm=geotherm, target_depth=z, Q_face=30000.0,
                      verbose=False)
         if r["T_bottom_delivered"] < C.BHA_SURVIVAL_TEMP:
             surv = (md, r); break
@@ -461,7 +517,7 @@ def evaluate(site: SiteProfile, v10=False, thermal=True):
 
     # production-flow energy (the survival run uses min flow, which minimises MW)
     rp = m1.solve(m_dot=10.0, T_inj=site.T_inj, k_ins=0.02, k_rock=site.k_rock,
-                  geotherm=site.geotherm, target_depth=z, Q_face=30000.0, verbose=False)
+                  geotherm=geotherm, target_depth=z, Q_face=30000.0, verbose=False)
     out["MW_prod"] = rp["Q_product"] / 1e6
     out["Tret_prod"] = rp["T_return_surface"]
     return out

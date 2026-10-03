@@ -49,12 +49,12 @@ def test_published_profile_at_ud1_total_depth():
     where v1.0 inputs give 65 against 72."""
     Sv, Shmin, SHmax = published(UD1_TD_TVD)
     P_fluid = C.HYDROSTATIC_GRAD * UD1_TD_TVD
-    # 185 C wall, the measured UD-1 temperature at TD and the value the spec
-    # uses here. At the 200 C cap instead, P_need reads 37.0 MPa.
-    b = se.breakout_v10(Shmin, SHmax, P_fluid, 185.0, T_wall=185.0)
+    # 180 C wall: the paper gives "around 180 C at 5 km". At the 200 C cap
+    # instead, P_need reads 37.0 MPa.
+    b = se.breakout_v10(Shmin, SHmax, P_fluid, 180.0, T_wall=180.0)
 
     assert Shmin / MPa == pytest.approx(69.8, abs=0.5)
-    assert b["P_need"] / MPa == pytest.approx(36.4, abs=0.5)
+    assert b["P_need"] / MPa == pytest.approx(36.3, abs=0.5)
     assert bool(b["frac_limited"]) is False
 
 
@@ -73,8 +73,10 @@ def test_published_profile_at_12p5km_is_conditional_not_frac_limited():
 
 @pytest.mark.parametrize("z, expected", [(5000.0, 4.51), (12500.0, 4.78)])
 def test_published_profile_effective_stress_ratio(z, expected):
-    """Effective S1/S3 at hydrostatic Pp: 4.5 to 4.8, i.e. just under the 4.68
-    frictional cap at mu 0.85 at 5 km and just over it at 12.5 km (C2)."""
+    """Effective S1/S3 at 10 MPa/km hydrostatic Pp: 4.5 to 4.8, i.e. just under
+    the 4.68 cap at mu 0.85 at 5 km and just over it at 12.5 km. Under the
+    paper's own pore pressure it is 4.0 to 4.25, under the 4.33 cap at the
+    default mu 0.8 (D1) -- see the tests further down."""
     _, Shmin, SHmax = published(z)
     Pp = C.HYDROSTATIC_GRAD * z
     assert (SHmax - Pp) / (Shmin - Pp) == pytest.approx(expected, abs=0.02)
@@ -96,10 +98,11 @@ def test_published_profile_predicts_no_breakout_over_the_logged_interval():
 
 def test_frictional_caps_bracket_the_two_profiles():
     """The caps themselves (pure arithmetic; C2 adds the function that uses
-    them): 3.12 at mu 0.6 and 4.68 at mu 0.85."""
+    them): 3.12 at mu 0.6, 4.33 at the default 0.8 (D1), 4.68 at 0.85."""
     def cap(mu):
         return (np.sqrt(1 + mu ** 2) + mu) ** 2
     assert cap(0.6) == pytest.approx(3.12, abs=0.01)
+    assert cap(0.8) == pytest.approx(4.33, abs=0.01)
     assert cap(0.85) == pytest.approx(4.68, abs=0.01)
 
 

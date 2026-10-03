@@ -74,12 +74,12 @@ def main():
     print(f"{'   same, at 12.5 km':<46}"
           f"{eff_ratio(*v10(12500.0)[1:], 12500.0):>26.2f}"
           f"{eff_ratio(*pub(12500.0)[1:], 12500.0):>28.2f}")
-    print(f"{'frictional cap R(mu) at 0.6 / 0.85':<46}"
-          f"{f'{cap(0.6):.2f} / {cap(0.85):.2f}':>26}{f'{cap(0.6):.2f} / {cap(0.85):.2f}':>28}")
+    caps = f"{cap(0.6):.2f} / {cap(0.8):.2f} / {cap(0.85):.2f}"
+    print(f"{'frictional cap R(mu) at 0.6 / 0.8 / 0.85':<46}{caps:>26}{caps:>28}")
     print("-" * w)
 
     # mud to suppress breakout
-    for z, label, T_wall in ((5058.0, "UD-1 at 5,058 m TVD", 185.0),
+    for z, label, T_wall in ((5058.0, "UD-1 at 5,058 m TVD", 180.0),
                              (12500.0, "target depth 12.5 km", None)):
         cells = []
         for stresses in (v10, z and pub):
@@ -106,8 +106,8 @@ def main():
           f"{f'{m5.sigma_cm(200.0) / MPa:.0f} MPa at 200 C':>26}"
           f"{f'site UCS {CORNWALL.UCS / MPa:.0f} MPa ignored':>28}")
     print("=" * w)
-    print("Published gradients are the spec's, attributed to Reinecker et al. (2021)")
-    print("and NOT yet verified against the paper. See C1.")
+    print("Published gradients verified against Reinecker et al. (2021), section 6.3;")
+    print("see data/ud1/reinecker2021.md. UD-1 wall at the paper's ~180 C at 5 km.")
 
 
 if __name__ == "__main__":

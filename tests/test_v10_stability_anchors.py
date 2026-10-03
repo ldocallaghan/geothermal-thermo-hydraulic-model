@@ -67,14 +67,14 @@ def test_ud1_measured_depth_mud_to_suppress_breakout_vs_shmin():
     z = 5058.0
     _, Shmin, SHmax, P_fluid = se.stresses_v10(CORNWALL, z)
     T_rock = float(CORNWALL.geotherm(z))
-    b = se.breakout_v10(Shmin, SHmax, P_fluid, T_rock)
+    # Wall at 180 C, Reinecker et al. (2021)'s "around 180 C at 5 km". The repo
+    # geotherm reads 191.6 C here; at that temperature P_need is 65.3 MPa, so
+    # the choice moves nothing at the precision the spec table reports.
+    b = se.breakout_v10(Shmin, SHmax, P_fluid, T_rock, T_wall=180.0)
 
-    # The repo geotherm gives 191.6 C here; the spec quotes a 185 C wall from the
-    # measured UD-1 profile. The difference moves P_need by 0.2 MPa (65.3 vs 65.1),
-    # i.e. nothing at the precision the spec table reports.
     assert T_rock == pytest.approx(191.6, abs=0.1)
     assert Shmin / MPa == pytest.approx(71.8, abs=0.5)
-    assert b["P_need"] / MPa == pytest.approx(65.3, abs=0.5)
+    assert b["P_need"] / MPa == pytest.approx(64.9, abs=0.5)
     assert bool(b["breaks"]) is True             # breaks out at hydrostatic mud
     assert bool(b["frac_limited"]) is False      # but 65 < 72: still mud-controllable
 

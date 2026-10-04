@@ -1,4 +1,4 @@
-# Deep and superhot-rock geothermal: a first-principles model stack and site-evaluation tool
+# Deep and superhot-rock geothermal drilling: a first-principles model stack and site-evaluation tool
 
 This repository contains a set of coupled physical models, written in Python, that examine whether a single circulating coolant loop could be used to drill into rock at around 400 °C, keep the drilling tools alive, keep the borehole open and return the heat to surface. The models are applied to four European candidate sites. The borehole-stability model, which decides most of the site verdicts, has been calibrated against the breakouts logged in the UD-1 well at United Downs, Cornwall, and checked against the GPK wells at Soultz-sous-Forêts. At the two sites where stress and rock strength have been measured, the borehole appears to be stable with a modest increase in drilling-fluid weight. Both targets, however, lie 6 to 11 km below the deepest stress data, and the results should be read as projections rather than predictions.
 

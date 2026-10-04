@@ -58,9 +58,9 @@ less total length, in the near-vertical section, and only 2 tensile
 fractures, at the two ends of the paper's tensile-fracture interval. Most
 likely the operator's interpretation (behind the paper) and the BGS one used
 different picking criteria; tensile fractures are often axial traces that a
-plane-picking workflow would not record. For C8, this dataset is the one with
-depths and widths, so it is the calibration target, and the paper's counts are
-a second opinion.
+plane-picking workflow would not record. This dataset is the one with depths
+and widths, so it is what the strength calibration (src/calibrate_ud1.py)
+fits, and the paper's counts are a second opinion.
 
 Note: 140.5 m below 4,000 m MD is close to the paper's 139 m above it. That
 could be coincidence, or a sign the paper's total covers a different interval

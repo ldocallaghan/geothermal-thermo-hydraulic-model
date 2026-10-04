@@ -1,4 +1,4 @@
-"""Print the v1.0 regression anchors as a table (spec v1.1, order-of-work step 1).
+"""Print the v1.0 regression anchors as a table, beside the published profile.
 
     python tests/report_v10_anchors.py
 

@@ -45,21 +45,22 @@ TARGET_ROCK_TEMP = 450.0           # degC
 # can also integrate rho(z)*g for a self-consistent column.
 HYDROSTATIC_GRAD = 10.0e6 / 1000.0  # Pa/m  (10 MPa/km)
 # Friction coefficient of optimally oriented faults, for the frictional
-# admissibility cap on effective S1/S3 (spec v1.1, D1). 0.8 is the value
-# Reinecker et al. (2021) build the United Downs SHmax on; 0.6 (KTB, Ito &
-# Zoback 2000) and 0.85 (Byerlee 1978) are reported as sensitivities.
+# admissibility cap on effective S1/S3. 0.8 is the value Reinecker et al.
+# (2021) build the United Downs SHmax on, so the cap is consistent with the one
+# measured profile in the model; 0.6 (KTB, Ito & Zoback 2000) and 0.85
+# (Byerlee 1978) are reported as sensitivities.
 FRICTION_MU = 0.8
 FRICTION_MU_SENSITIVITY = (0.6, 0.85)
-# Drillability verdict (spec v1.1, C6). W_max: the widest breakout lobe a well
-# is drilled with, the empirical criterion in Zoback (2007), ch. 10 (D2).
+# Drillability verdict. W_max: the widest breakout lobe a well is drilled
+# with, the empirical criterion in Zoback (2007), Reservoir Geomechanics, ch. 10.
 # T0: wall tensile strength for the tensile-fracture report; zero because a
-# critically stressed wall fails from existing flaws (D4). The window's upper
-# bound is Shmin less a margin; 0.05 SG (~0.4 ppg) is a typical drilling margin
-# against losses and is NOT set by the spec -- adjust if a better value exists.
+# critically stressed wall fails from existing flaws, as UD-1's did. The mud
+# window's upper bound is Shmin less a margin; 0.05 SG (~0.4 ppg) is a typical
+# drilling margin against losses, not a site value -- adjust if one exists.
 BREAKOUT_W_MAX_DEG = 90.0
 # The widest breakout UD-1 logged in a section drilled without trouble (the
-# 12.25", BGS image log; src/calibrate_ud1.py). D2: verdicts are also reported
-# at this site-calibrated W_max.
+# 12.25", BGS image log; src/calibrate_ud1.py). Verdicts are also reported at
+# this site-calibrated W_max, as a sensitivity on the 90 deg default.
 BREAKOUT_W_MAX_SITE_DEG = 63.0
 WALL_T0 = 0.0
 MUD_MARGIN_SG = 0.05

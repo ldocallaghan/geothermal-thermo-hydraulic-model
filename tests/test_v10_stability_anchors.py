@@ -1,12 +1,12 @@
-"""Regression anchors for the v1.0 stability arithmetic (spec v1.1, test group 1).
+"""Regression anchors for the v1.0 stability arithmetic.
 
-These lock v1.0 behaviour BEFORE any v1.1 physics lands. They run against the
-real code (`site_evaluation.stresses_v10`, `site_evaluation.breakout_v10`,
-`model5`), and deliberately avoid Models 1-4, so they need neither the IAPWS
-water table nor a BVP solve.
+These hold v1.0's behaviour fixed so that v1.1 can be compared with it. They
+run against the real code (`site_evaluation.stresses_v10`,
+`site_evaluation.breakout_v10`, `model5`) and deliberately avoid Models 1-4,
+so they need neither the IAPWS water table nor a BVP solve.
 
-Target numbers are the ones tabulated in the v1.1 spec under "What prompted it",
-for v1.0 at commit d927bc4. Tolerances are tight because the arithmetic is
+The targets are v1.0's numbers at commit d927bc4, checked against UD-1 where
+the well gives a comparison. Tolerances are tight because the arithmetic is
 deterministic; they are stated in MPa so a failure reads in physical units.
 """
 import numpy as np
@@ -43,7 +43,7 @@ def test_sigma_cm_temperature_derating(T_C, expected_MPa):
 # ------------------------------------------------- Cornwall v1.0 stress state
 def test_cornwall_v10_anisotropy_is_constant_with_depth():
     """v1.0 builds stresses from constant ratios, so SHmax/Shmin is 2.55 at
-    every depth. C1 replaces this with a measured depth profile (~1.97)."""
+    every depth. v1.1 replaces it with the measured profile (~1.97)."""
     assert CORNWALL.anisotropy == pytest.approx(2.545, abs=0.005)
     for z in (900.0, 4000.0, 5058.0, 12500.0):
         _, Shmin, SHmax, _ = se.stresses_v10(CORNWALL, z)
@@ -51,9 +51,9 @@ def test_cornwall_v10_anisotropy_is_constant_with_depth():
 
 
 def test_cornwall_v10_effective_stress_ratio_exceeds_every_frictional_cap():
-    """Diagnostic the spec tabulates: effective S1/S3 = 6.23 at hydrostatic Pp,
-    against frictional caps of 3.12 (mu 0.6) and 4.68 (mu 0.85). v1.0 computes
-    no such check -- that is C2. Anchored here so C2 inherits the baseline."""
+    """Effective S1/S3 = 6.23 at hydrostatic Pp, against frictional caps of
+    3.12 (mu 0.6) and 4.68 (mu 0.85): v1.0's stress input was frictionally
+    impossible. v1.0 had no such check; v1.1's admissibility check flags it."""
     z = 5058.0
     _, Shmin, SHmax, _ = se.stresses_v10(CORNWALL, z)
     Pp = C.HYDROSTATIC_GRAD * z
@@ -63,13 +63,13 @@ def test_cornwall_v10_effective_stress_ratio_exceeds_every_frictional_cap():
 # -------------------------------------------------------- UD-1 at 5,058 m TVD
 def test_ud1_measured_depth_mud_to_suppress_breakout_vs_shmin():
     """v1.0 inputs at UD-1's TD: 65 MPa needed against Shmin of 72 MPa.
-    The published profile gives 36 vs 70 (see test_published_profile_v10)."""
+    The published profile gives 36 vs 70 (test_published_profile_v10_physics.py)."""
     z = 5058.0
     _, Shmin, SHmax, P_fluid = se.stresses_v10(CORNWALL, z)
     T_rock = float(CORNWALL.geotherm(z))
     # Wall at 180 C, Reinecker et al. (2021)'s "around 180 C at 5 km". The repo
     # geotherm reads 191.6 C here; at that temperature P_need is 65.3 MPa, so
-    # the choice moves nothing at the precision the spec table reports.
+    # the choice moves nothing at the precision these anchors use.
     b = se.breakout_v10(Shmin, SHmax, P_fluid, T_rock, T_wall=180.0)
 
     assert T_rock == pytest.approx(191.6, abs=0.1)
@@ -112,13 +112,12 @@ LOGGED_INTERVAL = np.arange(900.0, 4001.0, 100.0)
 
 
 def test_v10_predicts_breakout_only_at_the_bottom_of_the_logged_interval():
-    """UD-1 logged 27 breakouts totalling 139 m between ~900 and ~4,000 m MD.
+    """UD-1 broke out repeatedly between ~900 and ~4,000 m MD (27 breakouts
+    totalling 139 m per Reinecker et al. 2021; 24 totalling 46 m in the BGS log).
 
-    v1.0 inputs reproduce almost none of that: at the 12.25" section mud weight
-    (1.05 SG) breakout appears only in the deepest ~200 m of the interval, and at
-    1.10 SG nowhere at all. The spec tabulates this as "only at 4 km"; on a 100 m
-    grid it is 3,900-4,000 m, and the spec's "at or below 1.10 SG" is read here as
-    the two section mud weights it names, reported separately.
+    v1.0 inputs reproduce almost none of that: at the 12.25" section's mud
+    weight (1.05 SG) breakout appears only at 3,900-4,000 m, and at 1.10 SG,
+    the shallower sections' mud weight, nowhere at all.
     """
     assert _breakout_depths(CORNWALL, 1.05, LOGGED_INTERVAL) == [3900.0, 4000.0]
     assert _breakout_depths(CORNWALL, 1.10, LOGGED_INTERVAL) == []
@@ -142,7 +141,8 @@ def test_v10_frac_limited_flag_per_site(site, frac_limited):
 
 
 def test_per_site_ucs_is_ignored_by_the_v10_default():
-    """Each SiteProfile carries a UCS; v1.0 never used it. Since C4 site runs
-    pass it explicitly (tests/test_c4_site_ucs.py), and the default stays v1.0's."""
+    """Each SiteProfile carries a UCS; v1.0 never used it. v1.1 site runs pass
+    their own strengths explicitly (test_site_strength.py); the default stays
+    v1.0's global value."""
     assert CORNWALL.UCS == 180.0 * MPa
     assert m5.sigma_cm(200.0) == pytest.approx(C.UCS * (1 - 0.0009 * 175))

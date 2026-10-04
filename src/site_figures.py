@@ -1,6 +1,6 @@
 """Dashboard figure for the site evaluation (Soultz / Upper Rhine Graben), v1.1:
 measured stress profiles (Valley & Evans 2007), the breakout-width verdict
-(C5/C6) and the data basis (D6)."""
+and the data basis."""
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")

@@ -1,8 +1,8 @@
-"""C3: effective-stress breakout check (spec v1.1).
+"""The effective-stress breakout check.
 
 sigma_theta(theta) = SHmax + Shmin - 2 (SHmax - Shmin) cos 2theta - Pw + dsigma_T,
 failing when sigma_theta - Pp > sigma_cm(T_wall, UCS) + KMC (Pw - Pp).
-Done when: with C7 off and Pp = 0 it reproduces the v1.0 inequality.
+With no thermal stress and Pp = 0 it must reduce to v1.0's total-stress check.
 """
 import numpy as np
 import pytest
@@ -18,8 +18,8 @@ UD = CORNWALL.stress_cases[0]
 
 # ------------------------------------------------------------- Kirsch hoop
 def test_kirsch_extremes():
-    """Spec test 3: 3 SHmax - Shmin - Pw at the Shmin azimuth (90 deg from
-    SHmax), 3 Shmin - SHmax - Pw along SHmax (0 deg)."""
+    """3 SHmax - Shmin - Pw at the Shmin azimuth (90 deg from SHmax),
+    3 Shmin - SHmax - Pw along SHmax (0 deg)."""
     SH, Sh, Pw = 150 * MPa, 80 * MPa, 50 * MPa
     assert m5.hoop_stress(90.0, SH, Sh, Pw) == pytest.approx(3 * SH - Sh - Pw)
     assert m5.hoop_stress(0.0, SH, Sh, Pw) == pytest.approx(3 * Sh - SH - Pw)
@@ -41,7 +41,7 @@ def test_thermal_term_adds_directly():
         pytest.approx(base - 30 * MPa)
 
 
-# ------------------------------------------------ reduction to v1.0 (done-when)
+# ------------------------------------------------------- reduction to v1.0
 @pytest.mark.parametrize("site", SITES, ids=lambda s: s.name.split()[0])
 @pytest.mark.parametrize("z", [1000.0, 4000.0, 12500.0])
 def test_pp_zero_reproduces_v10(site, z):
@@ -93,7 +93,10 @@ def test_site_runs_use_the_profile_pore_pressure():
 def test_united_downs_at_12p5_km():
     """Published stresses, paper Pp, site UCS, 200 C wall, no thermal stress:
     the mud needed rises by (KMC-1)/(KMC+1) * Pp over the total-stress check,
-    from 143 to 210 MPa, past Shmin (168). C5-C7 revisit this."""
+    from 143 to 210 MPa, past Shmin (168). Under v1.0's full-suppression rule
+    that would rule the site out; the width verdict and the wall's thermal
+    stress change that (test_breakout_width_and_mud_window.py,
+    test_thermal_hoop_stress.py)."""
     z = CORNWALL.target_depth
     ref, _ = se.stability_inputs(CORNWALL, z, 400.0, UCS=CORNWALL.UCS, thermal=False)
     b = ref["breakout"]
@@ -102,7 +105,7 @@ def test_united_downs_at_12p5_km():
 
 
 def test_ud1_breakouts_now_appear_in_the_lower_logged_interval():
-    """Observation, not calibration (that is C8). At the 12.25" section's mud
+    """Observation, not calibration (that is calibrate_ud1.py). At the 12.25" section's mud
     weight (1.05 SG) and the site UCS, with the wall at rock temperature, the
     published profile predicts breakouts at 3.6-4.0 km. Reinecker et al. log
     them over 900-4,000 m MD, 'notably in the lower part'. The total-stress

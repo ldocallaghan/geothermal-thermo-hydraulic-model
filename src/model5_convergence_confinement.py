@@ -49,12 +49,13 @@ def sigma_cm(T_C, UCS=None):
 
 
 def hoop_stress(theta_deg, SHmax, Shmin, Pw, dsigma_T=0.0):
-    """Kirsch hoop stress [Pa] at the wall of a vertical hole (spec v1.1, C3).
+    """Kirsch hoop stress [Pa] at the wall of a vertical hole.
 
     theta is measured from the SHmax azimuth, so the compressive peak,
     3 SHmax - Shmin - Pw, is at 90 deg (the Shmin azimuth, where breakouts
     form) and the minimum, 3 Shmin - SHmax - Pw, at 0 deg. dsigma_T is the
-    thermal hoop stress (C7); zero when that is off. Vectorised over theta.
+    thermal hoop stress from cooling the wall (site_evaluation.
+    thermal_hoop_stress); zero when that is off. Vectorised over theta.
     """
     th = np.radians(np.asarray(theta_deg, dtype=float))
     return SHmax + Shmin - 2.0 * (SHmax - Shmin) * np.cos(2.0 * th) - Pw + dsigma_T
@@ -74,9 +75,10 @@ def _width_threshold(SHmax, Shmin, Pw, Pp, T_wall, UCS, dsigma_T):
 
 
 def breakout_width(SHmax, Shmin, Pw, Pp, T_wall, UCS=None, dsigma_T=0.0):
-    """Width [deg] of one breakout lobe, centred on the Shmin azimuth (C5).
+    """Width [deg] of one breakout lobe, centred on the Shmin azimuth.
 
-    Closed form of the C3 criterion around the circumference: the lobe spans
+    Closed form of the effective-stress Mohr-Coulomb criterion (see
+    _width_threshold) around the circumference: the lobe spans
     |phi| < arccos(-a/d) / 2, so its full width is arccos(-a/d). 0 when the
     wall holds everywhere, 180 when it fails all round (two lobes meeting).
     """
@@ -94,7 +96,8 @@ def breakout_width(SHmax, Shmin, Pw, Pp, T_wall, UCS=None, dsigma_T=0.0):
 
 
 def mud_for_width(SHmax, Shmin, Pp, T_wall, W_deg, UCS=None, dsigma_T=0.0):
-    """Lightest Pw [Pa] that keeps the lobe at or below W_deg (C6 lower bound).
+    """Lightest Pw [Pa] that keeps the lobe at or below W_deg: the lower bound
+    of the mud window.
 
     Width <= W  <=>  -a/d >= cos W  <=>  Pw >= (SHmax + Shmin + dsigma_T
     + (KMC - 1) Pp - sigma_cm + d cos W) / (1 + KMC). W = 0 gives the v1.0
@@ -117,7 +120,7 @@ CAP_RTOL = 1e-9
 
 
 def stress_admissible(Sv, Shmin, SHmax, Pp, mu):
-    """Frictional admissibility of a stress state (spec v1.1, C2).
+    """Frictional admissibility of a stress state.
 
     Compares effective S1/S3 with frictional_cap(mu). Returns ratio, cap,
     margin (cap - ratio, negative when over) and the admissible flag. Works on

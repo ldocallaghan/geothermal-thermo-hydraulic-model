@@ -1,9 +1,9 @@
-"""C4: per-site rock strength (spec v1.1).
+"""Per-site rock strength.
 
 sigma_cm takes UCS as an argument, defaulting to the global C.UCS; every site
-run passes its own SiteProfile.UCS. The temperature derating is unchanged.
-Done when a Cornwall run uses 180 MPa (or the C8-calibrated value, once it
-exists). The v1.0 adapter (evaluate(..., v10=True)) keeps the global 200 MPa.
+run uses its own strength cases, and the temperature derating is unchanged.
+United Downs runs on the strengths calibrated against UD-1; the v1.0 adapter
+(evaluate(..., v10=True)) keeps the global 200 MPa.
 """
 import pytest
 
@@ -63,15 +63,16 @@ def test_breakout_uses_the_ucs_it_is_given():
 @pytest.mark.slow
 @pytest.mark.parametrize("site", SITES, ids=lambda s: s.name.split()[0])
 def test_every_site_run_passes_its_own_ucs(site):
-    """Each site's own strength cases (C8 gives United Downs four; the rest
-    have one, their UCS); the row's case carries its UCS through."""
+    """Each site's own strength cases (four calibrated ones at United Downs,
+    three lab values at Soultz, one elsewhere); the row's case carries its UCS
+    through."""
     o = se.evaluate(site)
     assert o["UCS"] in [u for _, u in site.strength_cases]
     assert o["UCS"] == o["stress"]["UCS"]
     assert {c["UCS"] for c in o["stress_cases"]} == {u for _, u in site.strength_cases}
     b = o["breakout"]
-    # effective-stress limit since C3: Pp + sigma_cm + KMC (Pw - Pp), with the
-    # wall at Model 1's circulating bottom-hole temperature since C7
+    # effective-stress limit, Pp + sigma_cm + KMC (Pw - Pp), with the wall at
+    # Model 1's circulating bottom-hole temperature
     Pp, T_wall = o["Pp"], o["T_wall"]
     assert T_wall == pytest.approx(o["m1"]["T_bottom_delivered"])
     assert b["mc_cold"] == pytest.approx(
@@ -81,9 +82,9 @@ def test_every_site_run_passes_its_own_ucs(site):
 
 
 @pytest.mark.slow
-def test_cornwall_run_uses_the_c8_calibration_and_the_v10_adapter_does_not():
-    """C4's done-when: 180 MPa, 'or the calibrated value from C8 once that
-    exists'. It does; the v1.0 adapter keeps the global 200 MPa."""
+def test_cornwall_run_uses_the_ud1_calibration_and_the_v10_adapter_does_not():
+    """United Downs runs on its four calibrated strengths in place of v1.0's
+    unsourced 180 MPa; the v1.0 adapter keeps the global 200 MPa."""
     o = se.evaluate(CORNWALL)
     assert {c["UCS"] for c in o["stress_cases"]} == {203e6, 172e6, 147e6, 118e6}
     assert se.evaluate(CORNWALL, v10=True)["UCS"] == C.UCS == 200.0 * MPa

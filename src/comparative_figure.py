@@ -2,9 +2,9 @@
 it rests on data.
 
 Left: breakout width at hydrostatic mud across each site's stress and strength
-cases, against depth to 400 C, with the 90 deg verdict limit (D2) and UD-1's
-site-calibrated 63 deg. Right: how deep each site's stress and temperature
-data reach against its target (D6). Filled = evidence-based, hollow =
+cases, against depth to 400 C, with the 90 deg verdict limit (Zoback 2007)
+and UD-1's site-calibrated 63 deg. Right: how deep each site's stress and
+temperature data reach against its target. Filled = evidence-based, hollow =
 speculative."""
 import os
 
@@ -43,7 +43,7 @@ for s, o in zip(SITES, results):
     a1.annotate(f"{short[s.name]}  ({s.tier})\n{verdict}", (max(ws), y),
                 xytext=(8, 0), textcoords="offset points", va="center",
                 fontsize=8, color=INK)
-for W, lab, yy in ((C.BREAKOUT_W_MAX_DEG, "W_max 90 (D2)", 0.8),
+for W, lab, yy in ((C.BREAKOUT_W_MAX_DEG, "W_max 90", 0.8),
                    (C.BREAKOUT_W_MAX_SITE_DEG, "UD-1 calibrated 63", 1.6)):
     a1.axvline(W, color=INK2, lw=0.8, ls="--")
     a1.text(W - 2, yy, lab, color=INK2, fontsize=8, ha="right", va="top")

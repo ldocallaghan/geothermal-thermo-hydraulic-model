@@ -1,5 +1,6 @@
-"""D6: every input has a stated data basis; sites without measured or
-calibrated stress and strength, checked against a well, are speculative."""
+"""Every site input has a stated data basis and source; sites without
+measured or calibrated stress and strength, checked against a well, are
+classed speculative."""
 import pytest
 
 import site_evaluation as se

@@ -1,21 +1,23 @@
 """
 crosscheck_soultz.py
 ===================
-C9 of spec v1.1: a sanity check of the v1.1 stability model against the 5 km
-Soultz wells. Nothing is fitted to Soultz.
+A sanity check of the stability model against the 5 km Soultz wells, GPK3
+and GPK4. Nothing is fitted to Soultz: if a model calibrated at United Downs
+also reproduces where Soultz broke out, that is independent support for it.
 
 Run from the repo root:   python src/crosscheck_soultz.py
 
-Stresses: Valley & Evans (2007), the SOULTZ stress cases (C1), valid 1.5-5 km.
+Stresses: Valley & Evans (2007), the SOULTZ stress cases, valid 1.5-5 km.
 Mud at hydrostatic ("the annulus pressure was maintained at near-hydrostatic
 conditions", Valley & Evans). Formation temperature: the Upper Rhine geotherm,
 200 C at 5 km. Wall cooling bracketed 0-40 K, as in the UD-1 calibration.
 
 Strengths tried, from three sources:
-  - the model's Soultz UCS (170 MPa, v1.0, uncalibrated)
+  - v1.0's Soultz UCS (170 MPa, unsourced)
   - UCS of unaltered Soultz granite, 100-130 MPa (ten lab tests, Valley &
     Evans 2007)
-  - the UD-1 calibration (C8): weak-zone median and intact bound, 118-203 MPa
+  - the UD-1 calibration (calibrate_ud1.py): weak-zone median and intact
+    bound, 118-203 MPa
 
 Observed in GPK3 and GPK4 (Valley & Evans 2007), the comparison targets:
   - breakouts at 5 km in both wells, drilled to TD
@@ -40,10 +42,10 @@ OBS_ONSET_FIRST, OBS_ONSET_DENSE = 3000.0, 3670.0     # GPK4, m TVD
 OBS_DITF_CONTINUOUS_TO = 2180.0                        # GPK4, m TVD
 
 STRENGTHS = (
-    ("site UCS (v1.0)", (SOULTZ.UCS,)),
+    ("v1.0 UCS (unsourced)", (SOULTZ.UCS,)),
     ("Soultz lab UCS 100-130", (100e6, 115e6, 130e6)),
-    ("UD-1 weak zones (C8)", tuple(u for l, u in CORNWALL.strength_cases if "weak" in l)),
-    ("UD-1 intact bound (C8)", tuple(u for l, u in CORNWALL.strength_cases if "intact" in l)),
+    ("UD-1 weak zones", tuple(u for l, u in CORNWALL.strength_cases if "weak" in l)),
+    ("UD-1 intact bound", tuple(u for l, u in CORNWALL.strength_cases if "intact" in l)),
 )
 
 
@@ -101,7 +103,7 @@ def report(rows):
     MPa = 1e6
     labels = [p.label.split(" (")[0].replace("SHmax ", "") for p in SOULTZ.stress_cases]
     print("=" * 100)
-    print("C9  SOULTZ CROSS-CHECK at 5 km  (Valley & Evans 2007 stresses; hydrostatic mud; nothing fitted)")
+    print("SOULTZ CROSS-CHECK at 5 km  (Valley & Evans 2007 stresses; hydrostatic mud; nothing fitted)")
     print("=" * 100)
     print(f"SHmax cases: {', '.join(labels)}; wall cooling {COOLING_K[0]:.0f} and "
           f"{COOLING_K[1]:.0f} K; widths in deg")

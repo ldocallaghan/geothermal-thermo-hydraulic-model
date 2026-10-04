@@ -1,23 +1,22 @@
 """
 comparative_sites.py
 ===================
-Run the site-evaluation tool across four European candidate provinces and
-tabulate. The point: the SAME models score very different verdicts, driven by
-real geotherm + stress data -- which is the pitch-ready output.
+Run the site-evaluation tool across four European candidate provinces for a
+400 C target, and report them in two tiers by what their verdicts rest on.
 
-Sites & sources (gradients/stress from cited literature; deep-stress ratios are
-literature-typical estimates where not directly measured at superhot depth --
-flagged as the key uncertainty):
-  - Upper Rhine Graben / Soultz (FR): 200C@5km, Shmin~0.54Sv, SHmax~Sv. Genter;
-    Cornet/Valley "Stress State at Soultz".
-  - Larderello (IT): vapour-dominated, 350C@2.2km, supercritical K-horizon 3-7km
-    (= brittle-ductile transition); post-collisional EXTENSION, normal faulting.
-    Bertini/Gianelli; DESCRAMBLE Venelle-2.
-  - United Downs / Carnmenellis (UK): 190C@5km, ~33-35C/km radiogenic granite;
-    strike-slip stress (Cornubian), high horizontal anisotropy (Pine&Batchelor,
-    Rosemanowes). Reinecker/Ledingham UDDGP.
-  - Pannonian Basin (HU): ~45-50C/km, heat flow 90-100 mW/m2, Miocene back-arc
-    EXTENSION, thin crust. Lenkey/Horvath; Toth geothermal atlas.
+Evidence-based: stress magnitudes and rock strength measured or calibrated at
+the site, and the stability model checked against a well there.
+  - Upper Rhine Graben / Soultz (FR): stresses and lab UCS from Valley & Evans
+    (2007); checked against GPK3/GPK4 (crosscheck_soultz.py).
+  - United Downs / Carnmenellis (UK): stresses and pore pressure from
+    Reinecker et al. (2021); strength calibrated on UD-1 (calibrate_ud1.py).
+Speculative: stresses bounded by the faulting regime, strength unsourced.
+  - Larderello (IT): temperature measured in Venelle-2 (Bertani et al. 2018);
+    regime from Liotta & Brogi.
+  - Pannonian Basin (HU): regime from Bada et al. (2007); regional gradient.
+
+Every input's basis and source is in its SiteProfile.data_basis; the sources
+are written up in data/sites/stress_sources.md.
 """
 import numpy as np
 import geo_constants as C
@@ -40,19 +39,20 @@ def make_geotherm(segments):
 
 LARDERELLO = SiteProfile(
     name="Larderello (Italy)",
-    geotherm=make_geotherm([(0, 15, 0.152), (2200, 350, 0.077)]),
-    target_depth=2850.0, target_T=400.0,            # just below the ~450C K-horizon
+    geotherm=make_geotherm([(0, 15, 0.152), (2200, 350, 0.077)]),   # v1.0; see geotherm_v11
+    target_depth=2850.0, target_T=400.0,
     Sv_grad=2600 * 9.81, K0_min=0.55, SHmax_over_Sv=0.75,   # normal-fault, low aniso
     rho_fluid_grad=C.HYDROSTATIC_GRAD, k_rock=2.6, E_rock=45e9, UCS=140e6,
     # No measured magnitudes found. Regime: normal faulting alongside left-
     # lateral strike-slip, the intermediate stress switching between vertical
-    # and horizontal (Brogi et al., field data and focal mechanisms in the Lago
-    # Basin; full citation to confirm), i.e. SHmax ~ Sv. Hydrostatic Pp is the
-    # default; the vapour-dominated reservoir is likely underpressured.
+    # and horizontal (Liotta & Brogi, fault-slip data and focal mechanisms in
+    # the Lago Basin), i.e. SHmax ~ Sv. Pore pressure is assumed hydrostatic;
+    # the evidence points both ways (a vapour-dominated reservoir, but
+    # over-pressured fluids along active faults).
     stress_cases=transitional_bounds(
         2600 * 9.81, source="regime: normal/strike-slip transition (Liotta & Brogi)"),
     stress_basis="regime bounds",
-    # D6: Venelle-2 (Bertani et al. 2018, SGP-TR-213): 350 C at 2.2 km, >= 504 C
+    # Venelle-2 (Bertani et al. 2018, SGP-TR-213): 350 C at 2.2 km, >= 504 C
     # at 2,815 m, 507-517 C at ~2.9 km. v1.0's profile read 400 C at 2.85 km,
     # more than 100 K too cold there; 400 C is at ~2.4 km.
     geotherm_v11=make_geotherm([(0, 15, 0.152), (2200, 350, 0.2504), (2815, 504, 0.1)]),
@@ -71,7 +71,7 @@ LARDERELLO = SiteProfile(
 
 CORNWALL = SiteProfile(
     name="United Downs / Carnmenellis (UK)",
-    geotherm=make_geotherm([(0, 15, 0.035), (5000, 190, 0.028)]),
+    geotherm=make_geotherm([(0, 15, 0.035), (5000, 190, 0.028)]),   # v1.0; see geotherm_v11
     target_depth=12500.0, target_T=400.0,
     Sv_grad=2630 * 9.81, K0_min=0.55, SHmax_over_Sv=1.40,   # strike-slip, HIGH aniso
     rho_fluid_grad=C.HYDROSTATIC_GRAD, k_rock=3.3, E_rock=60e9, UCS=180e6,
@@ -87,13 +87,14 @@ CORNWALL = SiteProfile(
         source="Reinecker et al. (2021), Geothermics 97, 102226",
         z_data=(0.0, 2000.0)),),
     stress_basis="measured",
-    # C8, src/calibrate_ud1.py against the BGS UD-1 image log, wall cooling
-    # bracketed 0-40 K (decided 3 October): intact rock (no breakout to 4 km)
-    # and the breakout zones' median, at both ends of the bracket. UCS=180e6
-    # above stays as v1.0's uncalibrated value.
+    # Calibrated by src/calibrate_ud1.py against the BGS UD-1 image log:
+    # intact rock (no breakout to 4 km) and the breakout zones' median, each at
+    # both ends of the 0-40 K bracket on wall cooling while UD-1 was drilled
+    # (no mud temperatures are published). UCS=180e6 above stays as v1.0's
+    # uncalibrated value.
     strength_cases=(("intact, 0 K", 203e6), ("intact, 40 K", 172e6),
                     ("weak zones, 0 K", 147e6), ("weak zones, 40 K", 118e6)),
-    # D6: Reinecker et al. (2021) give ~180 C at 5 km; v1.0's 190 C was 10 K
+    # Reinecker et al. (2021) give ~180 C at 5 km; v1.0's 190 C was 10 K
     # hot. v1.0's 28 C/km below 5 km is kept (unsourced), which puts 400 C at
     # ~12.86 km instead of 12.5 km.
     geotherm_v11=make_geotherm([(0, 15, 0.033), (5000, 180, 0.028)]),
@@ -102,11 +103,11 @@ CORNWALL = SiteProfile(
     data_basis={
         "stress": ("measured", "Reinecker et al. (2021); Shmin data to 2.0 km, "
                    "SHmax derived at mu 0.8"),
-        "strength": ("calibrated", "UD-1 breakouts, BGS image log (C8)"),
+        "strength": ("calibrated", "UD-1 breakouts, BGS image log (calibrate_ud1.py)"),
         "pore pressure": ("measured", "Reinecker et al. (2021)"),
         "temperature": ("extrapolated", "~180 C at 5 km (Reinecker et al. 2021); "
                         "28 C/km assumed below"),
-        "well check": ("calibrated", "UD-1 to 5,058 m TVD (C8)"),
+        "well check": ("calibrated", "UD-1 to 5,058 m TVD (calibrate_ud1.py)"),
     })
 
 PANNONIAN = SiteProfile(
@@ -118,7 +119,9 @@ PANNONIAN = SiteProfile(
     # No measured magnitudes found. The basin interior is strike-slip, locally
     # transtensional, today (Bada et al. 2007, Foldtani Kozlony 137(3)); the
     # Miocene extension behind v1.0's normal-fault ratios is no longer active.
-    # Bounded as transtensional, SHmax ~ Sv (decided 3 October).
+    # Bounded as transtensional, SHmax ~ Sv, as the interior is described; the
+    # full strike-slip range (SHmax up to the friction cap) spans GO to NO-GO
+    # at 9.7 km and says nothing about the site.
     stress_cases=transitional_bounds(
         2550 * 9.81, source="regime: strike-slip, locally transtensional (Bada et al. 2007)"),
     stress_basis="regime bounds",
@@ -140,9 +143,9 @@ def classify(o):
     """(survives, stability, verdict).
 
     v1.0 adapter: the v1.0 rule, breakout fully suppressed below Shmin.
-    v1.1 (C6): the mud-window verdict on breakout width, worst case in the
-    site's stress range, with the range appended when the cases disagree. A
-    stress state over the frictional cap (C2) can't be GO.
+    v1.1: the mud-window verdict on breakout width, for the worst of the
+    site's stress and strength cases, with the range appended when the cases
+    disagree. A stress state over the frictional cap can't be GO.
     """
     surv = o["m1"]["T_bottom_delivered"] < C.BHA_SURVIVAL_TEMP
     if o.get("v10"):
@@ -169,8 +172,9 @@ def classify(o):
 
 
 def classify_sensitivity(o, key):
-    """A sensitivity verdict: "C7 off" (no wall thermal stress) or the
-    site-calibrated "W_max 63" (D2). None under the v1.0 adapter."""
+    """A sensitivity verdict: "no wall cooling" (the wall's thermal hoop
+    stress switched off) or "W_max 63" (UD-1's site-calibrated breakout limit
+    in place of 90 deg). None under the v1.0 adapter."""
     s = (o.get("sensitivity") or {}).get(key)
     if s is None:
         return None
@@ -178,8 +182,8 @@ def classify_sensitivity(o, key):
 
 
 def classify_no_thermal(o):
-    """The C7 sensitivity: the verdict with the wall thermal stress off."""
-    return classify_sensitivity(o, "C7 off")
+    """The verdict with the wall's thermal hoop stress switched off."""
+    return classify_sensitivity(o, "no wall cooling")
 
 
 def _classify_v10(o):
@@ -203,8 +207,8 @@ def _classify_v10(o):
 
 
 def print_stress_cases(o):
-    """Stress basis, data coverage, admissibility (C2), mud window (C6) and the
-    range of stress cases."""
+    """Stress basis, data coverage, frictional admissibility, the mud window,
+    and the range of stress and strength cases."""
     s, ref = o["site"], o["stress"]
     beyond = ref["beyond_data"]
     cover = ("no magnitude data" if beyond is None else
@@ -217,7 +221,7 @@ def print_stress_cases(o):
           + ("; SHmax capped at the frictional limit" if ref["cap_binds"] else ""))
     print(f"    wall {o['T_wall']:.0f} C (Model 1, {o['m_min']} kg/s) against rock "
           f"{o['T_rock']:.0f} C: thermal hoop stress {o['dsigma_T']/1e6:+.0f} MPa"
-          + ("" if o["thermal"] else " (C7 OFF)"))
+          + ("" if o["thermal"] else " (switched off)"))
     w = ref["window"]
     print(f"    mud window (W_max {w['W_max']:.0f} deg, wall {w['T_wall']:.0f} C): "
           f"{w['SG_lo']:.2f}-{w['SG_hi']:.2f} SG "
@@ -239,7 +243,7 @@ def print_stress_cases(o):
 
 def beyond_data_km(o):
     """(stress, temperature): km by which the target lies below the deepest
-    data; None where there is no data at all (D6)."""
+    data; None where there is no data at all."""
     s = o["site"]
     stress = o["stress"]["beyond_data"]
     temp = (None if s.temperature_data_to is None
@@ -252,7 +256,7 @@ def print_table(title, sites, results):
     w63 = "W_max " + format(C.BREAKOUT_W_MAX_SITE_DEG, ".0f")
     hdr = (f"{'Site':<26}{'depth':>7}{'T_rock':>7}{'K0':>5}{'aniso':>6}"
            f"{'bitC':>6}{'MW':>5}{'ROP':>5}{'gain':>5}{'stability':>20}  {'verdict':<34}"
-           f"{'C7 off':<34}{w63:<34}{'beyond data (stress / T)'}")
+           f"{'no wall cooling':<34}{w63:<34}{'beyond data (stress / T)'}")
     print("=" * len(hdr))
     print(title)
     print("=" * len(hdr))
@@ -277,7 +281,7 @@ def print_table(title, sites, results):
 
 
 def print_basis(site):
-    """Each input's data basis and source (D6)."""
+    """Each input's data basis and source."""
     for k in ("stress", "strength", "pore pressure", "temperature", "well check"):
         basis, src = site.data_basis.get(k, ("none", ""))
         print(f"    {k + ':':<15}{basis:<16}{src}")
@@ -299,9 +303,9 @@ if __name__ == "__main__":
     print(f"       stability: breakout lobe width at hydrostatic mud, or the overbalance")
     print(f"       (and mud SG) that brings it within {C.BREAKOUT_W_MAX_DEG:.0f} deg below Shmin less")
     print(f"       {C.MUD_MARGIN_SG} SG; [a..b] = verdict range across the site's stress and strength cases.")
-    print("       C7 off = sensitivity: the verdict without the wall's thermal hoop stress.")
+    print("       no wall cooling = sensitivity: the verdict without the wall's thermal hoop stress.")
     print(f"       W_max {C.BREAKOUT_W_MAX_SITE_DEG:.0f} = sensitivity: the widest breakout UD-1 logged in a")
-    print("       trouble-free section (site-calibrated, D2), in place of 90 deg.")
+    print("       trouble-free section (site-calibrated), in place of 90 deg.")
     print("       beyond data: how far the target lies below the deepest stress / temperature data.")
     print()
     for tier in ("evidence-based", "speculative"):

@@ -1,13 +1,10 @@
-"""C1 (stress profiles as functions of depth) and C2 (frictional admissibility).
+"""Stress profiles with depth, and the frictional admissibility check.
 
-Spec v1.1 done-when:
-- C1: v1.0 inputs still reproduce the v1.0 table exactly; the United Downs
-  profile gives SHmax/Shmin of about 1.97 at 5 and 12.5 km.
-- C2: the cap is 3.12 at 0.6, 4.33 at 0.8 and 4.68 at 0.85; the v1.0 Cornwall
-  input is flagged; the published profile passes at 5 and 12.5 km under its own
-  pore pressure at mu 0.8; the cap binds on a synthetic profile, and on the
-  published profile with hydrostatic Pp at mu 0.85, with the depth reported.
-All fast: stability_inputs() needs no Model 1-4 calls.
+Profiles: the v1.0 ratios rebuild exactly, each site's published profile is
+entered as the paper gives it, and the depth beyond the data is reported.
+Admissibility: the frictional cap's values, which stress states it flags,
+and where it binds (and only below a profile's data). All fast:
+stability_inputs() needs no Model 1-4 calls.
 """
 import numpy as np
 import pytest
@@ -27,7 +24,7 @@ def at_target(site, **kw):
     return se.stability_inputs(site, z, float(site.geotherm(z)), UCS=site.UCS, **kw)
 
 
-# ----------------------------------------------------------------------- C1
+# ------------------------------------------------------- stress profiles
 @pytest.mark.parametrize("site", SITES, ids=lambda s: s.name.split()[0])
 @pytest.mark.parametrize("z", [1000.0, 5058.0, 12500.0])
 def test_ratio_constructor_reproduces_v10_stresses(site, z):
@@ -79,8 +76,7 @@ def test_target_depth_beyond_the_data_is_reported():
 
 
 def test_soultz_profile_is_valley_and_evans_2007():
-    """Shmin ~0.54 Sv and 0.90 Sv <= SHmax <= 1.05 Sv at 5 km (the spec's
-    'Shmin about 0.54 Sv, SHmax about Sv')."""
+    """Shmin ~0.54 Sv and 0.90 Sv <= SHmax <= 1.05 Sv at 5 km."""
     lo, mid, hi = SOULTZ.stress_cases
     z = 5000.0
     assert lo.Shmin(z) / lo.Sv(z) == pytest.approx(0.54, abs=0.01)
@@ -117,7 +113,7 @@ def test_reference_case_is_the_worst_in_range(site):
     assert ref["window"]["width_hydro"] == max(c["window"]["width_hydro"] for c in tied)
 
 
-# ----------------------------------------------------------------------- C2
+# -------------------------------------------------- frictional admissibility
 @pytest.mark.parametrize("mu, cap", [(0.6, 3.12), (0.8, 4.33), (0.85, 4.68)])
 def test_frictional_cap(mu, cap):
     assert m5.frictional_cap(mu) == pytest.approx(cap, abs=0.01)

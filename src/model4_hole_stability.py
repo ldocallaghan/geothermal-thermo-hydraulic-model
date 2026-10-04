@@ -30,8 +30,9 @@ Physics
    Longer dwell -> thicker cold shell -> the hot creeping rock is pushed out to
    where stress (tau ~ 1/r^2) is weak -> closure suppressed.
 
-All flow-law parameters are exposed; the ROBUST result is the Arrhenius
-sensitivity (cooling buys orders of magnitude), not the absolute rate.
+All flow-law parameters are exposed. The result that survives their
+uncertainty is the Arrhenius sensitivity (cooling buys orders of magnitude),
+not the absolute rate.
 """
 import numpy as np
 from scipy.integrate import quad

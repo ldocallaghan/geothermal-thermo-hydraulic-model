@@ -1,23 +1,22 @@
 """
 site_evaluation.py
 =================
-SITE-EVALUATION TOOL -- wires Models 1-5 into a single verdict for a real
-candidate site. This is the venture's core deliverable: feed in a province's
-geotherm, in-situ stress, and rock properties; get back drillability, tool
-survival, hole stability, and energy, each with its operating envelope.
+Site-evaluation tool: wires Models 1-5 into a single verdict for a candidate
+site. Feed in a site's temperature profile, in-situ stress and rock properties;
+get back drillability, tool survival, hole stability and energy, each with its
+operating envelope.
 
-CANDIDATE: Upper Rhine Graben / Soultz-sous-Forets (France) -- the best-
-characterised deep-geothermal site in Europe (GPK-1..4 wells to ~5 km), an
-active continental rift (extensional => low K0, favoured by Models 2/3/5).
+Hole stability is judged on breakout width: an effective-stress Kirsch check
+with the thermal stress of the cooled wall, run over every stress and strength
+case the site's data support, with a mud window bounded by Shmin. Each site
+also records what every input rests on (data_basis), which decides whether its
+verdict is evidence-based or speculative.
 
-All site parameters are REAL and cited inline. The point of the tool is that the
-verdict is mixed and site-specific -- low K0 helps, high stress anisotropy hurts
--- which is exactly the judgement a generic pitch cannot make.
-
-Sources (see chat): Soultz thermal profile ~90 C/km to 1.4 km then near-
-isothermal convective granite to 200 C at 5 km (Genter et al.; MDPI Geosciences
-2020); stress state Shmin~0.54 Sv, SHmax~Sv, SHmax N169E, breakouts observed
-(Cornet/Valley/Heidbach; "Stress State at Soultz to 5 km").
+The site defined here is the Upper Rhine Graben at Soultz-sous-Forets (France),
+the best-characterised deep-geothermal site in Europe (GPK-1..4 wells to
+~5 km). Temperature: ~90 C/km to 1.4 km, then near-isothermal convective
+granite to 200 C at 5 km (Genter et al.; MDPI Geosciences 2020). Stress and
+rock strength: Valley & Evans (2007); see data/sites/stress_sources.md.
 """
 from dataclasses import dataclass, field
 import numpy as np
@@ -108,8 +107,8 @@ class StressProfile:
 
 def transitional_bounds(Sv_grad, source, Sv_int=0.0, Pp_grad=C.HYDROSTATIC_GRAD,
                         mu=C.FRICTION_MU, fractions=(0.0, 0.25, 0.5, 0.75, 1.0)):
-    """Profiles for a normal/strike-slip transition regime (SHmax ~ Sv) where no
-    magnitudes are measured (spec v1.1, D5).
+    """Profiles for a normal/strike-slip transition regime (SHmax ~ Sv), for a
+    site where the faulting regime is known but no magnitudes are measured.
 
     SHmax = Sv; Shmin runs from the frictional floor Pp + (Sv - Pp)/R(mu), at
     fraction 0, to Sv at fraction 1. Hydrostatic Pp from surface keeps every
@@ -139,15 +138,16 @@ class SiteProfile:
     rho_fluid_grad: float       # Pa/m, in-hole fluid pressure gradient
     k_rock: float; E_rock: float; UCS: float
     T_inj: float = 40.0
-    # v1.1 (C1): the stress cases the site's data support. One for a fully
-    # measured profile, several where a magnitude is a range or the stresses
-    # rest on regime bounds. Empty means v1.0's ratios, via from_ratios.
+    # The stress cases the site's data support: one for a fully measured
+    # profile, several where a magnitude is a range or the stresses rest on
+    # regime bounds. Empty means v1.0's ratios, via from_ratios.
     stress_cases: tuple = ()
     stress_basis: str = "v1.0 ratios"     # "measured", "measured range" or "regime bounds"
-    # v1.1 (C8): rock-strength cases, (label, UCS at 25 C [Pa]). Each is run
-    # against every stress case. Empty means the single value UCS.
+    # Rock-strength cases, (label, UCS at 25 C [Pa]), each run against every
+    # stress case: a calibrated range, or a measured lab range. Empty means
+    # the single value UCS.
     strength_cases: tuple = ()
-    # v1.1 (D6): data basis. data_basis maps each input -- "stress",
+    # Data basis: data_basis maps each input -- "stress",
     # "strength", "pore pressure", "temperature", "well check" -- to
     # (basis, source), basis one of BASES. geotherm_v11 / target_depth_v11
     # replace the v1.0 temperature profile where measurements contradict it
@@ -180,7 +180,7 @@ class SiteProfile:
 
     @property
     def tier(self):
-        """D6: "evidence-based" only if stress magnitudes and rock strength are
+        """"evidence-based" only if stress magnitudes and rock strength are
         both measured or calibrated at the site and the stability model has
         been checked against a real well there; otherwise "speculative"."""
         b = {k: v[0] for k, v in self.data_basis.items()}
@@ -198,7 +198,7 @@ class SiteProfile:
                 if self.data_basis.get(k, ("none", ""))[0] not in good]
 
 
-# D6 basis labels, strongest first
+# Data-basis labels, strongest first
 BASES = ("calibrated", "measured", "measured range", "measured (lab)", "checked",
          "regime bounds", "extrapolated", "regional", "assumed", "unsourced", "none")
 
@@ -228,8 +228,8 @@ SOULTZ = SiteProfile(
                           ("SHmax mid-range", 24.865, -1.27),
                           ("SHmax upper bound (1.05 Sv)", 26.78, -1.37))),
     stress_basis="measured range",
-    # D6: lab UCS of ten samples of unaltered Soultz granite, 100-130 MPa
-    # (Valley & Evans 2007), replacing the unsourced 170 MPa
+    # Lab UCS of ten samples of unaltered Soultz granite, 100-130 MPa
+    # (Valley & Evans 2007), in place of the unsourced 170 MPa above
     strength_cases=(("lab UCS 100", 100e6), ("lab UCS 115", 115e6), ("lab UCS 130", 130e6)),
     temperature_data_to=5000.0,
     data_basis={
@@ -239,13 +239,14 @@ SOULTZ = SiteProfile(
         "pore pressure": ("measured", "near-hydrostatic (Valley & Evans 2007)"),
         "temperature": ("extrapolated", "200 C at 5 km measured (GPK wells); 35 C/km "
                         "assumed below"),
-        "well check": ("checked", "GPK3/GPK4 breakout onset and occurrence (C9)"),
+        "well check": ("checked", "GPK3/GPK4 breakout onset and occurrence "
+                       "(crosscheck_soultz.py)"),
     },
 )
 
 
 def thermal_hoop_stress(T_rock, T_wall):
-    """Thermal hoop stress [Pa] at a wall cooled from T_rock to T_wall (C7).
+    """Thermal hoop stress [Pa] at a wall cooled from T_rock to T_wall.
 
     dsigma_T = -E alpha / (1 - nu) * (T_rock - T_wall): the fully constrained
     thermoelastic stress Model 2 applies at the cutting face, with E and alpha
@@ -258,24 +259,25 @@ def thermal_hoop_stress(T_rock, T_wall):
 
 def stability_inputs(site, z, T_rock, v10=False, mu=C.FRICTION_MU, UCS=None,
                      T_wall=None, thermal=True, W_max=C.BREAKOUT_W_MAX_DEG):
-    """Stress state, admissibility (C2) and breakout for every stress case at z.
+    """Stress state, frictional admissibility, breakout and mud window for
+    every stress and strength case at depth z.
 
     v10=True reproduces v1.0: the site ratios and the total-stress breakout
-    check, nothing else. Otherwise the breakout check is in effective stress
-    (C3) with the case's own pore pressure, and each of
-    the site's stress cases is evaluated, SHmax is capped at the frictional
-    limit below the depth its data cover, and the reference case is the one
-    with the worst verdict, then the narrowest mud window, i.e. the one closest
-    to NO-GO (C6), then the widest breakout at hydrostatic mud; under v10, the one needing the most mud to suppress
-    breakout outright.
+    check, nothing else. Otherwise each of the site's stress cases is
+    evaluated with its own pore pressure, the breakout check is in effective
+    stress, and SHmax is capped at the frictional limit below the depth the
+    case's data cover. The reference case -- the one a site's table row
+    reports -- is the one with the worst verdict, then the narrowest mud
+    window (closest to NO-GO), then the widest breakout at hydrostatic mud.
+    Under v10 it is the one needing the most mud to suppress breakout outright.
 
-    Strength: UCS if given, else each of the site's strength cases (C8), run
+    Strength: UCS if given, else each of the site's strength cases, run
     against every stress case; the v1.0 adapter uses the global C.UCS.
 
     T_wall is the wall temperature for strength and, with thermal=True, for the
-    thermal hoop stress (C7); evaluate() passes Model 1's circulating
-    bottom-hole temperature. None means v1.0's min(T_rock, 200 C). The v1.0
-    adapter ignores both. Needs no Model 1-4 calls.
+    thermal hoop stress; evaluate() passes Model 1's circulating bottom-hole
+    temperature. None means v1.0's min(T_rock, 200 C). The v1.0 adapter
+    ignores both. Needs no Model 1-4 calls.
     """
     P_mud = site.rho_fluid_grad * z
     if T_wall is None:
@@ -324,8 +326,8 @@ def stresses_v10(site, z):
     """v1.0 stress state at depth z [m]: (Sv, Shmin, SHmax, P_fluid) in Pa.
 
     Constant ratios against a linear overburden gradient, so SHmax/Shmin is the
-    same at every depth -- which is what C1 of v1.1 replaces with measured,
-    depth-dependent profiles.
+    same at every depth. v1.1 replaces these with measured, depth-dependent
+    profiles (StressProfile).
     """
     Sv = site.Sv_grad * z
     return Sv, site.K0_min * Sv, site.SHmax_over_Sv * Sv, site.rho_fluid_grad * z
@@ -366,7 +368,7 @@ def breakout_v10(Shmin, SHmax, P_fluid, T_rock, T_wall=None, UCS=None):
 
 
 def breakout_eff(Shmin, SHmax, Pw, Pp, T_rock, T_wall=None, UCS=None, dsigma_T=0.0):
-    """Effective-stress breakout check at the Shmin azimuth (spec v1.1, C3).
+    """Effective-stress breakout check at the Shmin azimuth.
 
     Fails when sigma_theta - Pp > sigma_cm(T_wall, UCS) + KMC (Pw - Pp): the
     Kirsch hoop stress from model5.hoop_stress, Mohr-Coulomb in effective
@@ -396,7 +398,7 @@ VERDICT_ORDER = ("GO", "CONDITIONAL", "NO-GO")
 def mud_window(Shmin, SHmax, Pp, z, Pw_hydro, T_rock, T_wall=None, UCS=None,
                dsigma_T=0.0, W_max=C.BREAKOUT_W_MAX_DEG, margin_SG=C.MUD_MARGIN_SG,
                T0=C.WALL_T0):
-    """Mud window and drillability verdict (spec v1.1, C5 and C6).
+    """Mud window and drillability verdict, judged on breakout width.
 
     Lower bound: the lightest mud keeping the breakout lobe at or below W_max,
     and never below pore pressure (no underbalanced drilling). Upper bound:
@@ -404,7 +406,8 @@ def mud_window(Shmin, SHmax, Pp, z, Pw_hydro, T_rock, T_wall=None, UCS=None,
     within W_max at hydrostatic mud, CONDITIONAL if a mud weight inside the
     window gets it there, NO-GO if none does. Tensile-fracture initiation at
     the wall (effective 3 Shmin - SHmax - Pw - Pp + dsigma_T < -T0) is
-    reported and does not bound the window (C6, D4).
+    reported and does not bound the window: UD-1 logged tensile fractures and
+    still reached TD, so initiation alone doesn't stop a well.
     """
     if T_wall is None:
         T_wall = min(T_rock, T_WALL_CAP)
@@ -445,8 +448,9 @@ def evaluate(site: SiteProfile, v10=False, thermal=True):
     v10=True is the v1.0 adapter: it reproduces v1.0 exactly (the global C.UCS
     instead of the site's own), for the regression tests. Each v1.1 change that
     alters the stability numbers is switched off by it. thermal=False switches
-    off the C7 thermal hoop stress alone; either way the result carries the
-    verdict with it off as a sensitivity.
+    off the wall's thermal hoop stress alone; either way the result carries the
+    verdict without it as a sensitivity, along with the verdict at the
+    site-calibrated breakout limit.
     """
     z = site.target(v10)
     geotherm = site.temperature(v10)
@@ -465,7 +469,7 @@ def evaluate(site: SiteProfile, v10=False, thermal=True):
         surv = (20, r)
     m_min, m1_run = surv
 
-    # wall temperature (C7): the circulating bottom-hole temperature at the
+    # wall temperature: the circulating bottom-hole temperature at the
     # minimum survivable flow, for strength and thermal stress alike; v1.0's
     # 200 C cap under the adapter
     T_wall = None if v10 else float(m1_run["T_bottom_delivered"])
@@ -473,7 +477,8 @@ def evaluate(site: SiteProfile, v10=False, thermal=True):
                                   thermal=thermal)
     # sensitivities, each a full re-run of the stability check (no Model 1)
     sens = {} if v10 else {
-        "C7 off": stability_inputs(site, z, T_rock, T_wall=T_wall, thermal=False),
+        "no wall cooling": stability_inputs(site, z, T_rock, T_wall=T_wall,
+                                            thermal=False),
         f"W_max {C.BREAKOUT_W_MAX_SITE_DEG:.0f}": stability_inputs(
             site, z, T_rock, T_wall=T_wall, thermal=thermal,
             W_max=C.BREAKOUT_W_MAX_SITE_DEG)}
@@ -490,8 +495,8 @@ def evaluate(site: SiteProfile, v10=False, thermal=True):
                stress=ref, stress_cases=cases, thermal=thermal and not v10,
                T_wall=ref["T_wall"], dsigma_T=ref["dsigma_T"],
                sensitivity={k: dict(stress=r, stress_cases=c) for k, (r, c) in sens.items()},
-               no_thermal=None if v10 else dict(stress=sens["C7 off"][0],
-                                                stress_cases=sens["C7 off"][1]))
+               no_thermal=None if v10 else dict(stress=sens["no wall cooling"][0],
+                                                stress_cases=sens["no wall cooling"][1]))
     out["m_min"], out["m1"] = m_min, m1_run
 
     # --- (2/3) DRILLABILITY: regime + quench ROP gain (spallation uses K0=Shmin)
@@ -503,7 +508,7 @@ def evaluate(site: SiteProfile, v10=False, thermal=True):
     out["rop_gain"] = drill["ROP"] / drill_nq["ROP"] if drill_nq["ROP"] > 0 else np.nan
 
     # --- (4) CREEP closure: hot vs cooled wall ---
-    # cooled wall at the same temperature as the stability checks (C7); 200 C
+    # cooled wall at the same temperature as the stability checks; 200 C
     # under the v1.0 adapter
     out["creep_hot"] = m4.closure_rate(z, T_rock, ref["T_wall"], 7*86400, cooled=False) * YEAR * 100
     out["creep_cold"] = m4.closure_rate(z, T_rock, ref["T_wall"], 7*86400, cooled=True) * YEAR * 100
@@ -568,8 +573,8 @@ def report(o):
     w = o["stress"]["window"]
     if w is not None:
         print(f"      wall {o['T_wall']:.0f} C from Model 1: thermal hoop stress "
-              f"{o['dsigma_T']/1e6:+.0f} MPa{'' if o['thermal'] else ' (C7 OFF)'}")
-        print(f"      breakout WIDTH (C5/C6): {w['width_hydro']:.0f} deg at hydrostatic, "
+              f"{o['dsigma_T']/1e6:+.0f} MPa{'' if o['thermal'] else ' (switched off)'}")
+        print(f"      breakout WIDTH: {w['width_hydro']:.0f} deg at hydrostatic, "
               f"limit {w['W_max']:.0f} deg; mud window {w['SG_lo']:.2f}-{w['SG_hi']:.2f} SG "
               f"-> {w['verdict']}")
     print("=" * 80)

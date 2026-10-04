@@ -1,30 +1,31 @@
 """
 calibrate_ud1.py
 ===============
-C8 of spec v1.1: calibrate rock-mass strength against the breakouts logged in
-UD-1, the 5,275 m MD well at United Downs.
+Calibrate rock-mass strength against the breakouts logged in UD-1, the
+5,275 m MD well at United Downs.
 
 Run from the repo root:   python src/calibrate_ud1.py
 
 Inputs (all in data/ud1/):
   - stresses and pore pressure: Reinecker et al. (2021), via the United Downs
-    profile in comparative_sites.CORNWALL (C1)
+    profile in comparative_sites.CORNWALL
   - breakout depths, widths and heights: the BGS image-log interpretation,
     UD1_Borehole_Imaging_Interpretation.csv (provenance in bgs_image_log.md)
   - mud: below 1.05 SG in the 12.25" section (Reinecker et al. 2021, s. 5);
     1.05 SG is used, the upper bound, with 1.00 SG as a sensitivity
   - formation temperature: linear from the model's 15 C surface to the paper's
-    "around 180 C at 5 km" (the site geotherm reads ~10 K hot at 5 km)
+    "around 180 C at 5 km" (v1.0's site profile read ~10 K hot there)
 
-The breakout check is the v1.1 one: Kirsch hoop stress in effective stress
-(C3), with the thermal hoop stress on (C7). No mud or circulating temperatures
-are published for UD-1, so wall cooling is bracketed at 0-40 K below the
-formation temperature (decided 3 October) and the spread is carried into the
-strength range.
+The breakout check is the one the site runs use: Kirsch hoop stress, failure
+in effective stress, with the thermal hoop stress of the cooled wall. No mud
+or circulating temperatures are published for UD-1, so wall cooling is
+bracketed at 0-40 K below the formation temperature and the spread is carried
+into the strength range. 40 K is roughly the gap between static and
+circulating bottom-hole temperature at 4 km in conventional drilling.
 
 The calibration is closed-form. Each logged breakout of width W at depth z
-fixes the strength of the rock it formed in: the C3 criterion inverted for
-sigma_cm, then un-derated to UCS at 25 C. Rock that did not break out puts a
+fixes the strength of the rock it formed in: the failure criterion inverted
+for sigma_cm, then un-derated to UCS at 25 C. Rock that did not break out puts a
 lower bound on intact strength: enough to keep the width at zero at the
 deepest such depth. The fit therefore separates weak or fractured zones (the
 breakouts) from intact rock (everything else), and reports both.
@@ -112,7 +113,7 @@ def state(z, cooling, SG=MUD_SG):
 def implied_ucs(z, width_deg, cooling, SG=MUD_SG, phi_deg=PHI_DEG):
     """UCS [Pa, at 25 C] of rock that breaks out to exactly width_deg at z.
 
-    The C3 criterion around the hole: failure where cos 2phi > -a/d with
+    The failure criterion around the hole: failure where cos 2phi > -a/d with
     a = SH + Sh - Pw + dT - Pp - sigma_cm - K (Pw - Pp), d = 2 (SH - Sh).
     A lobe of width W has -a/d = cos W, so
     sigma_cm = SH + Sh - Pw + dT - Pp - K (Pw - Pp) + d cos W.
@@ -177,9 +178,9 @@ def calibrate(features=None, SG=MUD_SG, phi_deg=PHI_DEG, cooling=COOLING_K):
 
 
 def strength_cases(cal):
-    """The United Downs strength cases for the site runs (decided 3 October):
-    weak-zone median and intact lower bound, each at both ends of the cooling
-    bracket. Values in Pa."""
+    """The United Downs strength cases for the site runs: weak-zone median
+    and intact lower bound, each at both ends of the cooling bracket, so the
+    site verdict carries the calibration's full spread. Values in Pa."""
     lv = cal["levels"]
     lo, hi = min(lv), max(lv)
     return (("intact, 0 K cooling", lv[lo]["intact_min"]),
@@ -224,7 +225,7 @@ def report(cal, features):
     MPa = 1e6
     bo = cal["breakouts"]
     print("=" * 88)
-    print("C8  UD-1 STRENGTH CALIBRATION  (Reinecker et al. 2021 stresses + BGS image log)")
+    print("UD-1 STRENGTH CALIBRATION  (Reinecker et al. 2021 stresses + BGS image log)")
     print("=" * 88)
     print(f"12.25\" section {SECTION_MD[0]:.0f}-{SECTION_MD[1]:.0f} m MD: {len(bo)} breakouts, "
           f"{sum(b['height'] for b in bo):.0f} m, widths {min(b['width'] for b in bo):.0f}-"
@@ -272,10 +273,10 @@ def report(cal, features):
     print("CHECKS")
     w12 = max(b["width"] for b in bo)
     deep = [f for f in features if f["cls"] == "Breakout" and f["md"] >= SECTION_MD[1]]
-    print(f"  D2: widest breakout in the 12.25\" section (drilled without trouble) "
+    print(f"  W_max: widest breakout in the 12.25\" section (drilled without trouble) "
           f"{w12:.0f} deg; in the deviated 8.5\" section {max(f['width'] for f in deep):.0f} deg")
-    print(f"      -> site-calibrated W_max = {w12:.0f} deg, against the default "
-          f"{C.BREAKOUT_W_MAX_DEG:.0f} deg (D2)")
+    print(f"      -> site-calibrated W_max = {w12:.0f} deg, against the "
+          f"{C.BREAKOUT_W_MAX_DEG:.0f} deg default (Zoback 2007)")
     for dK in (lo, hi):
         for name, u in (("weak P50", lv[dK]["weak_p50"]), ("intact", lv[dK]["intact_min"])):
             w = td_window(u, dK)

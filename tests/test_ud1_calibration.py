@@ -1,8 +1,9 @@
-"""C8: UD-1 strength calibration (spec v1.1), and spec test 5.
+"""Rock-strength calibration against UD-1 (calibrate_ud1.py).
 
-Test 5: predicted breakouts fall inside 900-4,000 m at section mud weights,
-tensile fractures are predicted where they were logged, and the hole stays
-drillable at 5,058 m.
+Checks the inputs and the inversion, then validates the result against the
+well: predicted breakouts fall inside the logged 900-4,000 m interval at the
+section's mud weight, tensile fractures are predicted at the logged depths,
+and the hole stays drillable at 5,058 m TVD.
 """
 import numpy as np
 import pytest

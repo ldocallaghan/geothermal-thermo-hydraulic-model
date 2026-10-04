@@ -1,13 +1,13 @@
-"""The published United Downs stress profile under v1.0 physics (spec test 2).
+"""The published United Downs stress profile under v1.0 physics.
 
-This is the comparison that motivates C1: swap only the stress inputs, keep the
-v1.0 breakout arithmetic, and United Downs stops being frac-limited.
+Swap only the stress inputs, keep v1.0's breakout arithmetic, and United Downs
+stops being frac-limited: the case for replacing v1.0's stress ratios with the
+site's own profile.
 
-SOURCE: Reinecker et al. (2021), Geothermics 97, 102226, section 6.3. The three
-gradients below were checked against the paper and are correct as the spec gives
-them. Two things around them were NOT: the paper reports a pore pressure gradient
-(9.494 MPa/km below a fluid level at ~61 m), and it derives SHmax by ASSUMING a
-friction coefficient of 0.8. See data/ud1/reinecker2021.md.
+Source: Reinecker et al. (2021), Geothermics 97, 102226, section 6.3. The paper
+also reports a pore-pressure gradient (9.494 MPa/km below a fluid level at
+~61 m), and derives SHmax by assuming a friction coefficient of 0.8; both
+matter below. See data/ud1/reinecker2021.md.
 """
 import numpy as np
 import pytest
@@ -39,7 +39,7 @@ def published(z):
 
 @pytest.mark.parametrize("z", [5000.0, 12500.0])
 def test_published_profile_anisotropy_is_about_1p97(z):
-    """C1's done-when: ~1.97 at both 5 and 12.5 km, against v1.0's 2.55."""
+    """~1.97 at both 5 and 12.5 km, against v1.0's 2.55 at every depth."""
     _, Shmin, SHmax = published(z)
     assert SHmax / Shmin == pytest.approx(1.97, abs=0.02)
 
@@ -59,8 +59,8 @@ def test_published_profile_at_ud1_total_depth():
 
 
 def test_published_profile_at_12p5km_is_conditional_not_frac_limited():
-    """Spec test 2: P_need ~140 MPa against Shmin ~168 MPa, so the v1.0 NO-GO
-    becomes CONDITIONAL on stress inputs alone -- before any physics change."""
+    """P_need ~140 MPa against Shmin ~168 MPa, so the v1.0 NO-GO becomes
+    CONDITIONAL on stress inputs alone, before any physics change."""
     Sv, Shmin, SHmax = published(TARGET_DEPTH)
     P_fluid = C.HYDROSTATIC_GRAD * TARGET_DEPTH
     b = se.breakout_v10(Shmin, SHmax, P_fluid, 400.0)
@@ -76,7 +76,7 @@ def test_published_profile_effective_stress_ratio(z, expected):
     """Effective S1/S3 at 10 MPa/km hydrostatic Pp: 4.5 to 4.8, i.e. just under
     the 4.68 cap at mu 0.85 at 5 km and just over it at 12.5 km. Under the
     paper's own pore pressure it is 4.0 to 4.25, under the 4.33 cap at the
-    default mu 0.8 (D1) -- see the tests further down."""
+    default mu 0.8 -- see the tests further down."""
     _, Shmin, SHmax = published(z)
     Pp = C.HYDROSTATIC_GRAD * z
     assert (SHmax - Pp) / (Shmin - Pp) == pytest.approx(expected, abs=0.02)
@@ -84,9 +84,10 @@ def test_published_profile_effective_stress_ratio(z, expected):
 
 def test_published_profile_predicts_no_breakout_over_the_logged_interval():
     """The other half of the v1.0 failure: with the published stresses, v1.0
-    physics predicts no breakout anywhere in 900-4,000 m, where 27 were logged.
-    So the stress inputs alone do not explain the log -- the physics must change
-    too (C3 to C8)."""
+    physics predicts no breakout anywhere in 900-4,000 m, where UD-1 broke out
+    (27 breakouts in Reinecker et al., 24 in the BGS log). So the stress inputs
+    alone do not explain the log; the effective-stress check does
+    (test_effective_breakout.py)."""
     for mud_SG in (1.05, 1.10):
         for z in np.arange(900.0, 4001.0, 100.0):
             _, Shmin, SHmax = published(z)
@@ -97,8 +98,9 @@ def test_published_profile_predicts_no_breakout_over_the_logged_interval():
 
 
 def test_frictional_caps_bracket_the_two_profiles():
-    """The caps themselves (pure arithmetic; C2 adds the function that uses
-    them): 3.12 at mu 0.6, 4.33 at the default 0.8 (D1), 4.68 at 0.85."""
+    """The caps as plain arithmetic (model5.frictional_cap is tested in
+    test_stress_profiles.py): 3.12 at mu 0.6, 4.33 at the default 0.8,
+    4.68 at 0.85."""
     def cap(mu):
         return (np.sqrt(1 + mu ** 2) + mu) ** 2
     assert cap(0.6) == pytest.approx(3.12, abs=0.01)
@@ -122,8 +124,8 @@ def implied_mu(ratio):
 
 def test_paper_pore_pressure_is_not_the_models_hydrostatic():
     """9.494 MPa/km below 61 m, against C.HYDROSTATIC_GRAD's 10 MPa/km from
-    surface: 3 MPa lighter at 5 km, 7 MPa at 12.5 km. C3 needs the per-site
-    override for exactly this."""
+    surface: 3 MPa lighter at 5 km, 7 MPa at 12.5 km. This is why each stress
+    profile carries its own pore pressure."""
     assert Pp_paper(5000.0) / MPa == pytest.approx(46.9, abs=0.1)
     assert C.HYDROSTATIC_GRAD * 5000.0 / MPa == pytest.approx(50.0, abs=0.1)
     assert Pp_paper(12500.0) / MPa == pytest.approx(118.1, abs=0.1)
@@ -134,8 +136,9 @@ def test_paper_pore_pressure_is_not_the_models_hydrostatic():
     (12500.0, 4.25, 0.79),
 ])
 def test_published_profile_sits_at_mu_0p8_under_its_own_pore_pressure(z, ratio, mu):
-    """The profile implies the 0.8 it was CONSTRUCTED with, not 0.83-0.86.
-    The spec's higher figures come from substituting 10 MPa/km hydrostatic."""
+    """The profile implies the 0.8 it was constructed with. Substituting
+    10 MPa/km hydrostatic pore pressure would give 0.83-0.86 instead, which
+    could be mistaken for independent evidence of Byerlee's 0.85."""
     _, Shmin, SHmax = published(z)
     R = (SHmax - Pp_paper(z)) / (Shmin - Pp_paper(z))
     assert R == pytest.approx(ratio, abs=0.01)
@@ -144,10 +147,10 @@ def test_published_profile_sits_at_mu_0p8_under_its_own_pore_pressure(z, ratio, 
 
 @pytest.mark.parametrize("mu", [0.8, 0.85])
 def test_published_profile_is_admissible_at_12p5km_under_the_papers_pore_pressure(mu):
-    """CONTRADICTS the C2 done-when ("the cap binds on it at 12.5 km"). That
-    holds only with 10 MPa/km hydrostatic Pp and mu = 0.85 (4.77 against 4.68).
-    With the paper's pore pressure the extrapolated profile is 4.25, inside the
-    cap at both 0.8 (4.33) and 0.85 (4.68), so nothing binds."""
+    """The frictional cap does not bind on United Downs. It would only with
+    10 MPa/km hydrostatic Pp and mu = 0.85 (4.77 against 4.68). With the
+    paper's pore pressure the extrapolated profile is 4.25, inside the cap at
+    both 0.8 (4.33) and 0.85 (4.68)."""
     _, Shmin, SHmax = published(12500.0)
     Pp = Pp_paper(12500.0)
     assert SHmax <= Pp + cap(mu) * (Shmin - Pp)

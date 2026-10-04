@@ -1,7 +1,9 @@
-# Site stress profiles (v1.1, C1 and D5)
+# Site data sources
 
-Where each site's `stress_cases` in the code come from. United Downs has its own
-file, `data/ud1/reinecker2021.md`.
+Where each site's stress cases, rock strength, pore pressure and temperature in
+the code come from, and what each rests on (the `data_basis` of each
+`SiteProfile`). United Downs' main source has its own file,
+`data/ud1/reinecker2021.md`.
 
 | Site | Basis | Profile | Data cover |
 |---|---|---|---|
@@ -27,7 +29,7 @@ Read from the paper directly. Conclusions, verbatim, "valid between depths of
 - The upper bound from frictional strength alone, at μ = 1.0, is 1.21 Sv
   (Evans 2005), so the wellbore-failure bound is the tighter one.
 
-Wellbore observations used by the C9 cross-check (`src/crosscheck_soultz.py`),
+Wellbore observations used by the Soultz cross-check (`src/crosscheck_soultz.py`),
 same paper, GPK3 and GPK4 ultrasonic (UBI) logs run 12-15 hours after drilling:
 
 - About 10% of the logged length broken out in each well; breakouts at 5 km.
@@ -36,8 +38,8 @@ same paper, GPK3 and GPK4 ultrasonic (UBI) logs run 12-15 hours after drilling:
 - Tensile fractures almost continuous to 2,180 m TVD in GPK4, sporadic below.
 - Wall thermal stress at logging time −17.1 MPa (3,160 m TVD) to −31.3 MPa
   (2,235 m TVD), from MWD bit temperatures and the logging tool's temperature.
-- UCS of ten samples of unaltered Soultz granite: **100–130 MPa**. The model's
-  Soultz UCS is 170 MPa (v1.0, unsourced).
+- UCS of ten samples of unaltered Soultz granite: **100–130 MPa**. The model
+  uses these as Soultz's strength cases, in place of v1.0's unsourced 170 MPa.
 - Annulus pressure kept near hydrostatic while drilling.
 
 The code carries three cases: the SHmax lower bound, its midpoint, and its upper
@@ -81,7 +83,7 @@ earthquakes (M < 2, 2–6 km deep, bracketing the 2.85 km target):
 σ2 switching between vertical and horizontal means Sv ≈ SHmax, which is the
 `transitional_bounds()` construction.
 
-**Temperature (D6).** Bertani, R. et al. (2018). "The first results of the
+**Temperature.** Bertani, R. et al. (2018). "The first results of the
 DESCRAMBLE project." *Proc. 43rd Workshop on Geothermal Reservoir
 Engineering*, Stanford, SGP-TR-213. Venelle-2 was deepened from 2.2 km
 (350 °C) to 2.9 km: static logs give ≥ 504 °C at 2,815 m and 507–517 °C at
@@ -128,14 +130,15 @@ Rock strength and temperature: no basement strength data found; the
 45–50 °C/km gradient is regional and is extrapolated to 9.7 km with no deep
 well cited.
 
-Bounded as transtensional (decided 3 October): SHmax = Sv, with Shmin from the
-frictional floor to Sv. The wider strike-slip range, with SHmax up to the
-friction cap, spans GO to NO-GO at 9.7 km and was rejected as uninformative.
+Bounded as transtensional, matching the description of the interior: SHmax =
+Sv, with Shmin from the frictional floor to Sv. The wider strike-slip range,
+with SHmax up to the friction cap, spans GO to NO-GO at 9.7 km and so says
+nothing about the site.
 
 ## Regime-bound construction
 
 `transitional_bounds()` in `site_evaluation.py`: SHmax = Sv, and Shmin at 0, 25,
 50, 75 and 100% of the way from the frictional floor Pp + (Sv − Pp)/R(μ) to Sv,
-with hydrostatic Pp and μ = 0.8 (D1). Every case is admissible by construction.
-Until step 5 adds range verdicts, the table row uses the case needing the most
-mud (decided 3 October), which is the floor case.
+with hydrostatic Pp and μ = 0.8. Every case is admissible by construction. The
+verdict reports the range across the cases; the table row's numbers come from
+the case with the worst verdict, then the narrowest mud window.

@@ -2,11 +2,15 @@
 __pycache__/
 *.pyc
 .venv/
+.pytest_cache/
 
-# Editors / tooling
+# Editors and local tooling
 .idea/
 .vscode/
 .claude/
+
+# Local working notes, not part of the project
+docs/
 
 # Regenerated on first run (one-time IAPWS-95 build, ~2.5 min)
 water_table.npz

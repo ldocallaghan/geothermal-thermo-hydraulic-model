@@ -1,10 +1,9 @@
-"""C7: thermal hoop stress at the wall (spec v1.1, D3).
+"""Thermal hoop stress at the cooled wall.
 
 dsigma_T = -E alpha / (1 - nu) * (T_rock - T_wall), with E and alpha from
 Model 2, the wall at Model 1's circulating bottom-hole temperature. On by
-default; switchable for the regression tests and one sensitivity line.
-Done when: verdicts use it, the regression tests can switch it off, and the
-output prints the verdict with it off.
+default in the verdicts; it can be switched off, the v1.0 adapter ignores it,
+and every site run also carries the verdict without it as a sensitivity.
 """
 import numpy as np
 import pytest
@@ -31,7 +30,8 @@ def test_cooling_is_tensile_heating_compressive_none_is_zero():
 
 
 def test_order_100_mpa_for_200_k_at_12p5_km():
-    """The spec: 'At 12.5 km, with a 200 K drop, the term is of order 100 MPa.'"""
+    """A 200 K drop at 400 C rock gives about 100 MPa: comparable to the
+    strength, which is why a calibration without it would be biased."""
     assert se.thermal_hoop_stress(400.0, 200.0) / MPa == pytest.approx(-102.3, abs=0.5)
 
 

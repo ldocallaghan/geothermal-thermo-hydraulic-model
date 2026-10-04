@@ -1,4 +1,4 @@
-"""The full v1.0 four-site comparative table, frozen (spec test group 1).
+"""The full v1.0 four-site comparative table, frozen.
 
 Marked slow because it runs Models 1-5 per site and so needs src/water_table.npz
 (a one-off ~2 min IAPWS build). With the table cached the four sites take about a

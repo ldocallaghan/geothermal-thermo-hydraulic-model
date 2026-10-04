@@ -1,8 +1,10 @@
-"""C5 (breakout width) and C6 (mud window and verdict), spec v1.1.
+"""Breakout width, the mud window, and the GO / CONDITIONAL / NO-GO verdict.
 
-C5 done-when: equal horizontal stresses give 0 or 180 deg, and a hand-checked
-Kirsch case matches. C6 done-when: all three verdicts reachable from synthetic
-inputs, and the window reported for every site.
+Width: the closed form matches brute-force sampling and a hand-worked Kirsch
+case, and equal horizontal stresses give all or nothing (0 or 180 deg).
+Window and verdict: each verdict is reachable from synthetic inputs, the
+bounds are what they claim, tensile initiation is reported without bounding
+the window, and every site and case gets a window.
 """
 import numpy as np
 import pytest
@@ -16,14 +18,14 @@ MPa = 1.0e6
 
 
 def width_by_sampling(SH, Sh, Pw, Pp, T, UCS=None, dT=0.0):
-    """C5 by brute force: 0.5 deg steps over one half-turn, as the spec allows."""
+    """Breakout width by brute force: 0.5 deg steps over one half-turn."""
     th = np.arange(0.0, 180.0, 0.5)
     fails = (m5.hoop_stress(th, SH, Sh, Pw, dT) - Pp
              > m5.sigma_cm(T, UCS) + m5.KMC * (Pw - Pp))
     return 0.5 * fails.sum()
 
 
-# ------------------------------------------------------------------- C5
+# ------------------------------------------------------------ breakout width
 def test_equal_horizontal_stresses_give_0_or_180():
     S, Pp, T = 100 * MPa, 40 * MPa, 200.0
     assert m5.breakout_width(S, S, 90 * MPa, Pp, T) == 0.0
@@ -75,7 +77,7 @@ def test_mislabelled_stresses_raise():
         m5.breakout_width(80 * MPa, 150 * MPa, 50 * MPa, 40 * MPa, 25.0)
 
 
-# ------------------------------------------------------------------- C6
+# ---------------------------------------------------- mud window and verdict
 def window(SH, Sh, Pp, z=5000.0, Pw=None, **kw):
     Pw = C.HYDROSTATIC_GRAD * z if Pw is None else Pw
     return se.mud_window(Sh, SH, Pp, z, Pw, 200.0, **kw)
@@ -121,7 +123,7 @@ def test_lower_bound_never_below_pore_pressure():
 
 
 def test_tensile_initiation_is_reported_not_a_bound():
-    """With T0 = 0 (D4), tensile initiation at the SHmax azimuth once
+    """With zero tensile strength, tensile initiation at the SHmax azimuth once
     Pw > 3 Shmin - SHmax - Pp; the window and verdict ignore it."""
     SH, Sh, Pp = 150 * MPa, 85 * MPa, 50 * MPa
     w = window(SH, Sh, Pp, UCS=120 * MPa)
@@ -131,7 +133,7 @@ def test_tensile_initiation_is_reported_not_a_bound():
 
 
 def test_published_profile_initiates_tensile_fractures_at_every_mud_weight_at_12p5_km():
-    """C6: with T0 = 0 the published profile initiates tensile fractures at any
+    """With zero tensile strength the published profile initiates tensile fractures at any
     mud above pore pressure at 12.5 km, which is why initiation can't bound the
     window. Holds under the paper's pore pressure as well as hydrostatic."""
     ref, _ = se.stability_inputs(CORNWALL, 12500.0, 400.0, UCS=CORNWALL.UCS)
@@ -162,8 +164,10 @@ def test_v10_adapter_has_no_window():
     ("United Downs / Carnmenellis (UK)", "CONDITIONAL"),
     ("Pannonian Basin (Hungary)", "CONDITIONAL"),
 ])
-def test_site_verdicts_after_c6(site, verdict):
-    """Wall at 200 C, no thermal hoop stress: the state step 5 left."""
+def test_width_verdicts_without_wall_cooling(site, verdict):
+    """The width verdict on its own: v1.0's depths, strengths and 200 C wall,
+    and no thermal hoop stress. Judging on width rather than full
+    suppression already brings United Downs back from v1.0's NO-GO."""
     s = next(x for x in SITES if x.name == site)
     z = s.target_depth
     ref, _ = se.stability_inputs(s, z, float(s.geotherm(z)), UCS=s.UCS, thermal=False)

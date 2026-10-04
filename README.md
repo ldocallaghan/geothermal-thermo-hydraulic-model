@@ -102,7 +102,7 @@ Model 3, ROP gain from quench across target temperature and stress ratio. The 7.
 
 ### Site results (target 400 °C)
 
-Sites are split by what their verdicts rest on (decision D6). A site is **evidence-based** only if its stress magnitudes and rock strength are measured or calibrated there, and the stability model has been checked against a real well there. Otherwise it is **speculative**: its verdict rests on assumptions, and the tables are not comparable.
+Sites are split by what their verdicts rest on. A site is **evidence-based** only if its stress magnitudes and rock strength are measured or calibrated there, and the stability model has been checked against a real well there. Otherwise it is **speculative**: its verdict rests on assumptions, and the tables are not comparable.
 
 **Evidence-based**
 
@@ -118,7 +118,7 @@ Sites are split by what their verdicts rest on (decision D6). A site is **eviden
 | Larderello (IT) | 2.4 km | GO | stress magnitudes (regime only), rock strength (unsourced), any wellbore-failure data. Temperature is measured (Venelle-2). |
 | Pannonian Basin (HU) | 9.7 km | CONDITIONAL [GO..CONDITIONAL] | stress magnitudes (regime only), rock strength (unsourced), any well check, deep temperature data; pore pressure likely overpressured, not modelled |
 
-Sensitivities, printed beside every verdict by `comparative_sites.py`: without the wall's thermal stress (C7 off), every site but Larderello is CONDITIONAL. At UD-1's site-calibrated breakout limit of 63° in place of 90° (the widest breakout UD-1 logged in a section drilled without trouble), the same three are CONDITIONAL.
+Sensitivities, printed beside every verdict by `comparative_sites.py`: without the wall's thermal stress ("no wall cooling"), every site but Larderello is CONDITIONAL. At UD-1's site-calibrated breakout limit of 63° in place of 90° (the widest breakout UD-1 logged in a section drilled without trouble), the same three are CONDITIONAL.
 
 **Against v1.0.** The v1.0 verdicts, which `evaluate(site, v10=True)` still reproduces exactly, and why each changed:
 
@@ -188,7 +188,6 @@ python tests/report_v10_anchors.py   # print the anchors as a table
 README.md                 this file
 CHANGELOG.md              what changed in v1.1, and why
 requirements.txt
-docs/spec-v1.1.md         the v1.1 brief, with its decisions and revisions
 data/ud1/                 Reinecker et al. (2021) transcription, BGS UD-1 image log
 data/sites/               stress, strength and temperature sources for every site
 figures/                  generated PNGs (embedded above)
@@ -223,7 +222,7 @@ src/
 
 - Wall cooling while UD-1 was drilled is unknown; the 0–40 K bracket moves the fitted strength by about 30 MPa. At the 400 °C targets the wall temperature comes from Model 1 and is assumed to equal the circulating fluid's, the most cooling possible.
 - The calibration uses the BGS interpretation (24 breakouts, 46 m in the 12.25" section). The operator's, summarised by Reinecker et al. (2021), has 27 breakouts and 139 m, and 13 tensile fractures to the BGS's 2.
-- Tensile fractures: with zero tensile strength (decision D4), the model predicts them at every depth at both UD-1 and Soultz, where they were logged only in parts of the hole. It reports tensile fractures but cannot locate them.
+- Tensile fractures: with zero wall tensile strength (chosen because a critically stressed wall fails from existing flaws), the model predicts them at every depth at both UD-1 and Soultz, where they were logged only in parts of the hole. It reports tensile fractures but cannot locate them.
 - The breakout limit is 90° (Zoback 2007). UD-1's widest breakout in a trouble-free section is 63°; verdicts at 63° are printed as a sensitivity.
 - The mud window's upper bound is Shmin less 0.05 SG, a typical drilling margin, not a site value.
 - Pore pressure is hydrostatic wherever it isn't reported. The deep Great Hungarian Plain is reported overpressured, which the Pannonian verdict does not include.

@@ -9,8 +9,12 @@ Depth is a far better lever than diameter:
 
 But three ceilings bind, and our models locate them:
   (1) BRITTLE-DUCTILE TRANSITION (Model 2's T_BDT ~400 C): hotter rock flows
-      rather than fractures -> the drilling mechanism fails AND an open hole
-      creeps shut. This caps the achievable ROCK TEMPERATURE, hence depth:
+      rather than fractures. Quench spallation stops (the quench chills only a
+      mm-scale skin; the rock behind it flows instead of cracking), leaving
+      only quench-weakened cutting, and an UNCOOLED open hole creeps shut.
+      Active cooling of the wall (Model 4) is what keeps a hole open beyond
+      it, so for the cooled concept this is a ceiling on spallation and an
+      untested limit on the hole, not a hard wall:
           z_BDT = (T_BDT - T_surf)/G
   (2) TOOL SURVIVAL (Model 1): can active cooling keep the bit < ceiling over a
       longer, hotter descent?
@@ -21,15 +25,16 @@ Plus a non-modelled mechanical limit: hydrostatic pressure ~10 MPa/km
 (=> 150-200 MPa casing class at 15-20 km), reported for context.
 
 Reality anchor: the Kola superdeep borehole reached 12.26 km / ~180 C (1989) and
-stalled partly because hotter-than-expected rock behaved plastically -- i.e. the
-PRACTICAL open-hole ceiling can arrive BELOW the 400 C textbook BDT. We treat
-T_BDT as optimistic and flag it.
+stalled partly because hotter-than-expected rock behaved plastically -- i.e. for
+an uncooled hole the practical ceiling can arrive BELOW the 400 C textbook BDT.
+We treat T_BDT as optimistic and flag it.
 """
 import numpy as np
 import geo_constants as C
 import model1_coupled as m1
 
-T_BDT = 400.0       # degC, optimistic open-hole/brittle ceiling (see Model 2)
+T_BDT = 400.0       # degC, brittle-ductile transition: optimistic ceiling for
+                    # spallation and for an uncooled hole (see Models 2 and 4)
 
 
 def depth_to_temp(T, G, T_surf=C.SURFACE_TEMP):
@@ -41,7 +46,8 @@ if __name__ == "__main__":
 
     print("=" * 78)
     print("(A) The brittle-ductile depth ceiling vs geothermal gradient")
-    print("    z_BDT = depth where rock hits ~400 C (hole won't drill/stay open below)")
+    print("    z_BDT = depth where rock hits ~400 C (no spallation below; an uncooled")
+    print("    hole creeps shut; a cooled one may stay open -- see Model 4)")
     print("=" * 78)
     print(f"{'G[K/km]':>8}{'z_BDT[km]':>11}{'P_hydro[MPa]':>14}{'z for 374C[km]':>16}")
     for Gk in (20, 25, 35, 50, 70):
@@ -71,7 +77,7 @@ if __name__ == "__main__":
     print("     conduction limit still applies per-metre; depth adds metres + heat-grade.")
 
     print("\n" + "=" * 78)
-    print("(C) Push a single gradient DEEPER (hypothetical: if rock stayed brittle)")
+    print("(C) Push a single gradient DEEPER, past the transition")
     print("    G=25 K/km -- isolates the energy benefit of depth from the BDT wall")
     print("=" * 78)
     print(f"{'bottomT':>8}{'depth[km]':>10}{'P[MPa]':>8}{'T_bit':>7}{'T_out':>7}"
@@ -85,6 +91,6 @@ if __name__ == "__main__":
         print(f"{Tb:8.0f}{r['L']/1000:10.1f}{C.HYDROSTATIC_GRAD*r['L']/1e6:8.0f}"
               f"{r['T_bottom_delivered']:7.0f}{r['T_return_surface']:7.0f}"
               f"{r['Q_product']/1e6:7.2f}{pp/1e3:8.1f}{flag:>7}")
-    print("  -> the 450-500 C rows are physically off-limits (ductile): you cannot")
-    print("     keep an open hole there. The ACTIVE-COOLING angle is the one lever that")
-    print("     could push this wall deeper -- see note below.")
+    print("  -> the 450-500 C rows are in ductile rock: no spallation, and an uncooled")
+    print("     hole would creep shut. Active cooling of the wall (Model 4) is the one")
+    print("     lever that could keep it open there -- untested in practice.")

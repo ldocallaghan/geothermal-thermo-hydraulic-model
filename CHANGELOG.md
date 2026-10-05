@@ -1,5 +1,35 @@
 # Changelog
 
+## v1.1.1: how far the verdicts depend on wall cooling (October 2026)
+
+Corrections from a review of v1.1. The verdicts themselves are unchanged;
+what changed is how honestly the output and README describe them.
+
+- **The "no wall cooling" sensitivity was not uncooled.** It removed the
+  thermal hoop stress but left the wall at the cooled temperature, so the
+  rock kept the strength gained from cooling. It now puts the wall at rock
+  temperature. Uncooled, no case is GO at either well-characterised site:
+  Soultz needs at least 1.33 SG against a fracture limit of 1.37, United
+  Downs 1.29 against 1.32.
+- **New sensitivity: an uncooled wall with UD-1's 63° breakout limit.**
+  Both well-characterised sites are NO-GO under it (Soultz 1.58 against
+  1.37 SG, United Downs 1.54 against 1.32), and Pannonian at worst.
+- **README.** The summary and the site assessment now say that the open
+  mud-weight window at both sites comes from cooling the wall, with the
+  uncooled and combined numbers. The limitations add that the cooling at the
+  targets (235–252 K) is about six times the 0–40 K the UD-1 calibration
+  covered, that applying the full thermal stress at the wall surface makes the
+  cooled results an upper bound, and that the calibrated rock strength holds
+  only for the stresses assumed with it. United Downs is described as measured
+  or calibrated, not measured. UD-1's deviated section, drilled through
+  breakouts up to 90°, is noted as consistent with the 90° criterion.
+- **Pannonian.** The full strike-slip range spans GO to CONDITIONAL with the
+  wall cooled and CONDITIONAL to NO-GO without, not "GO to NO-GO" as v1.1's
+  notes said (that dated from an earlier rule). The equal-stress worst case is
+  now described as the wall yielding all round, not as a 180° breakout.
+- **Tests.** The water-property table is now loaded on first use, so the fast
+  test suite no longer builds it on a fresh clone (seconds, not minutes).
+
 ## v1.1: stability calibrated against UD-1 (October 2026)
 
 Models 1 to 4 are unchanged. What changed is the hole-stability calculation,

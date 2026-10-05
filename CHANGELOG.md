@@ -82,11 +82,11 @@ The README gives the reason for each change.
 - **Larderello and Pannonian** have no published stress magnitudes or rock
   strengths that we found; their stresses are bounded by the faulting regime
   (Liotta & Brogi; Bada et al. 2007). Pannonian's interior is strike-slip,
-  locally transtensional, today, not the extension v1.0 assumed.
+  locally transtensional today; v1.0 assumed extension.
 - **Temperatures.** United Downs follows Reinecker et al.'s ~180 °C at 5 km
   (v1.0: 190 °C), which moves 400 °C from 12.5 to 12.9 km. Larderello follows
   the Venelle-2 well (507–517 °C at 2.9 km; Bertani et al. 2018), which puts
-  400 °C at 2.4 km rather than 2.85 km.
+  400 °C at 2.4 km, where v1.0 had 2.85 km.
 - Sources and transcriptions: `data/ud1/`, `data/sites/stress_sources.md`.
 
 ### Also

@@ -62,6 +62,16 @@ plane-picking workflow would not record. This dataset is the one with depths
 and widths, so it is what the strength calibration (src/calibrate_ud1.py)
 fits, and the paper's counts are a second opinion.
 
+The deviated 8.5" section is not used in the calibration, because the
+vertical-hole Kirsch solution does not apply at 14–36° inclination. It is
+still relevant to the breakout limit used in the verdicts: UD-1 was drilled
+to its target through breakouts of 35–90° there (its mud losses came from an
+open fracture zone at 4,890 m MD, not from the wall). That is consistent with
+the 90° criterion of Zoback (2007), and suggests that 63°, the widest breakout
+in the near-vertical section, is a conservative limit. The widths are not
+directly comparable with a vertical hole, so this supports the criterion
+without calibrating it.
+
 Note: 140.5 m below 4,000 m MD is close to the paper's 139 m above it. That
 could be coincidence, or a sign the paper's total covers a different interval
 than its text says. Not resolvable from these two sources.

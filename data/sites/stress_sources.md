@@ -132,8 +132,9 @@ well cited.
 
 Bounded as transtensional, matching the description of the interior: SHmax =
 Sv, with Shmin from the frictional floor to Sv. The wider strike-slip range,
-with SHmax up to the friction cap, spans GO to NO-GO at 9.7 km and so says
-nothing about the site.
+with SHmax up to the friction cap, gives verdicts at 9.7 km from GO to
+CONDITIONAL with the wall cooled, and from CONDITIONAL to NO-GO without
+cooling.
 
 ## Regime-bound construction
 

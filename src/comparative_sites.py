@@ -119,9 +119,10 @@ PANNONIAN = SiteProfile(
     # No measured magnitudes found. The basin interior is strike-slip, locally
     # transtensional, today (Bada et al. 2007, Foldtani Kozlony 137(3)); the
     # Miocene extension behind v1.0's normal-fault ratios is no longer active.
-    # Bounded as transtensional, SHmax ~ Sv, as the interior is described; the
-    # full strike-slip range (SHmax up to the friction cap) spans GO to NO-GO
-    # at 9.7 km and says nothing about the site.
+    # Bounded as transtensional, SHmax ~ Sv, as the interior is described. The
+    # full strike-slip range (SHmax up to the friction cap) is wider: at 9.7 km
+    # it spans GO to CONDITIONAL with the wall cooled, and CONDITIONAL to NO-GO
+    # without cooling.
     stress_cases=transitional_bounds(
         2550 * 9.81, source="regime: strike-slip, locally transtensional (Bada et al. 2007)"),
     stress_basis="regime bounds",

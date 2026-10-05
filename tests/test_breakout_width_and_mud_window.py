@@ -200,3 +200,8 @@ def test_classify_inadmissible_stress_is_never_go():
     v = classify(_o(["GO"], admissible=False))[2]
     assert v == "CONDITIONAL (stress inadmissible)"
     assert classify(_o(["NO-GO"], admissible=False))[2] == "NO-GO (stress inadmissible)"
+
+
+def test_all_round_failure_is_labelled_as_yielding():
+    assert se.describe_width(180.0) == "wall yields all round"
+    assert se.describe_width(63.3) == "63 deg breakout"

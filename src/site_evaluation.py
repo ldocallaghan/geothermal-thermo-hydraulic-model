@@ -395,6 +395,13 @@ def breakout_eff(Shmin, SHmax, Pw, Pp, T_rock, T_wall=None, UCS=None, dsigma_T=0
 VERDICT_ORDER = ("GO", "CONDITIONAL", "NO-GO")
 
 
+def describe_width(width_deg):
+    """A breakout width for printing. 180 deg means the wall fails all the way
+    round (with equal horizontal stresses, all or nothing), which is general
+    yielding of the wall rather than a wide breakout."""
+    return "wall yields all round" if width_deg >= 180.0 else f"{width_deg:.0f} deg breakout"
+
+
 def mud_window(Shmin, SHmax, Pp, z, Pw_hydro, T_rock, T_wall=None, UCS=None,
                dsigma_T=0.0, W_max=C.BREAKOUT_W_MAX_DEG, margin_SG=C.MUD_MARGIN_SG,
                T0=C.WALL_T0):
@@ -448,9 +455,10 @@ def evaluate(site: SiteProfile, v10=False, thermal=True):
     v10=True is the v1.0 adapter: it reproduces v1.0 exactly (the global C.UCS
     instead of the site's own), for the regression tests. Each v1.1 change that
     alters the stability numbers is switched off by it. thermal=False switches
-    off the wall's thermal hoop stress alone; either way the result carries the
-    verdict without it as a sensitivity, along with the verdict at the
-    site-calibrated breakout limit.
+    off the wall's thermal hoop stress alone. Either way the result carries
+    three sensitivities: an uncooled wall (at rock temperature, so neither
+    thermal stress nor cold-strength gain), the site-calibrated breakout
+    limit, and the two together.
     """
     z = site.target(v10)
     geotherm = site.temperature(v10)
@@ -475,12 +483,17 @@ def evaluate(site: SiteProfile, v10=False, thermal=True):
     T_wall = None if v10 else float(m1_run["T_bottom_delivered"])
     ref, cases = stability_inputs(site, z, T_rock, v10=v10, T_wall=T_wall,
                                   thermal=thermal)
-    # sensitivities, each a full re-run of the stability check (no Model 1)
+    # sensitivities, each a full re-run of the stability check (no Model 1).
+    # "No wall cooling" puts the wall at rock temperature: no thermal hoop
+    # stress and no strength gain from cooling, i.e. an uncooled hole.
+    w63 = f"W_max {C.BREAKOUT_W_MAX_SITE_DEG:.0f}"
     sens = {} if v10 else {
-        "no wall cooling": stability_inputs(site, z, T_rock, T_wall=T_wall,
+        "no wall cooling": stability_inputs(site, z, T_rock, T_wall=T_rock,
                                             thermal=False),
-        f"W_max {C.BREAKOUT_W_MAX_SITE_DEG:.0f}": stability_inputs(
-            site, z, T_rock, T_wall=T_wall, thermal=thermal,
+        w63: stability_inputs(site, z, T_rock, T_wall=T_wall, thermal=thermal,
+                              W_max=C.BREAKOUT_W_MAX_SITE_DEG),
+        f"no wall cooling, {w63}": stability_inputs(
+            site, z, T_rock, T_wall=T_rock, thermal=False,
             W_max=C.BREAKOUT_W_MAX_SITE_DEG)}
     UCS = ref["UCS"]
     Sv, Shmin, SHmax = ref["Sv"], ref["Shmin"], ref["SHmax"]
@@ -574,7 +587,7 @@ def report(o):
     if w is not None:
         print(f"      wall {o['T_wall']:.0f} C from Model 1: thermal hoop stress "
               f"{o['dsigma_T']/1e6:+.0f} MPa{'' if o['thermal'] else ' (switched off)'}")
-        print(f"      breakout WIDTH: {w['width_hydro']:.0f} deg at hydrostatic, "
+        print(f"      at hydrostatic mud: {describe_width(w['width_hydro'])}, "
               f"limit {w['W_max']:.0f} deg; mud window {w['SG_lo']:.2f}-{w['SG_hi']:.2f} SG "
               f"-> {w['verdict']}")
     print("=" * 80)

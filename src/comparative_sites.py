@@ -172,9 +172,10 @@ def classify(o):
 
 
 def classify_sensitivity(o, key):
-    """A sensitivity verdict: "no wall cooling" (the wall's thermal hoop
-    stress switched off) or "W_max 63" (UD-1's site-calibrated breakout limit
-    in place of 90 deg). None under the v1.0 adapter."""
+    """A sensitivity verdict: "no wall cooling" (the wall at rock
+    temperature: no thermal hoop stress and no strength gain from cooling),
+    "W_max 63" (UD-1's site-calibrated breakout limit in place of 90 deg), or
+    "no wall cooling, W_max 63" (both). None under the v1.0 adapter."""
     s = (o.get("sensitivity") or {}).get(key)
     if s is None:
         return None
@@ -182,7 +183,7 @@ def classify_sensitivity(o, key):
 
 
 def classify_no_thermal(o):
-    """The verdict with the wall's thermal hoop stress switched off."""
+    """The verdict for an uncooled wall."""
     return classify_sensitivity(o, "no wall cooling")
 
 
@@ -226,8 +227,8 @@ def print_stress_cases(o):
     print(f"    mud window (W_max {w['W_max']:.0f} deg, wall {w['T_wall']:.0f} C): "
           f"{w['SG_lo']:.2f}-{w['SG_hi']:.2f} SG "
           f"({w['Pw_lo']/1e6:.0f}-{w['Pw_hi']/1e6:.0f} MPa){'' if w['open'] else ', SHUT'}; "
-          f"breakout {w['width_hydro']:.0f} deg at hydrostatic, "
-          f"{w['width_hi']:.0f} deg at the heaviest mud")
+          f"at hydrostatic mud {se.describe_width(w['width_hydro'])}, "
+          f"at the heaviest {se.describe_width(w['width_hi'])}")
     tf = ("at every mud weight above pore pressure" if w["Pw_tensile"] <= ref["Pp"] else
           f"above {w['Pw_tensile']/1e6:.0f} MPa ({w['Pw_tensile']/(C.MUD_SG_GRAD*o['z']):.2f} SG)")
     print(f"    tensile fractures (T0 {C.WALL_T0/1e6:.0f} MPa) initiate {tf}; reported, not a bound")
@@ -237,7 +238,7 @@ def print_stress_cases(o):
             mark = "*" if c is ref else " "
             print(f"     {mark} {c['label']:<44} Shmin {c['Shmin']/1e6:5.0f} "
                   f"SHmax {c['SHmax']/1e6:5.0f}  window {cw['SG_lo']:.2f}-{cw['SG_hi']:.2f} SG  "
-                  f"{cw['width_hydro']:3.0f} deg at hydro  {cw['verdict']}")
+                  f"{se.describe_width(cw['width_hydro']):>21} at hydro  {cw['verdict']}")
         print("       (* = worst case in range, used for the table row)")
 
 
@@ -256,7 +257,8 @@ def print_table(title, sites, results):
     w63 = "W_max " + format(C.BREAKOUT_W_MAX_SITE_DEG, ".0f")
     hdr = (f"{'Site':<26}{'depth':>7}{'T_rock':>7}{'K0':>5}{'aniso':>6}"
            f"{'bitC':>6}{'MW':>5}{'ROP':>5}{'gain':>5}{'stability':>20}  {'verdict':<34}"
-           f"{'no wall cooling':<34}{w63:<34}{'beyond data (stress / T)'}")
+           f"{'no wall cooling':<34}{w63:<34}{'no cooling, ' + w63:<34}"
+           f"{'beyond data (stress / T)'}")
     print("=" * len(hdr))
     print(title)
     print("=" * len(hdr))
@@ -273,7 +275,8 @@ def print_table(title, sites, results):
               f"{o['anisotropy']:6.2f}{o['m1']['T_bottom_delivered']:6.0f}"
               f"{o['MW_prod']:5.1f}{d['ROP']*3600:5.1f}{o['rop_gain']:5.1f}"
               f"{stab:>20}  {verdict:<34}{classify_no_thermal(o) or '':<34}"
-              f"{classify_sensitivity(o, w63) or '':<34}{beyond}")
+              f"{classify_sensitivity(o, w63) or '':<34}"
+              f"{classify_sensitivity(o, 'no wall cooling, ' + w63) or '':<34}{beyond}")
         if s.tier == "speculative":
             gaps = ", ".join(f"{k} ({b})" for k, b in s.missing())
             print(f"{'':<26}   missing for evidence-based: {gaps}")
@@ -303,7 +306,8 @@ if __name__ == "__main__":
     print(f"       stability: breakout lobe width at hydrostatic mud, or the overbalance")
     print(f"       (and mud SG) that brings it within {C.BREAKOUT_W_MAX_DEG:.0f} deg below Shmin less")
     print(f"       {C.MUD_MARGIN_SG} SG; [a..b] = verdict range across the site's stress and strength cases.")
-    print("       no wall cooling = sensitivity: the verdict without the wall's thermal hoop stress.")
+    print("       no wall cooling = sensitivity: the wall at rock temperature, so neither the")
+    print("       thermal hoop stress nor the strength gain from cooling.")
     print(f"       W_max {C.BREAKOUT_W_MAX_SITE_DEG:.0f} = sensitivity: the widest breakout UD-1 logged in a")
     print("       trouble-free section (site-calibrated), in place of 90 deg.")
     print("       beyond data: how far the target lies below the deepest stress / temperature data.")

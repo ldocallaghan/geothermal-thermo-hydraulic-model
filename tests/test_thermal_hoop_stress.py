@@ -88,11 +88,16 @@ def test_evaluate_uses_model1_wall_and_reports_the_sensitivity(site):
     assert o["thermal"] is True
     assert o["T_wall"] == pytest.approx(o["m1"]["T_bottom_delivered"])
     assert o["dsigma_T"] == pytest.approx(se.thermal_hoop_stress(o["T_rock"], o["T_wall"]))
-    assert o["no_thermal"]["stress"]["dsigma_T"] == 0.0
+    nt = o["no_thermal"]["stress"]
+    assert nt["dsigma_T"] == 0.0
+    # an uncooled wall: at rock temperature, so no cold-strength gain either
+    assert nt["T_wall"] == o["T_rock"]
+    assert all(c["T_wall"] == o["T_rock"] for c in o["no_thermal"]["stress_cases"])
     assert classify_no_thermal(o) is not None
+    # thermal=False removes only the thermal stress; the strength still sees
+    # the cooled wall, so it is not the uncooled sensitivity
     off = se.evaluate(site, thermal=False)
-    assert off["dsigma_T"] == 0.0
-    assert classify(off)[2] == classify_no_thermal(o)
+    assert off["dsigma_T"] == 0.0 and off["T_wall"] < off["T_rock"]
 
 
 @pytest.mark.slow
@@ -114,3 +119,16 @@ def test_creep_closure_uses_the_same_wall_temperature(v10):
     assert o["T_wall"] == pytest.approx(T_wall)
     expect = m4.closure_rate(o["z"], o["T_rock"], T_wall, 7 * 86400, cooled=True) * se.YEAR * 100
     assert o["creep_cold"] == pytest.approx(expect)
+
+
+@pytest.mark.slow
+def test_sensitivities_cover_uncooled_and_the_calibrated_breakout_limit():
+    """The uncooled wall alone, UD-1's 63 deg limit alone, and the two
+    together; at United Downs the combination closes the window (NO-GO)."""
+    from comparative_sites import classify_sensitivity
+    o = se.evaluate(CORNWALL)
+    w63 = f"W_max {C.BREAKOUT_W_MAX_SITE_DEG:.0f}"
+    assert set(o["sensitivity"]) == {"no wall cooling", w63, f"no wall cooling, {w63}"}
+    both = o["sensitivity"][f"no wall cooling, {w63}"]["stress"]
+    assert both["T_wall"] == o["T_rock"] and both["window"]["W_max"] == 63.0
+    assert classify_sensitivity(o, f"no wall cooling, {w63}") == "NO-GO"

@@ -7,7 +7,8 @@ IAPWS-95 is accurate but ~1 ms/call -- far too slow to call per node inside a
 BVP solve. Here we evaluate IAPWS-95 ONCE on a (T, P) grid, cache it to disk,
 and expose bilinear RegularGridInterpolators that take and return numpy arrays.
 This is standard practice (build a steam-table once, interpolate thereafter) and
-is smooth enough for these models.
+is smooth enough for these models. The table is loaded, or built, on first use,
+so importing the models costs nothing until water properties are needed.
 
 Properties: rho [kg/m^3], cp [J/kg/K], mu [Pa.s], k [W/m/K].
 Inputs to the lookups: T [degC], P [Pa] (arrays ok).
@@ -50,12 +51,23 @@ def _load():
     return _build()
 
 
-_rho, _cp, _mu, _k = _load()
-_kw = dict(bounds_error=False, fill_value=None)  # None -> extrapolate at edges
-RHO = RegularGridInterpolator((T_GRID, P_GRID), _rho, **_kw)
-CP = RegularGridInterpolator((T_GRID, P_GRID), _cp, **_kw)
-MU = RegularGridInterpolator((T_GRID, P_GRID), _mu, **_kw)
-K = RegularGridInterpolator((T_GRID, P_GRID), _k, **_kw)
+_INTERP = {}
+
+
+def _interpolators():
+    """RHO, CP, MU, K interpolators, loading or building the table once."""
+    if not _INTERP:
+        kw = dict(bounds_error=False, fill_value=None)  # None -> extrapolate at edges
+        for name, arr in zip(("RHO", "CP", "MU", "K"), _load()):
+            _INTERP[name] = RegularGridInterpolator((T_GRID, P_GRID), arr, **kw)
+    return _INTERP
+
+
+def __getattr__(name):
+    """Lazy module attributes: wt.RHO, wt.CP, wt.MU, wt.K."""
+    if name in ("RHO", "CP", "MU", "K"):
+        return _interpolators()[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def _clip(T_C, P_Pa):
@@ -67,16 +79,17 @@ def _clip(T_C, P_Pa):
 def props(T_C, P_Pa):
     """Vectorized: returns (rho, cp, mu, k) arrays for T[degC], P[Pa]."""
     pts = _clip(T_C, P_Pa)
-    return RHO(pts), CP(pts), MU(pts), K(pts)
+    f = _interpolators()
+    return f["RHO"](pts), f["CP"](pts), f["MU"](pts), f["K"](pts)
 
 
 def cp(T_C, P_Pa):
-    return CP(_clip(T_C, P_Pa))
+    return _interpolators()["CP"](_clip(T_C, P_Pa))
 
 
 if __name__ == "__main__":
     import sys; sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    print("table shape:", _cp.shape, "cached at", _CACHE)
+    print("table shape:", _interpolators()["CP"].values.shape, "cached at", _CACHE)
     for T in (15, 200, 450):
         for P in (5e6, 120e6):
             r, c, m, kk = props(np.array([T]), np.array([P]))

@@ -12,6 +12,7 @@ import pytest
 
 import model1_coupled as m1
 import site_evaluation as se
+import well_geometry as wg
 
 pytestmark = pytest.mark.slow
 
@@ -23,7 +24,7 @@ pytestmark = pytest.mark.slow
 ])
 def test_450c_well_at_12p4_km(m_dot, k_ins, bit, ret, mw):
     """The README's Fig. 1: 35 C/km to 450 C at 12.4 km, 40 C inlet."""
-    r = m1.solve(m_dot=m_dot, k_ins=k_ins, verbose=False)
+    r = m1.solve(m_dot=m_dot, pipe=wg.uniform_wall(k_ins), verbose=False)
     assert r["L"] == pytest.approx(12428.6, abs=0.5)
     assert r["T_bottom_delivered"] == pytest.approx(bit, abs=0.5)
     assert r["T_return_surface"] == pytest.approx(ret, abs=0.5)
@@ -33,7 +34,7 @@ def test_450c_well_at_12p4_km(m_dot, k_ins, bit, ret, mw):
 def test_soultz_at_10_kg_s():
     """The Soultz evaluation's production run: 10.7 km, 10 kg/s."""
     s = se.SOULTZ
-    r = m1.solve(m_dot=10.0, T_inj=s.T_inj, k_ins=0.02, k_rock=s.k_rock,
+    r = m1.solve(m_dot=10.0, T_inj=s.T_inj, pipe=wg.LEGACY_VACUUM, k_rock=s.k_rock,
                  geotherm=s.temperature(), target_depth=s.target(),
                  Q_face=30000.0, verbose=False)
     assert r["T_bottom_delivered"] == pytest.approx(54.937, abs=0.5)

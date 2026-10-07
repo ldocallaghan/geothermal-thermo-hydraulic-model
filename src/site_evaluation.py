@@ -26,6 +26,7 @@ import model2_spallation as m2
 import model3_optimiser as m3
 import model4_hole_stability as m4
 import model5_convergence_confinement as m5
+import well_geometry as wg
 
 YEAR = 3.156e7
 
@@ -468,7 +469,7 @@ def evaluate(site: SiteProfile, v10=False, thermal=True):
     # scan flow for the minimum that keeps the bit < survival ceiling
     surv = None
     for md in (2, 4, 7, 10, 14, 20):
-        r = m1.solve(m_dot=md, T_inj=site.T_inj, k_ins=0.02, k_rock=site.k_rock,
+        r = m1.solve(m_dot=md, T_inj=site.T_inj, pipe=wg.LEGACY_VACUUM, k_rock=site.k_rock,
                      geotherm=geotherm, target_depth=z, Q_face=30000.0,
                      verbose=False)
         if r["T_bottom_delivered"] < C.BHA_SURVIVAL_TEMP:
@@ -513,9 +514,9 @@ def evaluate(site: SiteProfile, v10=False, thermal=True):
     out["m_min"], out["m1"] = m_min, m1_run
 
     # --- (2/3) DRILLABILITY: regime + quench ROP gain (spallation uses K0=Shmin)
-    drill = m3.evaluate(G_deep, K0, out["m_min"], k_ins=0.02,
+    drill = m3.evaluate(G_deep, K0, out["m_min"], pipe=wg.LEGACY_VACUUM,
                         target_rock_T=T_rock, quench=True)
-    drill_nq = m3.evaluate(G_deep, K0, out["m_min"], k_ins=0.02,
+    drill_nq = m3.evaluate(G_deep, K0, out["m_min"], pipe=wg.LEGACY_VACUUM,
                            target_rock_T=T_rock, quench=False)
     out["drill"] = drill
     out["rop_gain"] = drill["ROP"] / drill_nq["ROP"] if drill_nq["ROP"] > 0 else np.nan
@@ -534,7 +535,7 @@ def evaluate(site: SiteProfile, v10=False, thermal=True):
     out["breakout"] = ref["breakout"]
 
     # production-flow energy (the survival run uses min flow, which minimises MW)
-    rp = m1.solve(m_dot=10.0, T_inj=site.T_inj, k_ins=0.02, k_rock=site.k_rock,
+    rp = m1.solve(m_dot=10.0, T_inj=site.T_inj, pipe=wg.LEGACY_VACUUM, k_rock=site.k_rock,
                   geotherm=geotherm, target_depth=z, Q_face=30000.0, verbose=False)
     out["MW_prod"] = rp["Q_product"] / 1e6
     out["Tret_prod"] = rp["T_return_surface"]

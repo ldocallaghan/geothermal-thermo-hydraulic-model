@@ -18,6 +18,7 @@ several borehole diameters.
 import numpy as np
 import geo_constants as C
 import model1_coupled as m1
+import well_geometry as wg
 
 ALPHA = C.K_ROCK / (C.RHO_ROCK * C.CP_ROCK)
 
@@ -28,15 +29,15 @@ def analytic_qprime(r_w, dT=200.0, t_years=1.0):
     return 2 * np.pi * C.K_ROCK * dT / np.log(r_inf / r_w)
 
 
-def set_geometry(scale):
-    """Scale the whole coaxial geometry by `scale` (bigger borehole)."""
-    m1.r_ii = C.R_INNER_PIPE_IN * scale
-    m1.r_io = C.R_INNER_PIPE_OUT * scale
-    m1.r_w = C.R_WELL * scale
-    m1.A_pipe = np.pi * m1.r_ii ** 2
-    m1.A_ann = np.pi * (m1.r_w ** 2 - m1.r_io ** 2)
-    m1.Dh_pipe = 2 * m1.r_ii
-    m1.Dh_ann = 2 * (m1.r_w - m1.r_io)
+L_450 = (C.TARGET_ROCK_TEMP - C.SURFACE_TEMP) / C.GEOTHERM_GRADIENT
+
+
+def scaled_geometry(scale):
+    """The original coaxial layout with every radius scaled by `scale`, and the
+    downcomer wall of the legacy vacuum tubing (0.02 W/m/K)."""
+    pipe = wg.uniform_wall(wg.LEGACY_VACUUM.layers[0].k, C.R_INNER_PIPE_IN * scale,
+                           C.R_INNER_PIPE_OUT * scale)
+    return wg.WellGeometry.single(L_450, pipe, r_hole=C.R_WELL * scale)
 
 
 if __name__ == "__main__":
@@ -64,20 +65,20 @@ if __name__ == "__main__":
           f"{'MW_th':>7}{'MW/dia':>8}{'pump_kW':>8}")
     print("--- fixed m_dot = 10 kg/s ---")
     for scale in (1.0, 1.5, 2.0, 3.0):
-        set_geometry(scale)
-        r = m1.solve(m_dot=10.0, k_ins=0.02, t_years=1.0, verbose=False)
+        r = m1.solve(m_dot=10.0, t_years=1.0, geometry=scaled_geometry(scale),
+                     verbose=False)
         dia = base_dia * scale
-        pp, _ = m1.pump_power(10.0, r["L"])
+        pp, _ = m1.pump_power(10.0, geometry=r["geometry"])
         print(f"{dia:7.2f}{scale:6.1f}{10.0:7.1f}{r['T_bottom_delivered']:9.0f}"
               f"{r['T_return_surface']:8.0f}{r['Q_product']/1e6:7.2f}"
               f"{r['Q_product']/1e6/dia:8.2f}{pp/1e3:8.1f}")
     print("--- m_dot scaled with annulus area (constant velocity) ---")
     for scale in (1.0, 1.5, 2.0, 3.0):
-        set_geometry(scale)
         md = 10.0 * scale ** 2
-        r = m1.solve(m_dot=md, k_ins=0.02, t_years=1.0, verbose=False)
+        r = m1.solve(m_dot=md, t_years=1.0, geometry=scaled_geometry(scale),
+                     verbose=False)
         dia = base_dia * scale
-        pp, _ = m1.pump_power(md, r["L"])
+        pp, _ = m1.pump_power(md, geometry=r["geometry"])
         print(f"{dia:7.2f}{scale:6.1f}{md:7.1f}{r['T_bottom_delivered']:9.0f}"
               f"{r['T_return_surface']:8.0f}{r['Q_product']/1e6:7.2f}"
               f"{r['Q_product']/1e6/dia:8.2f}{pp/1e3:8.1f}")
@@ -85,8 +86,7 @@ if __name__ == "__main__":
     print("\n" + "=" * 74)
     print("THE REAL LEVERS (linear, unlike diameter) -- for comparison")
     print("=" * 74)
-    set_geometry(1.0)
-    base = m1.solve(m_dot=10.0, k_ins=0.02, t_years=1.0, verbose=False)
+    base = m1.solve(m_dot=10.0, t_years=1.0, pipe=wg.LEGACY_VACUUM, verbose=False)
     print(f"  baseline single 12.4 km hole, 10 kg/s : {base['Q_product']/1e6:.2f} MW_th")
     print(f"  -> 5 such wells (linear in count)      : {5*base['Q_product']/1e6:.2f} MW_th")
     print(f"  -> +contact length via laterals/EGS    : ~linear in contact area")

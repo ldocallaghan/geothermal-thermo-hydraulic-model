@@ -10,9 +10,10 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import geo_constants as C
 from model3_optimiser import evaluate
+import well_geometry as wg
 
 G = 0.040                      # 40 K/km province
-m_dot, k_ins = 4.0, 0.02
+m_dot, pipe = 4.0, wg.LEGACY_VACUUM
 Ttargets = np.array([275, 325, 375, 425, 475])     # degC rock target
 K0s = np.array([0.4, 0.6, 0.8, 1.0])
 
@@ -22,10 +23,10 @@ survive = np.zeros_like(gain, dtype=bool)
 
 # no-quench ROP depends only on target T (not K0) -> cache per row
 for i, Tt in enumerate(Ttargets):
-    nq = evaluate(G, 0.7, m_dot, k_ins=k_ins, P_mech=8000.0, quench=False,
+    nq = evaluate(G, 0.7, m_dot, pipe=pipe, P_mech=8000.0, quench=False,
                   target_rock_T=Tt, n_iter=3)
     for j, K0 in enumerate(K0s):
-        r = evaluate(G, K0, m_dot, k_ins=k_ins, P_mech=8000.0, quench=True,
+        r = evaluate(G, K0, m_dot, pipe=pipe, P_mech=8000.0, quench=True,
                      target_rock_T=Tt, n_iter=3)
         gain[i, j] = r["ROP"] / nq["ROP"] if nq["ROP"] > 0 else np.nan
         spall[i, j] = (r["regime"] == "spall")

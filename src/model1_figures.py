@@ -4,17 +4,18 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import geo_constants as C
+import well_geometry as wg
 from model1_coupled import solve
 
 cases = [
-    dict(label="m=2 kg/s, k_ins=0.1 (baseline)", m_dot=2.0, k_ins=0.10, color="tab:red"),
-    dict(label="m=2 kg/s, k_ins=0.02 (vacuum tubing)", m_dot=2.0, k_ins=0.02, color="tab:orange"),
-    dict(label="m=10 kg/s, k_ins=0.02", m_dot=10.0, k_ins=0.02, color="tab:green"),
+    dict(label="m=2 kg/s, k_ins=0.1 (baseline)", m_dot=2.0, pipe=wg.uniform_wall(0.10), color="tab:red"),
+    dict(label="m=2 kg/s, k_ins=0.02 (vacuum tubing)", m_dot=2.0, pipe=wg.LEGACY_VACUUM, color="tab:orange"),
+    dict(label="m=10 kg/s, k_ins=0.02", m_dot=10.0, pipe=wg.LEGACY_VACUUM, color="tab:green"),
 ]
 
 fig, axes = plt.subplots(1, len(cases), figsize=(15, 5.2), sharey=True)
 for ax, cs in zip(axes, cases):
-    r = solve(m_dot=cs["m_dot"], k_ins=cs["k_ins"], verbose=False)
+    r = solve(m_dot=cs["m_dot"], pipe=cs["pipe"], verbose=False)
     zkm = r["z"] / 1000
     ax.plot(r["Trock"], zkm, "k--", lw=1.3, label="rock T_rock(z)")
     ax.plot(r["Td"], zkm, color="tab:blue", lw=2, label="downcomer T_d (to bit)")

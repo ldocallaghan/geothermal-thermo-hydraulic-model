@@ -9,6 +9,7 @@ import geo_constants as C
 import model1_coupled as m1
 from comparative_sites import classify
 from site_evaluation import SOULTZ, evaluate
+import well_geometry as wg
 
 o = evaluate(SOULTZ)
 s = SOULTZ
@@ -16,7 +17,7 @@ z = o["z"]
 surv, stab, verdict = classify(o)
 
 # Model 1 profiles with the layered geotherm at a production flow
-r = m1.solve(m_dot=10.0, T_inj=s.T_inj, k_ins=0.02, k_rock=s.k_rock,
+r = m1.solve(m_dot=10.0, T_inj=s.T_inj, pipe=wg.LEGACY_VACUUM, k_rock=s.k_rock,
              geotherm=s.temperature(), target_depth=z, Q_face=30000.0, verbose=False)
 zkm = r["z"] / 1000
 

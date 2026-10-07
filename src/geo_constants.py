@@ -124,8 +124,8 @@ R_INNER_PIPE_IN = 0.050            # m  inner radius of central (downcomer) pipe
 R_INNER_PIPE_OUT = 0.060           # m  outer radius of central pipe (wall+insulation)
 R_WELL = 0.108                     # m  borehole / casing inner radius (annulus outer)
 # Insulation of the central pipe is decisive: a poorly insulated centre pipe
-# lets the cold downflow and hot upflow short-circuit thermally.
-K_PIPE_INSULATION = 0.10           # W/m/K  vacuum-insulated tubing ~0.02-0.1; bare steel ~45 (bad)
+# lets the cold downflow and hot upflow short-circuit thermally. Pipe types
+# are in well_geometry.py.
 
 # ----------------------------------------------------------------------------
 # WATER / COOLANT  -> see water_props.py (IAPWS-95, real EOS). No frozen cp here

@@ -3,10 +3,13 @@ model1_coupled.py
 =================
 MODEL 1, STAGE 2 -- coupled 1-D counterflow borehole heat exchanger.
 
-Coaxial well (Eavor-like), z measured DOWNWARD from surface (z=0) to bit (z=L):
+Coaxial well (Eavor-like), z measured DOWNWARD along the hole from surface
+(z=0) to bit (z=L). The string and hole come from a WellGeometry
+(well_geometry.py); rock temperature and pressure are taken at true vertical
+depth through its survey.
   * COLD fluid flows DOWN an insulated central pipe:   T_d(z)
   * HOT  fluid returns UP the annulus, against the rock: T_u(z)
-  * rock wall temperature: T_rock(z) = T_surf + G*z
+  * rock wall temperature: T_rock(z) = T_surf + G*TVD(z), or a site profile
 
 This routing is the crux of the "one loop does both" thesis: insulate the
 downcomer so fluid reaches the bit COLD (tool survival + quench), while the
@@ -17,8 +20,11 @@ Energy balances (per unit length), m_dot = mass flow in each leg:
   m_dot*cp_d * dT_d/dz =  UAi(z) * (T_u - T_d)
   m_dot*cp_u * dT_u/dz = -UAo(z) * (T_rock(z) - T_u) + UAi(z) * (T_u - T_d)
 
-  UAi(z) [W/m/K] = centre<->annulus conductance per length (set by INSULATION)
-  UAo(z) [W/m/K] = rock<->annulus conductance per length (rock conduction + film)
+  UAi(z) [W/m/K] = centre<->annulus conductance per length: bore film, the
+                   pipe wall's layers and the annulus film in series, weighted
+                   by length between the pipe body and its bare tool joints
+  UAo(z) [W/m/K] = rock<->annulus conductance per length: annulus film, any
+                   casing and cement, and rock conduction in series
 
 BCs:
   T_d(0) = T_inj
@@ -31,20 +37,12 @@ import numpy as np
 from scipy.integrate import solve_bvp
 import geo_constants as C
 import water_table as wt
+import well_geometry as wg
+from well_geometry import WellGeometry
 
 P_SURF = 1.0e5  # Pa, atmospheric at wellhead
 P_OP = 5.0e6    # Pa, loop operating pressure for the surface heat-product calc
                 # (keeps the hot return liquid; a pumped loop is pressurized)
-
-# Geometry
-r_ii = C.R_INNER_PIPE_IN
-r_io = C.R_INNER_PIPE_OUT
-r_w = C.R_WELL
-A_pipe = np.pi * r_ii ** 2
-A_ann = np.pi * (r_w ** 2 - r_io ** 2)
-Dh_pipe = 2 * r_ii
-Dh_ann = 2 * (r_w - r_io)
-
 
 def P_of_z(z):
     return P_SURF + C.HYDROSTATIC_GRAD * z
@@ -60,43 +58,51 @@ def h_dittus(m_dot, area, Dh, T_C, P_Pa, n=0.4):
     return Nu * k / Dh
 
 
-def conductances(z, T_d, T_u, m_dot, t_years, k_ins, k_rock):
+def conductances(z, T_d, T_u, m_dot, t_years, k_rock, geometry):
     """Vectorized per-length UAi (centre<->annulus), UAo (rock<->annulus)."""
-    P = P_of_z(z)
-    h_d = h_dittus(m_dot, A_pipe, Dh_pipe, T_d, P)
-    h_a = h_dittus(m_dot, A_ann, Dh_ann, T_u, P)
+    g = geometry.at(z)
+    P = P_of_z(g["tvd"])
+    h_d = h_dittus(m_dot, g["A_bore"], g["Dh_bore"], T_d, P)
+    h_a = h_dittus(m_dot, g["A_ann"], g["Dh_ann"], T_u, P)
 
-    R_in = 1.0 / (h_d * 2 * np.pi * r_ii)
-    R_wall = np.log(r_io / r_ii) / (2 * np.pi * k_ins)
-    R_ao = 1.0 / (h_a * 2 * np.pi * r_io)
-    UAi = 1.0 / (R_in + R_wall + R_ao)
+    R_in = 1.0 / (h_d * 2 * np.pi * g["r_bore"])
+    R_ao = 1.0 / (h_a * 2 * np.pi * g["r_out"])
+    f = g["f_joint"]
+    UAi = (1 - f) / (R_in + g["R_body"] + R_ao) + f / (R_in + g["R_joint"] + R_ao)
 
     alpha = k_rock / (C.RHO_ROCK * C.CP_ROCK)
     t = max(t_years, 1e-3) * 3.1536e7
-    r_inf = r_w + 2.0 * np.sqrt(alpha * t)
-    R_aw = 1.0 / (h_a * 2 * np.pi * r_w)
-    R_rock = np.log(r_inf / r_w) / (2 * np.pi * k_rock)
-    UAo = 1.0 / (R_aw + R_rock)
+    r_inf = g["r_rock"] + 2.0 * np.sqrt(alpha * t)
+    R_aw = 1.0 / (h_a * 2 * np.pi * g["r_wall"])
+    R_rock = np.log(r_inf / g["r_rock"]) / (2 * np.pi * k_rock)
+    UAo = 1.0 / (R_aw + g["R_hole"] + R_rock)
     return UAi, UAo, P
 
 
 def solve(m_dot=2.0, T_inj=40.0, G=C.GEOTHERM_GRADIENT, T_surf=C.SURFACE_TEMP,
           target_rock_T=C.TARGET_ROCK_TEMP, Q_face=28000.0, t_years=1.0,
-          k_ins=C.K_PIPE_INSULATION, k_rock=C.K_ROCK, n_nodes=160, verbose=True,
-          geotherm=None, target_depth=None):
-    # geotherm: optional callable z[m]->T_rock[degC] (e.g. a layered site profile).
-    # If given, target_depth sets well length; else linear T_surf + G z to target_rock_T.
-    if geotherm is not None:
-        L = target_depth
-        Trock = geotherm
-    else:
-        L = (target_rock_T - T_surf) / G
-        Trock = lambda zz: T_surf + G * zz
+          pipe=None, k_rock=C.K_ROCK, n_nodes=160, verbose=True,
+          geotherm=None, target_depth=None, geometry=None):
+    # geotherm: optional callable TVD[m]->T_rock[degC] (e.g. a layered site profile).
+    # The well is either a full WellGeometry, or one pipe type in a vertical open
+    # hole of the original radius, whose length is target_depth if a geotherm is
+    # given, else the depth where T_surf + G z reaches target_rock_T.
+    if geometry is None:
+        if pipe is None:
+            raise ValueError("name a pipe type, or give a WellGeometry")
+        L = target_depth if geotherm is not None else (target_rock_T - T_surf) / G
+        geometry = WellGeometry.single(L, pipe)
+    elif pipe is not None:
+        raise ValueError("give a pipe type or a WellGeometry, not both")
+    L = geometry.md_bit
+    T_tvd = geotherm if geotherm is not None else (lambda d: T_surf + G * d)
+    Trock = lambda zz: T_tvd(geometry.survey.tvd(zz))
     z = np.linspace(0, L, n_nodes)
+    P_L = float(P_of_z(geometry.survey.tvd(L)))
 
     def odes(zz, y):
         Td, Tu = y
-        UAi, UAo, P = conductances(zz, Td, Tu, m_dot, t_years, k_ins, k_rock)
+        UAi, UAo, P = conductances(zz, Td, Tu, m_dot, t_years, k_rock, geometry)
         cpd = wt.CP(np.column_stack([np.clip(Td, 1, 480), np.clip(P, 1e5, 220e6)]))
         cpu = wt.CP(np.column_stack([np.clip(Tu, 1, 480), np.clip(P, 1e5, 220e6)]))
         dTd = UAi * (Tu - Td) / (m_dot * cpd)
@@ -104,7 +110,7 @@ def solve(m_dot=2.0, T_inj=40.0, G=C.GEOTHERM_GRADIENT, T_surf=C.SURFACE_TEMP,
         return np.vstack([dTd, dTu])
 
     def bc(ya, yb):
-        cp_L = float(wt.cp(np.array([yb[0]]), np.array([P_of_z(L)]))[0])
+        cp_L = float(wt.cp(np.array([yb[0]]), np.array([P_L]))[0])
         return np.array([ya[0] - T_inj,
                          yb[1] - yb[0] - Q_face / (m_dot * cp_L)])
 
@@ -121,40 +127,53 @@ def solve(m_dot=2.0, T_inj=40.0, G=C.GEOTHERM_GRADIENT, T_surf=C.SURFACE_TEMP,
     cp_prod = float(wt.cp(np.array([0.5 * (Tu[0] + Td[0])]), np.array([P_OP]))[0])
     Q_product = m_dot * cp_prod * (Tu[0] - Td[0])
 
-    Trock_arr = np.array([Trock(zi) for zi in zz]) if geotherm is not None else T_surf + G * zz
-    res = dict(sol=sol, z=zz, Td=Td, Tu=Tu, Trock=Trock_arr, L=L,
+    Trock_arr = np.array([Trock(zi) for zi in zz]) if geotherm is not None else Trock(zz)
+    res = dict(sol=sol, z=zz, Td=Td, Tu=Tu, Trock=Trock_arr, L=L, geometry=geometry,
                T_bottom_delivered=Td[-1], T_return_surface=Tu[0],
                Q_product=Q_product, m_dot=m_dot, success=sol.success,
-               P_bottom=P_of_z(L))
+               P_bottom=P_L)
     if verbose:
-        _print(res, T_inj, Q_face, t_years, k_ins)
+        _print(res, T_inj, Q_face, t_years)
     return res
 
 
-def pump_power(m_dot, L, T_avg=80.0):
-    P = P_of_z(L / 2)
+def pump_power(m_dot, L=None, T_avg=80.0, geometry=None):
+    """Friction power and pressure drop down the bore and up the annulus, with
+    properties at T_avg and mid-depth pressure. geometry=None is the original
+    coaxial layout over length L."""
+    if geometry is None:
+        geometry = WellGeometry.single(L, wg.LEGACY_VACUUM)  # only the radii matter
+    L = geometry.md_bit
+    P = P_of_z(geometry.survey.tvd(L / 2))
     rho, cp, mu, k = (float(x[0]) for x in
                       wt.props(np.array([T_avg]), np.array([P])))
+    # pieces of constant geometry: break at segment ends and hole intervals
+    cuts = np.unique(np.concatenate([[0.0, L], geometry._seg_ends,
+                                     [h.md_top for h in geometry.hole]]))
+    cuts = cuts[(cuts >= 0) & (cuts <= L)]
+    lengths = np.diff(cuts)
+    g = geometry.at(0.5 * (cuts[:-1] + cuts[1:]))
     dP_total = 0.0
-    for area, Dh, length in [(A_pipe, Dh_pipe, L), (A_ann, Dh_ann, L)]:
+    for area, Dh in ((g["A_bore"], g["Dh_bore"]), (g["A_ann"], g["Dh_ann"])):
         v = m_dot / (rho * area)
         Re = rho * v * Dh / mu
-        f = 64 / Re if Re < 2300 else 0.316 * Re ** -0.25
-        dP_total += f * (length / Dh) * 0.5 * rho * v ** 2
+        f = np.where(Re < 2300, 64 / Re, 0.316 * Re ** -0.25)
+        dP_total += float(np.sum(f * (lengths / Dh) * 0.5 * rho * v ** 2))
     return dP_total * (m_dot / rho), dP_total
 
 
-def _print(r, T_inj, Q_face, t_years, k_ins):
+def _print(r, T_inj, Q_face, t_years):
     print("=" * 72)
     print("COUPLED 1-D COUNTERFLOW BOREHOLE  (Model 1, stage 2)")
     print("=" * 72)
     print(f"  Depth L                 : {r['L']/1000:.1f} km   (bottom rock {r['Trock'][-1]:.0f} C)")
     print(f"  Mass flow (per leg)     : {r['m_dot']:.2f} kg/s")
-    print(f"  Injection temp          : {T_inj:.0f} C ; insulation k={k_ins} W/mK ; t={t_years} yr")
+    pipes = ", ".join(dict.fromkeys(seg.pipe.name for seg in r["geometry"].string))
+    print(f"  Injection temp          : {T_inj:.0f} C ; pipe: {pipes} ; t={t_years} yr")
     print(f"  Face heat load Q_face   : {Q_face/1000:.1f} kW")
     print(f"  BVP converged           : {r['success']}  (P_bottom {r['P_bottom']/1e6:.0f} MPa)")
     print("-" * 72)
-    pp, dP = pump_power(r['m_dot'], r['L'])
+    pp, dP = pump_power(r['m_dot'], geometry=r['geometry'])
     ok = r['T_bottom_delivered'] < C.BHA_SURVIVAL_TEMP
     print(f"  >> Bit-delivered temp T_d(L) : {r['T_bottom_delivered']:6.1f} C   "
           f"(ceiling {C.BHA_SURVIVAL_TEMP:.0f} C)  {'OK' if ok else 'FAIL'}")
@@ -168,21 +187,21 @@ def _print(r, T_inj, Q_face, t_years, k_ins):
 
 if __name__ == "__main__":
     import sys; sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    solve(m_dot=2.0, T_inj=40.0, Q_face=28000.0, t_years=1.0)
-    print("\n### mass-flow sweep (insulated downcomer, t=1yr) ###")
+    solve(m_dot=2.0, T_inj=40.0, Q_face=28000.0, t_years=1.0, pipe=wg.LEGACY_VACUUM)
+    print("\n### mass-flow sweep (legacy vacuum tubing, t=1yr) ###")
     print(f"{'m_dot':>7}{'T_bit[C]':>10}{'T_surf[C]':>11}{'Q_MWth':>9}{'pump_kW':>9}{'conv':>6}")
     for md in (0.5, 1.0, 2.0, 5.0, 10.0, 20.0):
-        r = solve(m_dot=md, t_years=1.0, verbose=False)
-        pp, _ = pump_power(md, r['L'])
+        r = solve(m_dot=md, t_years=1.0, pipe=wg.LEGACY_VACUUM, verbose=False)
+        pp, _ = pump_power(md, geometry=r["geometry"])
         print(f"{md:7.1f}{r['T_bottom_delivered']:10.1f}{r['T_return_surface']:11.1f}"
               f"{r['Q_product']/1e6:9.2f}{pp/1e3:9.1f}{str(r['success']):>6}")
-    print("\n### downcomer insulation sensitivity (m_dot=2 kg/s) ###")
-    print(f"{'k_ins':>8}{'T_bit[C]':>10}{'Q_MWth':>9}")
-    for ki in (0.02, 0.10, 1.0, 45.0):
-        r = solve(m_dot=2.0, k_ins=ki, verbose=False)
-        print(f"{ki:8.2f}{r['T_bottom_delivered']:10.1f}{r['Q_product']/1e6:9.2f}")
+    print("\n### pipe type (m_dot=2 kg/s) ###")
+    print(f"{'pipe':>32}{'T_bit[C]':>10}{'Q_MWth':>9}")
+    for p in wg.PIPE_TYPES.values():
+        r = solve(m_dot=2.0, pipe=p, verbose=False)
+        print(f"{p.name:>32}{r['T_bottom_delivered']:10.1f}{r['Q_product']/1e6:9.2f}")
     print("\n### operating-time sensitivity (rock cooldown, m_dot=2 kg/s) ###")
     print(f"{'years':>8}{'T_bit[C]':>10}{'Q_MWth':>9}")
     for ty in (0.1, 1.0, 5.0, 30.0):
-        r = solve(m_dot=2.0, t_years=ty, verbose=False)
+        r = solve(m_dot=2.0, t_years=ty, pipe=wg.LEGACY_VACUUM, verbose=False)
         print(f"{ty:8.1f}{r['T_bottom_delivered']:10.1f}{r['Q_product']/1e6:9.2f}")

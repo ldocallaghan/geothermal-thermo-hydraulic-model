@@ -32,6 +32,7 @@ We treat T_BDT as optimistic and flag it.
 import numpy as np
 import geo_constants as C
 import model1_coupled as m1
+import well_geometry as wg
 
 T_BDT = 400.0       # degC, brittle-ductile transition: optimistic ceiling for
                     # spallation and for an uncooled hole (see Models 2 and 4)
@@ -66,9 +67,9 @@ if __name__ == "__main__":
           f"{'MW_th':>7}{'pump_kW':>8}{'pump/MW%':>9}{'survive':>8}")
     for Gk in (20, 25, 35, 50, 70):
         G = Gk / 1000
-        r = m1.solve(m_dot=10.0, k_ins=0.02, G=G, target_rock_T=T_BDT,
+        r = m1.solve(m_dot=10.0, pipe=wg.LEGACY_VACUUM, G=G, target_rock_T=T_BDT,
                      Q_face=25000.0, t_years=1.0, verbose=False)
-        pp, _ = m1.pump_power(10.0, r["L"])
+        pp, _ = m1.pump_power(10.0, geometry=r["geometry"])
         ratio = 100 * pp / max(r["Q_product"], 1)
         print(f"{Gk:8.0f}{r['L']/1000:10.1f}{10.0:7.1f}{r['T_bottom_delivered']:7.0f}"
               f"{r['T_return_surface']:11.0f}{r['Q_product']/1e6:7.2f}{pp/1e3:8.1f}"
@@ -84,9 +85,9 @@ if __name__ == "__main__":
           f"{'MW_th':>7}{'pump_kW':>8}{'>BDT?':>7}")
     G = 0.025
     for Tb in (300, 374, 400, 450, 500):
-        r = m1.solve(m_dot=10.0, k_ins=0.02, G=G, target_rock_T=Tb,
+        r = m1.solve(m_dot=10.0, pipe=wg.LEGACY_VACUUM, G=G, target_rock_T=Tb,
                      Q_face=25000.0, verbose=False)
-        pp, _ = m1.pump_power(10.0, r["L"])
+        pp, _ = m1.pump_power(10.0, geometry=r["geometry"])
         flag = "DUCTILE" if Tb > T_BDT else "ok"
         print(f"{Tb:8.0f}{r['L']/1000:10.1f}{C.HYDROSTATIC_GRAD*r['L']/1e6:8.0f}"
               f"{r['T_bottom_delivered']:7.0f}{r['T_return_surface']:7.0f}"

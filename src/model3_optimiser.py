@@ -27,6 +27,7 @@ decline derate in the production phase.
 import numpy as np
 import geo_constants as C
 import model1_coupled as m1
+import well_geometry as wg
 import model2_spallation as m2
 
 A_BIT = np.pi * (C.BIT_DIAMETER / 2) ** 2
@@ -82,7 +83,7 @@ def face_load(P_mech, ROP, T_rock, T_cold, regime):
 
 
 # ----------------------------------------------------- one coupled evaluation
-def evaluate(G, K0, m_dot, k_ins=0.02, T_inj=40.0, P_mech=8000.0,
+def evaluate(G, K0, m_dot, pipe=wg.LEGACY_VACUUM, T_inj=40.0, P_mech=8000.0,
              target_rock_T=C.TARGET_ROCK_TEMP, quench=True, n_iter=5):
     """Self-consistent coupled solve for one design at one site."""
     L = (target_rock_T - C.SURFACE_TEMP) / G
@@ -90,7 +91,7 @@ def evaluate(G, K0, m_dot, k_ins=0.02, T_inj=40.0, P_mech=8000.0,
     T_cold = T_inj
     for _ in range(n_iter):
         r = m1.solve(m_dot=m_dot, T_inj=T_inj, G=G, target_rock_T=target_rock_T,
-                     Q_face=Q_face, k_ins=k_ins, n_nodes=80, verbose=False)
+                     Q_face=Q_face, pipe=pipe, n_nodes=80, verbose=False)
         T_cold = r["T_bottom_delivered"]
         if quench:
             MSE_eff, regime, info = effective_mse(L, target_rock_T, T_cold, K0)
@@ -103,7 +104,7 @@ def evaluate(G, K0, m_dot, k_ins=0.02, T_inj=40.0, P_mech=8000.0,
             break
         Q_face = Q_new
 
-    pp, _ = m1.pump_power(m_dot, L)
+    pp, _ = m1.pump_power(m_dot, geometry=r["geometry"])
     return dict(G=G, K0=K0, m_dot=m_dot, L=L, T_cold=T_cold, MSE_eff=MSE_eff,
                 regime=regime, ROP=ROP, Q_face=Q_face, MW=r["Q_product"] / 1e6,
                 pump_kW=pp / 1e3, survive=T_cold < CEILING,
@@ -112,11 +113,11 @@ def evaluate(G, K0, m_dot, k_ins=0.02, T_inj=40.0, P_mech=8000.0,
 
 # ------------------------------------------------- optimise design for a site
 def optimise_site(G, K0, P_mech=8000.0, T_inj=40.0,
-                  m_dot_grid=(2, 4, 7, 10, 14, 20), k_ins=0.02):
+                  m_dot_grid=(2, 4, 7, 10, 14, 20), pipe=wg.LEGACY_VACUUM):
     """Pick the survivable design (min flow that survives, then best ROP)."""
     best = None
     for md in m_dot_grid:
-        r = evaluate(G, K0, md, k_ins=k_ins, T_inj=T_inj, P_mech=P_mech, quench=True)
+        r = evaluate(G, K0, md, pipe=pipe, T_inj=T_inj, P_mech=P_mech, quench=True)
         if not r["survive"]:
             continue
         # objective: maximise ROP per unit pump power, require net-positive energy
@@ -125,11 +126,11 @@ def optimise_site(G, K0, P_mech=8000.0, T_inj=40.0,
         if best is None or score > best["score"]:
             best = r
     if best is None:                       # nothing survived: report highest flow
-        best = evaluate(G, K0, m_dot_grid[-1], k_ins=k_ins, T_inj=T_inj,
+        best = evaluate(G, K0, m_dot_grid[-1], pipe=pipe, T_inj=T_inj,
                         P_mech=P_mech, quench=True)
         best["score"] = 0.0
     # quench benefit: same design, no thermal assist
-    nq = evaluate(G, K0, best["m_dot"], k_ins=k_ins, T_inj=T_inj,
+    nq = evaluate(G, K0, best["m_dot"], pipe=pipe, T_inj=T_inj,
                   P_mech=P_mech, quench=False)
     best["ROP_noquench"] = nq["ROP"]
     best["ROP_gain"] = best["ROP"] / nq["ROP"] if nq["ROP"] > 0 else np.nan

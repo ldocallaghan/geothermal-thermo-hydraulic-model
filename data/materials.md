@@ -20,10 +20,17 @@ describes a drill pipe built that way, so for drilling it is a sensitivity.
 The model's previous 0.02 W/m·K matches the best-case end of the vacuum-tubing
 range, with connections; 0.10 W/m·K matches none of the named products.
 
-## Not yet sourced
+## Hole cleaning
 
-- A minimum annular velocity for hole cleaning. PetroWiki's "Hole cleaning" page
-  now redirects to OnePetro and could not be checked, and Finger and
-  Blankenship (2010), *Handbook of Best Practices for Geothermal Drilling*
-  (SAND2010-6048), calls for "high annular velocity to lift the cuttings"
-  without a number.
+No citable minimum annular velocity could be checked. PetroWiki's "Hole
+cleaning" page now redirects to OnePetro, the open review and thesis found
+were not reachable, and Finger and Blankenship (2010), *Handbook of Best
+Practices for Geothermal Drilling* (SAND2010-6048), calls for "high annular
+velocity to lift the cuttings" without a number.
+
+The model therefore takes its hole-cleaning reference from practice: the flow
+actually run in a comparable hole. FORGE 16B was drilled at 600 to 700 gal/min
+in 9-1/2-inch open hole (trial report), and Wu et al. (2025) use 600 gal/min in
+an 8.67-inch hole as their base case. The annular velocities those flows give
+with the string in the hole are the reference; they are computed in the model
+from the hole and pipe sizes, not assumed.

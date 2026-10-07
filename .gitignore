@@ -14,3 +14,8 @@ docs/
 
 # Regenerated on first run (one-time IAPWS-95 build, ~2.5 min)
 water_table.npz
+
+# Raw downloads; only extracted data are committed
+data/forge16b/raw/
+data/benchmarks/raw/
+data/newberry/raw/

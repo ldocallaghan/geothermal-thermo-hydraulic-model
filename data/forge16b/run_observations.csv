@@ -1,0 +1,6 @@
+run,idp,depth_in_ft_md,depth_out_ft_md,idp_ft,standard_dp_ft,hwdp_joints,drill_collars_ft,bha_nmdc_ft,bit,flow_gpm,inlet_avg_F,mwd_avg_F,mwd_steady_F,mwd_steady_flow_gpm,notes
+BHA10,none,,8085,0,6821.91,28,278.27,130.84,9.5in PDC TKC83,600,98,180,,,baseline run without IDP
+BHA11,full,8085,8585,7317.66,0,28,278.27,130.84,9.5in PDC TKC83,700,121,149,,,"flow raised from 600 gal/min; mud chillers off at first, one brought online near the end (inlet ~130 to ~110 F); MWD temperature relatively uniform"
+BHA12,partial,8585,9255,8264.49,2378.5,28,0,132.28,9.5in PDC D406V,,,164,150-160,,"~70% IDP above standard pipe; high temperatures at first, levelling at ~150-160 F; sharp drop at ~8700 ft; wireline logs run before this run"
+BHA13,none,9255,9800,0,8748.63,30,0,132.33,9.5in PDC TKC83,,,220,211;211,700,steady values at 700 gal/min
+BHA13,none,9255,9800,0,8748.63,30,0,132.33,9.5in PDC TKC83,,,220,225;223,600,steady values at 600 gal/min

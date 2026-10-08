@@ -183,29 +183,109 @@ def solve(m_dot=2.0, T_inj=40.0, G=C.GEOTHERM_GRADIENT, T_surf=C.SURFACE_TEMP,
     return res
 
 
-def pump_power(m_dot, L=None, T_avg=80.0, geometry=None):
-    """Friction power and pressure drop down the bore and up the annulus, with
-    properties at T_avg and mid-depth pressure. geometry=None is the original
-    coaxial layout over length L."""
-    if geometry is None:
-        geometry = WellGeometry.single(L, wg.LEGACY_VACUUM)  # only the radii matter
+G_GRAV = 9.81
+PUMP_LIMIT = 51.7e6          # Pa (7,500 psi), the limit used by Wu et al. (2025)
+HOLE_CLEANING_V = 1.245      # m/s, around the drill pipe at FORGE 16B, 600 gal/min
+                             # in 9-1/2-inch hole at 60-70 deg (data/materials.md)
+BIT_TFA_DEFAULT = 7.759e-4   # m^2, eight 14/32-inch nozzles (FORGE 16B trial bits)
+NOZZLE_CD = 0.95
+
+
+def colebrook_smooth(Re, n_iter=30):
+    """Darcy friction factor for a smooth pipe (Colebrook at zero roughness)."""
+    Re = np.asarray(Re, float)
+    f = 0.316 * Re ** -0.25
+    for _ in range(n_iter):
+        f = (-2.0 * np.log10(2.51 / (Re * np.sqrt(f)))) ** -2
+    return f
+
+
+def friction_factor(Re, model="blasius"):
+    """Darcy friction factor: 64/Re below Re 2300, else Blasius (or smooth
+    Colebrook as a check)."""
+    Re = np.asarray(Re, float)
+    turb = colebrook_smooth(np.maximum(Re, 2300.0)) if model == "colebrook" \
+        else 0.316 * np.maximum(Re, 1.0) ** -0.25
+    return np.where(Re < 2300.0, 64.0 / np.maximum(Re, 1e-12), turb)
+
+
+def nozzle_dp(m_dot, rho, tfa=BIT_TFA_DEFAULT, cd=NOZZLE_CD):
+    """Pressure drop across the bit nozzles [Pa]."""
+    Q = m_dot / rho
+    return rho * Q ** 2 / (2 * cd ** 2 * tfa ** 2)
+
+
+def _pieces(geometry):
+    """Measured-depth pieces of constant geometry: cut at segment ends and
+    hole intervals."""
     L = geometry.md_bit
-    P = P_of_z(geometry.survey.tvd(L / 2))
-    rho, cp, mu, k = (float(x[0]) for x in
-                      wt.props(np.array([T_avg]), np.array([P])))
-    # pieces of constant geometry: break at segment ends and hole intervals
     cuts = np.unique(np.concatenate([[0.0, L], geometry._seg_ends,
                                      [h.md_top for h in geometry.hole]]))
     cuts = cuts[(cuts >= 0) & (cuts <= L)]
-    lengths = np.diff(cuts)
-    g = geometry.at(0.5 * (cuts[:-1] + cuts[1:]))
-    dP_total = 0.0
-    for area, Dh in ((g["A_bore"], g["Dh_bore"]), (g["A_ann"], g["Dh_ann"])):
+    return cuts[:-1], cuts[1:]
+
+
+def hydraulics(m_dot, geometry, result=None, T_avg=80.0, tfa=BIT_TFA_DEFAULT,
+               friction="blasius", bit=True):
+    """Pressure losses along the string and annulus, bit nozzle loss,
+    standpipe pressure and annular velocity.
+
+    With a solve() result, water properties are taken at each piece's local
+    bore or annulus temperature and pressure, and the standpipe pressure
+    includes the buoyancy of the hot annulus against the cold bore. Without
+    one, properties are at T_avg and mid-depth pressure throughout.
+
+      SPP = dP_string + dP_bit + dP_annulus + integral (rho_ann - rho_bore) g dTVD
+    """
+    top, bot = _pieces(geometry)
+    mid = 0.5 * (top + bot)
+    g = geometry.at(mid)
+    dtvd = geometry.survey.tvd(bot) - geometry.survey.tvd(top)
+    if result is None:
+        P = P_of_z(geometry.survey.tvd(geometry.md_bit / 2))
+        rho, _, mu, _ = (float(x[0]) for x in wt.props(np.array([T_avg]), np.array([P])))
+        rho_b = rho_a = np.full_like(mid, rho)
+        mu_b = mu_a = np.full_like(mid, mu)
+        rho_bit = rho
+    else:
+        P = P_of_z(g["tvd"])
+        T_b = np.interp(mid, result["z"], result["Td"])
+        T_a = np.interp(mid, result["z"], result["Tu"])
+        rho_b, _, mu_b, _ = wt.props(T_b, P)
+        rho_a, _, mu_a, _ = wt.props(T_a, P)
+        rho_bit = float(rho_b[-1])
+
+    def loss(rho, mu, area, Dh):
         v = m_dot / (rho * area)
-        Re = rho * v * Dh / mu
-        f = np.where(Re < 2300, 64 / Re, 0.316 * Re ** -0.25)
-        dP_total += float(np.sum(f * (lengths / Dh) * 0.5 * rho * v ** 2))
-    return dP_total * (m_dot / rho), dP_total
+        f = friction_factor(rho * v * Dh / mu, friction)
+        return f * ((bot - top) / Dh) * 0.5 * rho * v ** 2, v
+
+    dp_bore, _ = loss(rho_b, mu_b, g["A_bore"], g["Dh_bore"])
+    dp_ann, v_ann = loss(rho_a, mu_a, g["A_ann"], g["Dh_ann"])
+    dp_bit = nozzle_dp(m_dot, rho_bit, tfa) if bit else 0.0
+    dp_buoy = float(np.sum((rho_a - rho_b) * G_GRAV * dtvd))
+    spp = float(dp_bore.sum() + dp_ann.sum()) + dp_bit + dp_buoy
+    return dict(
+        pieces=[dict(md_top=a, md_bottom=b, dp_bore=x, dp_ann=y, v_ann=v)
+                for a, b, x, y, v in zip(top, bot, dp_bore, dp_ann, v_ann)],
+        dp_string=float(dp_bore.sum()), dp_annulus=float(dp_ann.sum()),
+        dp_bit=dp_bit, dp_buoyancy=dp_buoy, spp=spp,
+        over_pump_limit=spp > PUMP_LIMIT,
+        v_ann_min=float(v_ann.min()), cleans_hole=float(v_ann.min()) >= HOLE_CLEANING_V,
+        pump_power=spp * m_dot / float(np.mean(rho_b)))
+
+
+def pump_power(m_dot, L=None, T_avg=80.0, geometry=None):
+    """Friction power and pressure drop down the bore and up the annulus, at
+    T_avg and mid-depth pressure, without the bit. geometry=None is the
+    original coaxial layout over length L."""
+    if geometry is None:
+        geometry = WellGeometry.single(L, wg.LEGACY_VACUUM)  # only the radii matter
+    h = hydraulics(m_dot, geometry, T_avg=T_avg, bit=False)
+    dP = h["dp_string"] + h["dp_annulus"]
+    P = P_of_z(geometry.survey.tvd(geometry.md_bit / 2))
+    rho = float(wt.props(np.array([T_avg]), np.array([P]))[0][0])
+    return dP * (m_dot / rho), dP
 
 
 def _print(r, T_inj, Q_face, t_years):

@@ -119,6 +119,30 @@ def smooth_exposure(exposure, md_bit, dz=25.0):
     return lambda z: np.exp(f(np.clip(np.asarray(z, float), 0.0, md_bit)))
 
 
+SEED_YEARS = (1 / 365, 1 / 52, 1 / 12, 1.0)
+
+
+def solve_seeded(exposure, breaks=(), seeds=SEED_YEARS, **kw):
+    """Solve with a depth-varying exposure, seeded from a solve with uniform
+    exposure. A collocation solve can fail from one starting profile and
+    converge from another; where it converges the answer is the same to
+    within 0.01 C. So each seed in turn is tried, and the first converged
+    result returned (or the last attempt, flagged unconverged). The uniform
+    seed solves are returned too, as "seed"."""
+    r = seed = None
+    for t in seeds:
+        seed = solve(**kw, t_years=t)
+        if not seed["success"]:
+            continue
+        r = solve(**kw, exposure=exposure, breaks=breaks, init=seed)
+        if r["success"]:
+            break
+    if r is None:
+        r = solve(**kw, exposure=exposure, breaks=breaks)
+    r["seed"] = seed
+    return r
+
+
 def exposure_breaks(exposure, md_bit, dz=1.0, jump=0.3):
     """Depths where an exposure-time function jumps (where the bit paused on a
     trip or a long stop): ln t changes by more than `jump` within dz metres.

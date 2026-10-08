@@ -236,9 +236,7 @@ def model_at(run, s, film_mult=1.0, k_idp=None, k_rock=K_ROCK, **override):
               target_rock_T=float(T_FORM(SURVEY.tvd(g.md_bit))),
               Q_face=s["motor_dp_psi"] * PSI * Q, k_rock=k_rock, rhocp_rock=RHOCP_ROCK,
               friction_heat=True, tfa=tfa(run), film_mult=film_mult, verbose=False)
-    # seed with a uniform one-day exposure, which always converges
-    r = m1.solve(**kw, t_years=1 / 365.0)
-    r = m1.solve(**kw, exposure=exp, breaks=m1.exposure_breaks(exp, g.md_bit), init=r)
+    r = m1.solve_seeded(exp, m1.exposure_breaks(exp, g.md_bit), **kw)
     z_mwd = g.md_bit - MWD_ABOVE_BIT_FT * FT
     return dict(mwd_F=float(C_to_F(np.interp(z_mwd, r["z"], r["Td"]))),
                 ann_F=float(C_to_F(np.interp(z_mwd, r["z"], r["Tu"]))),

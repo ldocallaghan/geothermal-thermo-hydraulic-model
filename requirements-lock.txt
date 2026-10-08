@@ -1,0 +1,8 @@
+# The exact versions the reference results in tests/golden/ were made with
+# (Python 3.14.4). requirements.txt gives the minimum versions; install these
+# to reproduce the golden files exactly.
+iapws==1.5.5
+matplotlib==3.11.2
+numpy==2.5.3
+pytest==9.1.1
+scipy==1.18.1

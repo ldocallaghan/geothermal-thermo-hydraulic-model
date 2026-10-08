@@ -15,7 +15,11 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
 
-from comparative_sites import SITES, classify          # noqa: E402
+from comparative_sites import (CORNWALL, LARDERELLO, PANNONIAN, SOULTZ,  # noqa: E402
+                               classify)
+
+# the four sites v1.0 had; sites added since aren't part of its table
+SITES = [SOULTZ, LARDERELLO, CORNWALL, PANNONIAN]
 from site_evaluation import evaluate                    # noqa: E402
 
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "golden",

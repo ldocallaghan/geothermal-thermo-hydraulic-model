@@ -74,5 +74,24 @@
    "vacuum-insulated pipe": "GO",
    "commercial pipe only": "CONDITIONAL [GO..CONDITIONAL]"
   }
+ },
+ "Newberry / NWG 55-29 (USA)": {
+  "verdict": "GO",
+  "pipe": "dual-wall",
+  "m_dot": 30.0,
+  "bhct": 48.9608479504048,
+  "bhct_one_year": 44.90766063375754,
+  "spp_MPa": 9.849489707403075,
+  "v_ann": 1.322349654153003,
+  "MW": 3.486988587491324,
+  "sensitivities": {
+   "no wall cooling": "GO",
+   "W_max 63": "GO",
+   "no wall cooling, W_max 63": "CONDITIONAL [GO..CONDITIONAL]",
+   "rock exposed 1 yr": "GO",
+   "film x0.75": "GO",
+   "vacuum-insulated pipe": "GO",
+   "commercial pipe only": "GO"
+  }
  }
 }

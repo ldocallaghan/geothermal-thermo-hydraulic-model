@@ -64,6 +64,9 @@ class StressProfile:
     Pp_datum: float = 0.0
     source: str = ""
     z_data: tuple = None
+    # the friction coefficient the case was derived with, if it has its own;
+    # its admissibility and cap are then checked at that value
+    mu: float = None
 
     @classmethod
     def from_ratios(cls, Sv_grad, K0_min, SHmax_over_Sv, label="v1.0 ratios",
@@ -158,6 +161,9 @@ class SiteProfile:
     geotherm_v11: callable = None
     target_depth_v11: float = None
     temperature_data_to: float = None
+    # friction coefficient for frictional admissibility and the cap: the
+    # United Downs value unless the site's stresses were derived with another
+    mu: float = C.FRICTION_MU
 
     def __post_init__(self):
         if not self.strength_cases:
@@ -186,22 +192,23 @@ class SiteProfile:
         been checked against a real well there; otherwise "speculative"."""
         b = {k: v[0] for k, v in self.data_basis.items()}
         ok = (b.get("stress") in ("measured", "measured range")
-              and b.get("strength") in ("calibrated", "measured (lab)")
+              and b.get("strength") in ("calibrated", "measured (lab)", "log-derived")
               and b.get("well check") in ("calibrated", "checked"))
         return "evidence-based" if ok else "speculative"
 
     def missing(self):
         """Inputs that keep a site speculative, as (input, basis)."""
         need = {"stress": ("measured", "measured range"),
-                "strength": ("calibrated", "measured (lab)"),
+                "strength": ("calibrated", "measured (lab)", "log-derived"),
                 "well check": ("calibrated", "checked")}
         return [(k, self.data_basis.get(k, ("none", ""))[0]) for k, good in need.items()
                 if self.data_basis.get(k, ("none", ""))[0] not in good]
 
 
 # Data-basis labels, strongest first
-BASES = ("calibrated", "measured", "measured range", "measured (lab)", "checked",
-         "regime bounds", "extrapolated", "regional", "assumed", "unsourced", "none")
+BASES = ("calibrated", "measured", "measured range", "measured (lab)", "log-derived",
+         "checked", "regime bounds", "extrapolated", "regional", "assumed",
+         "not reproduced", "unsourced", "none")
 
 
 SOULTZ = SiteProfile(
@@ -258,7 +265,7 @@ def thermal_hoop_stress(T_rock, T_wall):
     return -E * al / (1.0 - C.NU_ROCK) * (T_rock - T_wall)
 
 
-def stability_inputs(site, z, T_rock, v10=False, mu=C.FRICTION_MU, UCS=None,
+def stability_inputs(site, z, T_rock, v10=False, mu=None, UCS=None,
                      T_wall=None, thermal=True, W_max=C.BREAKOUT_W_MAX_DEG):
     """Stress state, frictional admissibility, breakout and mud window for
     every stress and strength case at depth z.
@@ -280,6 +287,8 @@ def stability_inputs(site, z, T_rock, v10=False, mu=C.FRICTION_MU, UCS=None,
     temperature. None means v1.0's min(T_rock, 200 C). The v1.0 adapter
     ignores both. Needs no Model 1-4 calls.
     """
+    if mu is None:
+        mu = site.mu
     P_mud = site.rho_fluid_grad * z
     if T_wall is None:
         T_wall = min(T_rock, T_WALL_CAP)
@@ -297,7 +306,8 @@ def stability_inputs(site, z, T_rock, v10=False, mu=C.FRICTION_MU, UCS=None,
             (pr, st) for pr in profiles for st in strengths):
         window = None
         beyond = None if v10 else p.beyond_data(z)
-        SHmax_lim = m5.SHmax_frictional_limit(Shmin, Pp, mu)
+        mu_c = p.mu if p.mu is not None and not v10 else mu
+        SHmax_lim = m5.SHmax_frictional_limit(Shmin, Pp, mu_c)
         cap_binds = bool(beyond is not None and beyond > 0
                          and SHmax > SHmax_lim * (1 + m5.CAP_RTOL))
         if cap_binds:
@@ -309,8 +319,8 @@ def stability_inputs(site, z, T_rock, v10=False, mu=C.FRICTION_MU, UCS=None,
             UCS=C.UCS if UCS is None else UCS, strength_label=s_label,
             label=p.label + (f", {s_label}" if len(strengths) > 1 else ""),
             profile=p, Sv=Sv, Shmin=Shmin, SHmax=SHmax, Pp=Pp,
-            beyond_data=beyond, cap_binds=cap_binds, cap_depth=p.cap_depth(mu),
-            admissible=m5.stress_admissible(Sv, Shmin, SHmax, Pp, mu),
+            beyond_data=beyond, cap_binds=cap_binds, cap_depth=p.cap_depth(mu_c),
+            admissible=m5.stress_admissible(Sv, Shmin, SHmax, Pp, mu_c),
             breakout=(breakout_v10(Shmin, SHmax, P_mud, T_rock, UCS=UCS) if v10 else
                       breakout_eff(Shmin, SHmax, P_mud, Pp, T_rock, T_wall=T_wall,
                                    UCS=UCS, dsigma_T=dsigma_T))))

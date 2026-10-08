@@ -140,7 +140,39 @@ PANNONIAN = SiteProfile(
         "well check": ("none", "no well with wellbore-failure data"),
     })
 
-SITES = [SOULTZ, LARDERELLO, CORNWALL, PANNONIAN]
+import crosscheck_newberry as nb                           # noqa: E402
+
+NEWBERRY = SiteProfile(
+    name="Newberry / NWG 55-29 (USA)",
+    geotherm=nb.geotherm, target_depth=nb.target_depth(), target_T=400.0,
+    Sv_grad=nb.profile().Sv_grad, K0_min=0.53, SHmax_over_Sv=0.85,   # ratios unused
+    rho_fluid_grad=C.HYDROSTATIC_GRAD,
+    # mean of the corrected conductivities over the open hole, 6,500-10,000 ft
+    # (AltaRock, "Well 55-29 Heat Flow Values", GDR 271)
+    k_rock=2.14, E_rock=50e9, UCS=79e6,
+    # Davatzes and Hickman (2011) at both their friction coefficients; the data
+    # cover the imaged open hole, 6,435-8,860 ft MD
+    stress_cases=(nb.profile(0.55), nb.profile(0.70)),
+    stress_basis="measured range",
+    strength_cases=nb.granodiorite_strengths(),
+    temperature_data_to=nb.Z_DATA_T,
+    mu=0.55,
+    data_basis={
+        "stress": ("measured range", "Davatzes & Hickman (2011): Sv and pore pressure "
+                   "measured; Shmin at frictional equilibrium (mu 0.55, 0.70); SHmax from "
+                   "breakout widths, to 8,860 ft MD"),
+        "strength": ("log-derived", "UCS-porosity relation of Davatzes & Hickman on the "
+                     "neutron log, granodiorite 8,807 ft to TD (GDR 271)"),
+        "pore pressure": ("measured", "static survey, October 2008 (GDR 271); "
+                          "underpressured, Pf/Sv ~0.34"),
+        "temperature": ("extrapolated", f"{nb.T_DATA_END:.0f} C at {nb.Z_DATA_T:.0f} m TVD "
+                        f"(static survey 2008); {nb.GRAD_DEEP*1000:.0f} C/km below"),
+        "well check": ("not reproduced", "NWG 55-29 (crosscheck_newberry.py): the volcanic "
+                       "breakout width is reproduced at 25-35 K of wall cooling, but "
+                       "breakouts are predicted in the granodiorite, where none were logged"),
+    })
+
+SITES = [SOULTZ, LARDERELLO, CORNWALL, PANNONIAN, NEWBERRY]
 
 
 def classify(o):

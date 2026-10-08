@@ -19,7 +19,16 @@ def test_every_input_has_a_basis_and_a_source(site):
 def test_tiers():
     assert {s.name.split()[0]: s.tier for s in SITES} == {
         "Upper": "evidence-based", "United": "evidence-based",
-        "Larderello": "speculative", "Pannonian": "speculative"}
+        "Larderello": "speculative", "Pannonian": "speculative", "Newberry": "speculative"}
+
+
+def test_newberry_is_held_back_only_by_its_well_check():
+    """Its log-derived strength counts; the cross-check not reproducing the
+    breakout pattern is what keeps it speculative."""
+    from comparative_sites import NEWBERRY
+    assert dict(NEWBERRY.missing()) == {"well check": "not reproduced"}
+    assert NEWBERRY.mu == 0.55
+    assert {p.mu for p in NEWBERRY.stress_cases} == {0.55, 0.70}
 
 
 @pytest.mark.parametrize("site", [LARDERELLO, PANNONIAN], ids=["Larderello", "Pannonian"])

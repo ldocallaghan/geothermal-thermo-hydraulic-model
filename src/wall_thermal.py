@@ -97,6 +97,7 @@ class Result:
     energy_far: float = 0.0         # J/m through the far boundary, total
     stored: float = 0.0             # J/m change in the rock's stored heat
     vol: np.ndarray = None
+    ends: list = field(default_factory=list)     # (t, T_wall, T_node) at the end of each state
 
 
 def run(history, T_rock, a, k, rhocp, n=200, r_max=None, T0=None, dt0=1.0, growth=1.08):
@@ -111,7 +112,7 @@ def run(history, T_rock, a, k, rhocp, n=200, r_max=None, T0=None, dt0=1.0, growt
     G = 2 * np.pi * k / np.log(r[1:] / r[:-1])
     cap = rhocp * vol
     ts, Tw, Tn, qw = [0.0], [T[0]], [np.nan], [0.0]
-    fields, t = [], 0.0
+    fields, ends, t = [], [], 0.0
     e_in = e_far = 0.0
     T_fluid_last = None
     for s in history:
@@ -178,9 +179,10 @@ def run(history, T_rock, a, k, rhocp, n=200, r_max=None, T0=None, dt0=1.0, growt
         if s.kind == "circulating":
             T_fluid_last = s.T_fluid
         fields.append(T.copy())
+        ends.append((t, float(T[0]), float(T_node) if T_node is not None else np.nan))
     stored = float(np.sum(cap[:-1] * (T[:-1] - T_start[:-1])))
     return Result(np.array(ts), np.array(Tw), np.array(Tn), np.array(qw), r, fields,
-                  e_in, e_far, stored, vol)
+                  e_in, e_far, stored, vol, ends)
 
 
 def _solve_bordered(A, rhs, n):

@@ -223,10 +223,8 @@ def on_bottom_samples(run, every_min=30):
 
 
 # ---------------------------------------------------------------- model
-def model_at(run, s, film_mult=1.0, k_idp=None, k_rock=K_ROCK, **override):
-    """Model 1 at one on-bottom sample; override any of bit_ft, flow_gpm,
-    T_in_F, time, motor_dp_psi to move one factor at a time."""
-    s = {**s, **override}
+def solve_at(run, s, film_mult=1.0, k_idp=None, k_rock=K_ROCK):
+    """Model 1 at one on-bottom sample: the solve() result and the geometry."""
     g = geometry(run, s["bit_ft"], k_idp)
     T_in = float(F_to_C(s["T_in_F"]))
     rho_in = float(m1.fluid_props(np.array([T_in]), np.array([m1.P_SURF]))[0][0])
@@ -236,7 +234,14 @@ def model_at(run, s, film_mult=1.0, k_idp=None, k_rock=K_ROCK, **override):
               target_rock_T=float(T_FORM(SURVEY.tvd(g.md_bit))),
               Q_face=s["motor_dp_psi"] * PSI * Q, k_rock=k_rock, rhocp_rock=RHOCP_ROCK,
               friction_heat=True, tfa=tfa(run), film_mult=film_mult, verbose=False)
-    r = m1.solve_seeded(exp, m1.exposure_breaks(exp, g.md_bit), **kw)
+    return m1.solve_seeded(exp, m1.exposure_breaks(exp, g.md_bit), **kw), g
+
+
+def model_at(run, s, film_mult=1.0, k_idp=None, k_rock=K_ROCK, **override):
+    """Model 1 at one on-bottom sample; override any of bit_ft, flow_gpm,
+    T_in_F, time, motor_dp_psi to move one factor at a time."""
+    s = {**s, **override}
+    r, g = solve_at(run, s, film_mult, k_idp, k_rock)
     z_mwd = g.md_bit - MWD_ABOVE_BIT_FT * FT
     return dict(mwd_F=float(C_to_F(np.interp(z_mwd, r["z"], r["Td"]))),
                 ann_F=float(C_to_F(np.interp(z_mwd, r["z"], r["Tu"]))),

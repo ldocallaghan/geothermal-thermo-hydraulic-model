@@ -48,9 +48,24 @@ def P_of_z(z):
     return P_SURF + C.HYDROSTATIC_GRAD * z
 
 
-def h_dittus(m_dot, area, Dh, T_C, P_Pa, n=0.4):
+def fluid_props(T_C, P_Pa, fluid=None):
+    """rho, cp, mu, k of the circulating fluid: IAPWS-95 water, or constant
+    values from a dict with those keys (a drilling mud, say)."""
+    if fluid is None:
+        return wt.props(T_C, P_Pa)
+    shape = np.broadcast(np.asarray(T_C), np.asarray(P_Pa)).shape
+    return tuple(np.full(shape, float(fluid[q])) for q in ("rho", "cp", "mu", "k"))
+
+
+def _cp(T_C, P_Pa, fluid=None):
+    if fluid is None:
+        return wt.CP(np.column_stack([np.clip(T_C, 1, 480), np.clip(P_Pa, 1e5, 220e6)]))
+    return fluid_props(T_C, P_Pa, fluid)[1]
+
+
+def h_dittus(m_dot, area, Dh, T_C, P_Pa, n=0.4, fluid=None):
     """Vectorized convective coefficient [W/m^2/K]. Laminar floor Nu=4.36."""
-    rho, cp, mu, k = wt.props(T_C, P_Pa)
+    rho, cp, mu, k = fluid_props(T_C, P_Pa, fluid)
     Gflux = m_dot / area
     Re = Gflux * Dh / mu
     Pr = cp * mu / k
@@ -58,6 +73,12 @@ def h_dittus(m_dot, area, Dh, T_C, P_Pa, n=0.4):
     return Nu * k / Dh
 
 
+G_GRAV = 9.81
+PUMP_LIMIT = 51.7e6          # Pa (7,500 psi), the limit used by Wu et al. (2025)
+HOLE_CLEANING_V = 1.245      # m/s, around the drill pipe at FORGE 16B, 600 gal/min
+                             # in 9-1/2-inch hole at 60-70 deg (data/materials.md)
+BIT_TFA_DEFAULT = 7.759e-4   # m^2, eight 14/32-inch nozzles (FORGE 16B trial bits)
+NOZZLE_CD = 0.95
 SECONDS_PER_YEAR = 3.1536e7
 T_EXPOSURE_FLOOR = 3600.0   # s
 
@@ -102,19 +123,23 @@ def exposure_seconds(z, t_years, exposure):
     return np.maximum(exposure(z), T_EXPOSURE_FLOOR)
 
 
-def conductances(z, T_d, T_u, m_dot, t_years, k_rock, geometry, exposure=None):
-    """Vectorized per-length UAi (centre<->annulus), UAo (rock<->annulus)."""
-    g = geometry.at(z)
+def conductances(z, T_d, T_u, m_dot, t_years, k_rock, geometry, exposure=None,
+                 fluid=None, rhocp_rock=C.RHO_ROCK * C.CP_ROCK, geom_z=None):
+    """Vectorized per-length UAi (centre<->annulus), UAo (rock<->annulus).
+    geom_z, if given, is where the string and hole are looked up (a point inside
+    the same piece), so that nodes on a piece boundary take that piece's geometry."""
+    g = geometry.at(z if geom_z is None else geom_z)
+    g["tvd"] = geometry.survey.tvd(z)
     P = P_of_z(g["tvd"])
-    h_d = h_dittus(m_dot, g["A_bore"], g["Dh_bore"], T_d, P)
-    h_a = h_dittus(m_dot, g["A_ann"], g["Dh_ann"], T_u, P)
+    h_d = h_dittus(m_dot, g["A_bore"], g["Dh_bore"], T_d, P, fluid=fluid)
+    h_a = h_dittus(m_dot, g["A_ann"], g["Dh_ann"], T_u, P, fluid=fluid)
 
     R_in = 1.0 / (h_d * 2 * np.pi * g["r_bore"])
     R_ao = 1.0 / (h_a * 2 * np.pi * g["r_out"])
     f = g["f_joint"]
     UAi = (1 - f) / (R_in + g["R_body"] + R_ao) + f / (R_in + g["R_joint"] + R_ao)
 
-    alpha = k_rock / (C.RHO_ROCK * C.CP_ROCK)
+    alpha = k_rock / rhocp_rock
     t = exposure_seconds(z, t_years, exposure)
     r_inf = g["r_rock"] + 2.0 * np.sqrt(alpha * t)
     R_aw = 1.0 / (h_a * 2 * np.pi * g["r_wall"])
@@ -126,7 +151,14 @@ def conductances(z, T_d, T_u, m_dot, t_years, k_rock, geometry, exposure=None):
 def solve(m_dot=2.0, T_inj=40.0, G=C.GEOTHERM_GRADIENT, T_surf=C.SURFACE_TEMP,
           target_rock_T=C.TARGET_ROCK_TEMP, Q_face=28000.0, t_years=1.0,
           pipe=None, k_rock=C.K_ROCK, n_nodes=160, verbose=True,
-          geotherm=None, target_depth=None, geometry=None, exposure=None):
+          geotherm=None, target_depth=None, geometry=None, exposure=None,
+          fluid=None, rhocp_rock=C.RHO_ROCK * C.CP_ROCK, friction_heat=False,
+          tfa=BIT_TFA_DEFAULT):
+    # friction_heat: add the heat dissipated by friction in the bore and annulus,
+    # and across the bit nozzles (total flow area tfa), to the fluid. Off by
+    # default, which is how the model was first calibrated.
+    # fluid: constant fluid properties (see fluid_props); default IAPWS-95 water.
+    # rhocp_rock: rock volumetric heat capacity [J/m^3/K], for its diffusivity.
     # exposure: optional callable MD[m]->seconds the wall has been exposed to
     # circulation (exposure_from_rop, exposure_from_history); else t_years everywhere.
     # geotherm: optional callable TVD[m]->T_rock[degC] (e.g. a layered site profile).
@@ -146,31 +178,84 @@ def solve(m_dot=2.0, T_inj=40.0, G=C.GEOTHERM_GRADIENT, T_surf=C.SURFACE_TEMP,
     z = np.linspace(0, L, n_nodes)
     P_L = float(P_of_z(geometry.survey.tvd(L)))
 
-    def odes(zz, y):
-        Td, Tu = y
-        UAi, UAo, P = conductances(zz, Td, Tu, m_dot, t_years, k_rock, geometry, exposure)
-        cpd = wt.CP(np.column_stack([np.clip(Td, 1, 480), np.clip(P, 1e5, 220e6)]))
-        cpu = wt.CP(np.column_stack([np.clip(Tu, 1, 480), np.clip(P, 1e5, 220e6)]))
+    def derivs(zz, Td, Tu, geom_z=None):
+        UAi, UAo, P = conductances(zz, Td, Tu, m_dot, t_years, k_rock, geometry, exposure,
+                                   fluid, rhocp_rock, geom_z)
+        cpd = _cp(Td, P, fluid)
+        cpu = _cp(Tu, P, fluid)
         dTd = UAi * (Tu - Td) / (m_dot * cpd)
         dTu = (-UAo * (Trock(zz) - Tu) + UAi * (Tu - Td)) / (m_dot * cpu)
-        return np.vstack([dTd, dTu])
+        if friction_heat:
+            g = geometry.at(zz if geom_z is None else geom_z)
+            dTd = dTd + _friction_gradient(m_dot, Td, P, g["A_bore"], g["Dh_bore"], fluid) / cpd
+            dTu = dTu - _friction_gradient(m_dot, Tu, P, g["A_ann"], g["Dh_ann"], fluid) / cpu
+        return dTd, dTu
 
-    def bc(ya, yb):
-        cp_L = float(wt.cp(np.array([yb[0]]), np.array([P_L]))[0])
-        return np.array([ya[0] - T_inj,
-                         yb[1] - yb[0] - Q_face / (m_dot * cp_L)])
+    def dT_face(Td_L):
+        cp_L = float((wt.cp if fluid is None else
+                      lambda T, P: fluid_props(T, P, fluid)[1])(np.array([Td_L]), np.array([P_L]))[0])
+        dT = Q_face / (m_dot * cp_L)
+        if friction_heat:
+            rho_L = float(np.ravel(fluid_props(np.array([Td_L]), np.array([P_L]), fluid)[0])[0])
+            dT += nozzle_dp(m_dot, rho_L, tfa) / (rho_L * cp_L)
+        return dT
 
-    y0 = np.vstack([np.linspace(T_inj, T_inj + 30, n_nodes),
-                    np.linspace(T_inj + 30, target_rock_T * 0.7, n_nodes)])
-    sol = solve_bvp(odes, bc, z, y0, max_nodes=20000, tol=1e-4)
+    top, bot = _pieces(geometry)
+    if len(top) == 1:
+        def odes(zz, y):
+            return np.vstack(derivs(zz, y[0], y[1]))
+
+        def bc(ya, yb):
+            return np.array([ya[0] - T_inj, yb[1] - yb[0] - dT_face(yb[0])])
+
+        y0 = np.vstack([np.linspace(T_inj, T_inj + 30, n_nodes),
+                        np.linspace(T_inj + 30, target_rock_T * 0.7, n_nodes)])
+        sol = solve_bvp(odes, bc, z, y0, max_nodes=20000, tol=1e-4)
+        sol_at = sol.sol
+    else:
+        # Where the string or hole changes, the coefficients jump. Solve each
+        # piece of constant geometry on its own unit interval, joined by
+        # continuity of both temperatures (a multipoint problem).
+        n, span, mid = len(top), bot - top, 0.5 * (top + bot)
+
+        def odes(tau, Y):
+            zz = top[:, None] + tau[None, :] * span[:, None]
+            gz = np.broadcast_to(mid[:, None], zz.shape)
+            dTd, dTu = derivs(zz.ravel(), Y[0::2].ravel(), Y[1::2].ravel(), gz.ravel())
+            out = np.empty_like(Y)
+            out[0::2] = dTd.reshape(zz.shape) * span[:, None]
+            out[1::2] = dTu.reshape(zz.shape) * span[:, None]
+            return out
+
+        def bc(ya, yb):
+            r = [ya[0] - T_inj]
+            for i in range(n - 1):
+                r += [yb[2 * i] - ya[2 * i + 2], yb[2 * i + 1] - ya[2 * i + 3]]
+            r.append(yb[-1] - yb[-2] - dT_face(yb[-2]))
+            return np.array(r)
+
+        tau = np.linspace(0, 1, max(n_nodes // n, 20))
+        frac = (top[:, None] + tau[None, :] * span[:, None]) / L
+        Y0 = np.empty((2 * n, len(tau)))
+        Y0[0::2] = T_inj + 30 * frac
+        Y0[1::2] = T_inj + 30 + (target_rock_T * 0.7 - T_inj - 30) * frac
+        sol = solve_bvp(odes, bc, tau, Y0, max_nodes=20000, tol=1e-4)
+
+        def sol_at(zq):
+            zq = np.asarray(zq, float)
+            i = np.clip(np.searchsorted(bot, zq, side="left"), 0, n - 1)
+            Y = sol.sol((zq - top[i]) / span[i])
+            cols = np.arange(len(zq))
+            return np.vstack([Y[2 * i, cols], Y[2 * i + 1, cols]])
 
     zz = np.linspace(0, L, 400)
-    Td, Tu = sol.sol(zz)
+    Td, Tu = sol_at(zz)
     # Heat delivered to the surface plant. The loop is PRESSURIZED, so the hot
     # return stays liquid (evaluating cp at 1 atm would wrongly treat >100 C
     # return as steam, cp~2000, halving the result). Use the loop operating
     # pressure P_OP and the mean temperature of the product stream.
-    cp_prod = float(wt.cp(np.array([0.5 * (Tu[0] + Td[0])]), np.array([P_OP]))[0])
+    cp_prod = float(wt.cp(np.array([0.5 * (Tu[0] + Td[0])]), np.array([P_OP]))[0]) \
+        if fluid is None else float(fluid["cp"])
     Q_product = m_dot * cp_prod * (Tu[0] - Td[0])
 
     Trock_arr = np.array([Trock(zi) for zi in zz]) if geotherm is not None else Trock(zz)
@@ -181,14 +266,6 @@ def solve(m_dot=2.0, T_inj=40.0, G=C.GEOTHERM_GRADIENT, T_surf=C.SURFACE_TEMP,
     if verbose:
         _print(res, T_inj, Q_face, t_years if exposure is None else "by depth")
     return res
-
-
-G_GRAV = 9.81
-PUMP_LIMIT = 51.7e6          # Pa (7,500 psi), the limit used by Wu et al. (2025)
-HOLE_CLEANING_V = 1.245      # m/s, around the drill pipe at FORGE 16B, 600 gal/min
-                             # in 9-1/2-inch hole at 60-70 deg (data/materials.md)
-BIT_TFA_DEFAULT = 7.759e-4   # m^2, eight 14/32-inch nozzles (FORGE 16B trial bits)
-NOZZLE_CD = 0.95
 
 
 def colebrook_smooth(Re, n_iter=30):
@@ -215,6 +292,15 @@ def nozzle_dp(m_dot, rho, tfa=BIT_TFA_DEFAULT, cd=NOZZLE_CD):
     return rho * Q ** 2 / (2 * cd ** 2 * tfa ** 2)
 
 
+def _friction_gradient(m_dot, T, P, area, Dh, fluid=None):
+    """Friction pressure gradient divided by density, |dp/dz| / rho [J/kg/m]:
+    the heat dissipated per unit mass of fluid per metre."""
+    rho, _, mu, _ = fluid_props(T, P, fluid)
+    v = m_dot / (rho * area)
+    f = friction_factor(rho * v * Dh / mu)
+    return f * v ** 2 / (2 * Dh)
+
+
 def _pieces(geometry):
     """Measured-depth pieces of constant geometry: cut at segment ends and
     hole intervals."""
@@ -226,7 +312,7 @@ def _pieces(geometry):
 
 
 def hydraulics(m_dot, geometry, result=None, T_avg=80.0, tfa=BIT_TFA_DEFAULT,
-               friction="blasius", bit=True):
+               friction="blasius", bit=True, fluid=None):
     """Pressure losses along the string and annulus, bit nozzle loss,
     standpipe pressure and annular velocity.
 
@@ -243,7 +329,8 @@ def hydraulics(m_dot, geometry, result=None, T_avg=80.0, tfa=BIT_TFA_DEFAULT,
     dtvd = geometry.survey.tvd(bot) - geometry.survey.tvd(top)
     if result is None:
         P = P_of_z(geometry.survey.tvd(geometry.md_bit / 2))
-        rho, _, mu, _ = (float(x[0]) for x in wt.props(np.array([T_avg]), np.array([P])))
+        rho, _, mu, _ = (float(np.ravel(x)[0]) for x in
+                         fluid_props(np.array([T_avg]), np.array([P]), fluid))
         rho_b = rho_a = np.full_like(mid, rho)
         mu_b = mu_a = np.full_like(mid, mu)
         rho_bit = rho
@@ -251,8 +338,8 @@ def hydraulics(m_dot, geometry, result=None, T_avg=80.0, tfa=BIT_TFA_DEFAULT,
         P = P_of_z(g["tvd"])
         T_b = np.interp(mid, result["z"], result["Td"])
         T_a = np.interp(mid, result["z"], result["Tu"])
-        rho_b, _, mu_b, _ = wt.props(T_b, P)
-        rho_a, _, mu_a, _ = wt.props(T_a, P)
+        rho_b, _, mu_b, _ = fluid_props(T_b, P, fluid)
+        rho_a, _, mu_a, _ = fluid_props(T_a, P, fluid)
         rho_bit = float(rho_b[-1])
 
     def loss(rho, mu, area, Dh):

@@ -119,7 +119,26 @@ def zones():
             "granodiorite (logged)": (GRANODIORITE_TOP_MD, LOG_BASE_MD)}
 
 
-def widths(p, cooling, ours=True):
+# The cooled zone for the check that credits cooling only as deep as the
+# breakout reaches (model5.breakout_with_skin). The duration of the
+# inject-to-cool period before the 2008 log isn't in GDR 271 or the paper, so
+# it is bracketed from one hour to a day. 8.5" hole (the LAS bit size); the
+# film coefficient as for UD-1.
+A_HOLE = 8.5 * 0.0254 / 2
+CIRC_HOURS = (1.0, 24.0)
+_shapes = {}
+_depths = {}
+
+
+def _shape(hours):
+    import calibrate_ud1 as cal
+    import wall_thermal as wt
+    if hours not in _shapes:
+        _shapes[hours] = wt.cooling_shape(hours * 3600.0, A_HOLE, 2.14, 2.7e6, cal.H_ANN_UD1)
+    return _shapes[hours]
+
+
+def widths(p, cooling, ours=True, hours=None):
     """Breakout width at each 2-ft log depth in the imaged open hole.
     ours=False is Davatzes and Hickman's criterion: no thermal stress and no
     loss of strength with temperature."""
@@ -131,6 +150,17 @@ def widths(p, cooling, ours=True):
     for i, (zi, mdi, u) in enumerate(zip(z, md, ucs)):
         Pp = float(p.Pp(zi))
         T_rock = float(static_T(mdi))
+        if ours and hours is not None:
+            r_f, g = _shape(hours)
+            thermo = -se.thermal_hoop_stress(T_rock, T_rock - 1.0)
+            key = (p.label, i)
+            if key not in _depths:
+                _depths[key] = m5.uncooled_depth(p.SHmax(zi), p.Shmin(zi), Pp, Pp, A_HOLE,
+                                                 T_rock, u, thermo)
+            out[i] = m5.breakout_with_skin(p.SHmax(zi), p.Shmin(zi), Pp, Pp, A_HOLE, r_f,
+                                           T_rock - cooling * g, T_rock, u, thermo,
+                                           depth_ref=_depths[key], detail=False)["width"]
+            continue
         if ours:
             T_wall = T_rock - cooling
             dT = se.thermal_hoop_stress(T_rock, T_wall)
@@ -166,7 +196,12 @@ def crosscheck(mu=MU):
         rows.append(dict(cooling=float(dK), label=f"{dK:.0f} K", s=summary(*widths(p, dK))))
     ok = [r["cooling"] for r in rows[1:] if consistent(r["s"])]
     vol = [r["cooling"] for r in rows[1:] if volcanics_match(r["s"])]
-    return dict(mu=mu, profile=p, rows=rows, consistent_cooling=ok, volcanics_cooling=vol)
+    skin = {}
+    for h in CIRC_HOURS:
+        srows = [dict(cooling=float(dK), s=summary(*widths(p, dK, True, h))) for dK in COOLING_K]
+        skin[h] = dict(rows=srows, volcanics_cooling=[r["cooling"] for r in srows if volcanics_match(r["s"])],
+                       consistent_cooling=[r["cooling"] for r in srows if consistent(r["s"])])
+    return dict(mu=mu, profile=p, rows=rows, consistent_cooling=ok, volcanics_cooling=vol, skin=skin)
 
 
 def report(res):
@@ -214,6 +249,11 @@ def report(res):
               f"{min(fr):.0f}-{max(fr):.0f}% of its length, where none were logged:")
         print("  the porosity relation gives it 60-82 MPa, little more than the volcanics,")
         print("  so the model can't tell the two apart (their criterion can't either).")
+    for h, sk in res["skin"].items():
+        v_ = sk["volcanics_cooling"]
+        print(f"  with the cooling credited as deep as the breakout reaches (circulated {h:.0f} h): "
+              f"volcanics alone {'none' if not v_ else f'{min(v_):.0f}-{max(v_):.0f} K'}; "
+              f"consistent with the log {'none' if not sk['consistent_cooling'] else sk['consistent_cooling']}")
     print(f"for scale: the log's maximum temperature, {LOG_MAX_T:.0f} C, against "
           f"{static_T(LOG_BASE_MD):.0f} C static at its base, is "
           f"{static_T(LOG_BASE_MD) - LOG_MAX_T:.0f} K of cooling in the fluid there")

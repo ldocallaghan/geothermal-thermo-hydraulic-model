@@ -255,3 +255,11 @@ def line_source_recovery(q, k, alpha, t_on, dt_off):
     times): q/(4 pi k) [E1(r^2/4 alpha dt_off) - E1(r^2/4 alpha (t_on + dt_off))]
     -> q/(4 pi k) ln((t_on + dt_off) / dt_off)."""
     return q / (4.0 * np.pi * k) * np.log((t_on + dt_off) / dt_off)
+
+
+def cooling_shape(t, a, k, rhocp, h, n=120):
+    """The cooled zone after circulating for t seconds, per kelvin of fluid
+    cooling: g(r) = (T_rock - T(r)) / (T_rock - T_fluid). Conduction is linear,
+    so T(r) = T_rock - cooling g(r) for any rock temperature and cooling."""
+    res = run([State("circulating", t, T_fluid=-1.0, h=h)], 0.0, a, k, rhocp, n=n, growth=1.2)
+    return res.r, -res.fields[-1]

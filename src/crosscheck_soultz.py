@@ -86,6 +86,36 @@ def tensile_depths(p, cooling, z_lo=1500.0, z_hi=Z_CHECK, step=50.0):
     return out
 
 
+# The cooled zone for the check that credits cooling only as deep as the
+# breakout reaches (model5.breakout_with_skin). How long each depth had
+# circulated before the logs isn't published, so it is bracketed from one hour
+# (the thinnest skin, at the bottom of a run) to a day. 8.5" hole; the annulus
+# film coefficient as for UD-1 (calibrate_ud1.H_ANN_UD1).
+A_HOLE = 8.5 * 0.0254 / 2
+CIRC_HOURS = (1.0, 24.0)
+
+
+def width_skin(p, z, ucs, cooling, hours):
+    s = state(p, z, cooling)
+    r, g = _shape(hours)
+    T = s["T_rock"] - (s["T_rock"] - s["T_wall"]) * g
+    thermo = -se.thermal_hoop_stress(s["T_rock"], s["T_rock"] - 1.0)
+    return m5.breakout_with_skin(s["SH"], s["Sh"], s["Pw"], s["Pp"], A_HOLE, r, T, s["T_rock"],
+                                 ucs, thermo, detail=False)["width"]
+
+
+_shapes = {}
+
+
+def _shape(hours):
+    import calibrate_ud1 as cal
+    import wall_thermal as wt
+    if hours not in _shapes:
+        _shapes[hours] = wt.cooling_shape(hours * 3600.0, A_HOLE, SOULTZ.k_rock,
+                                          C.RHO_ROCK * C.CP_ROCK, cal.H_ANN_UD1)
+    return _shapes[hours]
+
+
 def crosscheck():
     rows = []
     for name, ucss in STRENGTHS:
@@ -94,6 +124,8 @@ def crosscheck():
                 rows.append(dict(
                     source=name, ucs=ucs, cooling=dK,
                     width=[width(p, Z_CHECK, ucs, dK) for p in SOULTZ.stress_cases],
+                    width_skin={h: [width_skin(p, Z_CHECK, ucs, dK, h) for p in SOULTZ.stress_cases]
+                                for h in CIRC_HOURS},
                     window=[window(p, Z_CHECK, ucs, dK) for p in SOULTZ.stress_cases],
                     onset=[onset(p, ucs, dK) for p in SOULTZ.stress_cases]))
     return rows
@@ -133,6 +165,24 @@ def report(rows):
     print("=" * 100)
 
 
+def report_skin(rows):
+    """Widths at 5 km at the wall and with the cooling credited as deep as it
+    reaches, for the cooled rows."""
+    print("WIDTH AT 5 km, cooling credited as deep as the breakout reaches "
+          f"(circulated {CIRC_HOURS[0]:.0f} h / {CIRC_HOURS[1]:.0f} h)")
+    print(f"{'strength source':<24}{'UCS':>5}{'cool':>6} | {'wall only':^17} | "
+          f"{'1 h':^17} | {'24 h':^17}")
+    for r in rows:
+        if r["cooling"] == 0.0:
+            continue
+        f = lambda ws: "/".join(f"{x:.0f}" for x in ws)
+        print(f"{r['source']:<24}{r['ucs']/1e6:>5.0f}{r['cooling']:>5.0f}K | {f(r['width']):^17} | "
+              f"{f(r['width_skin'][1.0]):^17} | {f(r['width_skin'][24.0]):^17}")
+    print("=" * 100)
+
+
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    report(crosscheck())
+    rows = crosscheck()
+    report(rows)
+    report_skin(rows)

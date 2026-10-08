@@ -57,6 +57,20 @@ T_SURF, T_5KM = C.SURFACE_TEMP, 180.0       # Reinecker et al. (2021)
 COOLING_K = (0.0, 10.0, 20.0, 30.0, 40.0)   # wall below formation temperature
 PHI_DEG = 35.0                              # model5.KMC; 30 and 40 as sensitivity
 
+# The cooled zone behind the wall (wall_thermal.py), for the check that credits
+# cooling only as deep as the breakout reaches (model5.breakout_with_skin).
+# Each depth has circulated for the time since the bit passed it: the depth
+# still to drill to the section's base at the section's rate of penetration,
+# 2 to 5.2 m/h (Reinecker et al. 2021, section 5), taken at the middle, at
+# least an hour. The circulating fluid is `cooling` below the formation, with
+# Model 1's annulus film coefficient for 600 gal/min of water in the 12.25"
+# hole around 5-1/2" pipe at 100 C (UD-1's flow isn't published; 600 gal/min
+# is FORGE 16B's).
+ROP_UD1 = 3.6                               # m/h, middle of 2-5.2
+ROP_UD1_RANGE = (2.0, 5.2)
+A_UD1 = 12.25 * 0.0254 / 2
+H_ANN_UD1 = 3200.0                          # W/m2/K
+
 
 # ------------------------------------------------------------------ inputs
 def load_log(path=LOG):
@@ -142,6 +156,61 @@ def onset_depth(ucs, cooling, z_lo=500.0, z_hi=6000.0, SG=MUD_SG):
         mid = 0.5 * (z_lo + z_hi)
         z_lo, z_hi = (mid, z_hi) if f(mid) <= 0 else (z_lo, mid)
     return z_hi
+
+
+# ---------------------------------------------- cooling credited as deep as it reaches
+_fields = {}
+
+
+def cooled_field(z, md, cooling, rop=ROP_UD1):
+    """Temperature around the hole [r, T] at TVD z (MD md) after circulating
+    since the bit passed, with the fluid `cooling` below the formation."""
+    key = (round(z, 1), round(md, 1), cooling, rop)
+    if key not in _fields:
+        import wall_thermal as wt
+        T_rock = T_formation(z)
+        T_fluid = max(T_rock - cooling, min(T_rock, T_SURF))
+        t = max((SECTION_MD[1] - md) / rop, 1.0) * 3600.0
+        res = wt.run([wt.State("circulating", t, T_fluid=T_fluid, h=H_ANN_UD1)], T_rock, A_UD1,
+                     CORNWALL.k_rock, C.RHO_ROCK * C.CP_ROCK, n=120, growth=1.2)
+        _fields[key] = (res.r, res.fields[-1])
+    return _fields[key]
+
+
+def implied_ucs_skin(z, md, width_deg, cooling, SG=MUD_SG, rop=ROP_UD1, n_iter=4):
+    """implied_ucs, with the wall check made at the temperature of the rock as
+    deep as the uncooled breakout of that strength reaches (fixed point: the
+    depth depends on the strength)."""
+    s = state(z, 0.0, SG)
+    r, T = cooled_field(z, md, cooling, rop)
+    thermo = -se.thermal_hoop_stress(s["T_rock"], s["T_rock"] - 1.0)
+    ucs = implied_ucs(z, width_deg, cooling, SG)
+    for _ in range(n_iter):
+        unc = m5.breakout_behind_wall(s["SH"], s["Sh"], s["Pw"], s["Pp"], A_UD1,
+                                      np.array([A_UD1, 1e3]), np.array([s["T_rock"]] * 2),
+                                      s["T_rock"], ucs, thermo)
+        T_ref = float(np.interp(A_UD1 + unc["depth"], r, T, right=s["T_rock"]))
+        dT = thermo * (T_ref - s["T_rock"])
+        scm = (s["SH"] + s["Sh"] - s["Pw"] + dT - s["Pp"] - m5.KMC * (s["Pw"] - s["Pp"])
+               + 2 * (s["SH"] - s["Sh"]) * np.cos(np.radians(width_deg)))
+        ucs = scm / m5.sigma_cm(T_ref, 1.0)
+    return ucs
+
+
+def calibrate_skin(features=None, SG=MUD_SG, cooling=COOLING_K, rop=ROP_UD1):
+    """calibrate(), with the cooling credited only as deep as the breakout
+    reaches. The intact bound (a breakout of zero width, reaching no depth) is
+    the same as calibrate()'s by construction."""
+    features = load_log() if features is None else features
+    tvd = md_to_tvd(features)
+    bo = section_breakouts(features, tvd)
+    base = calibrate(features, SG, cooling=cooling)
+    out = dict(breakouts=bo, tvd=tvd, SG=SG, levels={})
+    for dK in cooling:
+        weak = np.array([implied_ucs_skin(b["tvd"], b["md"], b["width"], dK, SG, rop) for b in bo])
+        out["levels"][dK] = dict(base["levels"][dK], weak=weak, weak_p10=np.percentile(weak, 10),
+                                 weak_p50=np.median(weak), weak_p90=np.percentile(weak, 90))
+    return out
 
 
 # ------------------------------------------------------------- calibration
@@ -375,9 +444,34 @@ def figure(cal, features, path=FIG):
     return path
 
 
+def report_skin(cal, skin, skin_rop):
+    """The strengths with the cooling credited as deep as it reaches, beside
+    the wall-only ones."""
+    MPa = 1e6
+    print()
+    print("COOLING CREDITED AS DEEP AS IT REACHES (wall_thermal + model5.breakout_with_skin)")
+    print(f"  circulated since the bit passed at {ROP_UD1} m/h ({ROP_UD1_RANGE[0]}-{ROP_UD1_RANGE[1]} "
+          f"m/h as sensitivity), fluid at the stated cooling below formation")
+    print(f"{'cooling':>9} | {'weak-zone P50, wall only':>25} | {'with the cooled zone':>21} | "
+          f"{'ROP range':>15} | {'intact bound':>13}")
+    for dK in COOLING_K:
+        a, b = cal["levels"][dK], skin["levels"][dK]
+        rr = [x["levels"][dK]["weak_p50"] / MPa for x in skin_rop]
+        print(f"{dK:7.0f} K | {a['weak_p50']/MPa:25.0f} | {b['weak_p50']/MPa:21.0f} | "
+              f"{min(rr):6.0f}-{max(rr):<8.0f} | {a['intact_min']/MPa:13.0f}")
+    lo, hi = COOLING_K[0], COOLING_K[-1]
+    print(f"  weak zones over 0-40 K: wall only {cal['levels'][hi]['weak_p50']/MPa:.0f}-"
+          f"{cal['levels'][lo]['weak_p50']/MPa:.0f} MPa; with the cooled zone "
+          f"{skin['levels'][hi]['weak_p50']/MPa:.0f}-{skin['levels'][lo]['weak_p50']/MPa:.0f} MPa; "
+          f"intact bound unchanged ({cal['levels'][hi]['intact_min']/MPa:.0f}-"
+          f"{cal['levels'][lo]['intact_min']/MPa:.0f} MPa)")
+
+
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     feats = load_log()
     cal = calibrate(feats)
     report(cal, feats)
+    skin = calibrate_skin(feats)
+    report_skin(cal, skin, [calibrate_skin(feats, rop=r) for r in ROP_UD1_RANGE])
     print("wrote", figure(cal, feats))

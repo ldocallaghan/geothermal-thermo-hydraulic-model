@@ -164,3 +164,16 @@ def test_deviated_section_not_made_undrillable(cal, z):
 def test_figure_is_written(cal, feats, tmp_path):
     p = cu.figure(cal, feats, path=str(tmp_path / "ud1.png"))
     assert (tmp_path / "ud1.png").stat().st_size > 10_000
+
+
+@pytest.mark.slow
+def test_crediting_cooling_as_deep_as_it_reaches_barely_moves_the_calibration():
+    """The uncooled breakouts reach centimetres into the rock; after hours of
+    circulation the cooled zone is thicker, so the weak-zone strengths move by
+    1 MPa at most and the intact bound not at all."""
+    import calibrate_ud1 as cal
+    feats = cal.load_log()
+    base, skin = cal.calibrate(feats), cal.calibrate_skin(feats)
+    for dK in cal.COOLING_K:
+        assert skin["levels"][dK]["weak_p50"] == pytest.approx(base["levels"][dK]["weak_p50"], abs=1.5e6)
+        assert skin["levels"][dK]["intact_min"] == base["levels"][dK]["intact_min"]

@@ -34,3 +34,11 @@ def test_pattern_by_rock_type(mu):
     for row in r["rows"]:
         if row["cooling"] in r["volcanics_cooling"]:
             assert row["s"]["granodiorite (logged)"]["frac"] > 0.5
+
+
+@pytest.mark.parametrize("mu", [0.55, 0.70])
+def test_cooled_zone_keeps_the_pattern_unreproduced(mu):
+    r = nb.crosscheck(mu)
+    for h, sk in r["skin"].items():
+        assert sk["consistent_cooling"] == []
+        assert min(sk["volcanics_cooling"]) >= 25.0 and max(sk["volcanics_cooling"]) <= 40.0

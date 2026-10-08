@@ -76,3 +76,13 @@ def test_results_are_unchanged_from_v122():
         assert r["width"] == pytest.approx(p["width"], abs=1e-3)
         assert r["onset"] == p["onset"]
         assert [x["verdict"] for x in r["window"]] == p["verdicts"]
+
+
+def test_cooled_zone_widens_breakouts_at_5_km_by_a_few_degrees():
+    rows = cs.crosscheck()
+    for r in rows:
+        if r["cooling"] == 0.0:
+            continue
+        for h in cs.CIRC_HOURS:
+            for w, ws in zip(r["width"], r["width_skin"][h]):
+                assert w - 0.5 <= ws <= w + 10.0

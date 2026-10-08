@@ -361,7 +361,16 @@ def breakout_behind_wall(SHmax, Shmin, Pw, Pp, a, r_field, T_field, T_rock, UCS,
                 r=r, phi=phi, margin=marg)
 
 
-def breakout_with_skin(SHmax, Shmin, Pw, Pp, a, r_field, T_field, T_rock, UCS, thermo):
+def uncooled_depth(SHmax, Shmin, Pw, Pp, a, T_rock, UCS, thermo):
+    """Depth [m beyond the wall] the uncooled breakout's failure reaches at the
+    Shmin azimuth."""
+    return breakout_behind_wall(SHmax, Shmin, Pw, Pp, a, np.array([a, 1e3]),
+                                np.array([T_rock, T_rock]), T_rock, UCS, thermo,
+                                d_theta=90.0)["depth"]
+
+
+def breakout_with_skin(SHmax, Shmin, Pw, Pp, a, r_field, T_field, T_rock, UCS, thermo,
+                       depth_ref=None, detail=True):
     """Breakout width with the cooling credited only as deep as the breakout
     would reach.
 
@@ -379,14 +388,15 @@ def breakout_with_skin(SHmax, Shmin, Pw, Pp, a, r_field, T_field, T_rock, UCS, t
     Returns the width, the wall-only width (the v1.2.2 measure), the reference
     depth and the temperature used, and the behind-wall failure analysis of
     the cooled field (failed depth at the Shmin azimuth, where failure starts)."""
-    uncooled = breakout_behind_wall(SHmax, Shmin, Pw, Pp, a, np.array([a, 1e3]),
-                                    np.array([T_rock, T_rock]), T_rock, UCS, thermo)
-    r_ref = a + uncooled["depth"]
+    if depth_ref is None:
+        depth_ref = uncooled_depth(SHmax, Shmin, Pw, Pp, a, T_rock, UCS, thermo)
+    r_ref = a + depth_ref
     T_ref = float(np.interp(r_ref, r_field, T_field, right=T_rock))
     T_wall = float(np.interp(a, r_field, T_field, right=T_rock))
     width = breakout_width(SHmax, Shmin, Pw, Pp, T_ref, UCS, thermo * (T_ref - T_rock))
     width_wall = breakout_width(SHmax, Shmin, Pw, Pp, T_wall, UCS, thermo * (T_wall - T_rock))
-    cooled = breakout_behind_wall(SHmax, Shmin, Pw, Pp, a, r_field, T_field, T_rock, UCS, thermo)
-    return dict(width=width, width_wall=width_wall, depth_ref=uncooled["depth"], T_ref=T_ref,
-                T_wall=T_wall, failed_depth=cooled["depth"], r_first=cooled["r_first"],
-                behind=cooled)
+    out = dict(width=width, width_wall=width_wall, depth_ref=depth_ref, T_ref=T_ref, T_wall=T_wall)
+    if detail:
+        cooled = breakout_behind_wall(SHmax, Shmin, Pw, Pp, a, r_field, T_field, T_rock, UCS, thermo)
+        out.update(failed_depth=cooled["depth"], r_first=cooled["r_first"], behind=cooled)
+    return out

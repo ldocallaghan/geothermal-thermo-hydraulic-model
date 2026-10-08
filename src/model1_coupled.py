@@ -108,6 +108,26 @@ def exposure_from_history(time_s, bit_md, t_now):
     return t
 
 
+def smooth_exposure(exposure, md_bit, dz=25.0):
+    """A drilling record gives an exposure time with a kink at every record,
+    which the collocation solve refines without end. Resample ln t every dz
+    metres and join the points with a monotone cubic."""
+    from scipy.interpolate import PchipInterpolator
+    s = np.linspace(0.0, md_bit, max(int(np.ceil(md_bit / dz)), 2) + 1)
+    f = PchipInterpolator(s, np.log(np.maximum(exposure(s), T_EXPOSURE_FLOOR)))
+    return lambda z: np.exp(f(np.clip(np.asarray(z, float), 0.0, md_bit)))
+
+
+def exposure_breaks(exposure, md_bit, dz=1.0, jump=0.3):
+    """Depths where an exposure-time function jumps (where the bit paused on a
+    trip or a long stop): ln t changes by more than `jump` within dz metres.
+    Passed to solve(breaks=...) so the solve is split there."""
+    s = np.arange(0.0, md_bit + dz, dz)
+    lt = np.log(np.maximum(exposure(s), T_EXPOSURE_FLOOR))
+    i = np.nonzero(np.abs(np.diff(lt)) > jump)[0]
+    return s[i] + 0.5 * dz
+
+
 def exposure_seconds(z, t_years, exposure):
     """The time the rock term uses at each node. With exposure=None it is the
     constant t_years (floored at 1e-3 yr, as the model always has); otherwise
@@ -124,7 +144,8 @@ def exposure_seconds(z, t_years, exposure):
 
 
 def conductances(z, T_d, T_u, m_dot, t_years, k_rock, geometry, exposure=None,
-                 fluid=None, rhocp_rock=C.RHO_ROCK * C.CP_ROCK, geom_z=None):
+                 fluid=None, rhocp_rock=C.RHO_ROCK * C.CP_ROCK, geom_z=None,
+                 film_mult=1.0):
     """Vectorized per-length UAi (centre<->annulus), UAo (rock<->annulus).
     geom_z, if given, is where the string and hole are looked up (a point inside
     the same piece), so that nodes on a piece boundary take that piece's geometry."""
@@ -132,7 +153,7 @@ def conductances(z, T_d, T_u, m_dot, t_years, k_rock, geometry, exposure=None,
     g["tvd"] = geometry.survey.tvd(z)
     P = P_of_z(g["tvd"])
     h_d = h_dittus(m_dot, g["A_bore"], g["Dh_bore"], T_d, P, fluid=fluid)
-    h_a = h_dittus(m_dot, g["A_ann"], g["Dh_ann"], T_u, P, fluid=fluid)
+    h_a = film_mult * h_dittus(m_dot, g["A_ann"], g["Dh_ann"], T_u, P, fluid=fluid)
 
     R_in = 1.0 / (h_d * 2 * np.pi * g["r_bore"])
     R_ao = 1.0 / (h_a * 2 * np.pi * g["r_out"])
@@ -153,7 +174,11 @@ def solve(m_dot=2.0, T_inj=40.0, G=C.GEOTHERM_GRADIENT, T_surf=C.SURFACE_TEMP,
           pipe=None, k_rock=C.K_ROCK, n_nodes=160, verbose=True,
           geotherm=None, target_depth=None, geometry=None, exposure=None,
           fluid=None, rhocp_rock=C.RHO_ROCK * C.CP_ROCK, friction_heat=False,
-          tfa=BIT_TFA_DEFAULT):
+          tfa=BIT_TFA_DEFAULT, film_mult=1.0, breaks=(), init=None):
+    # init: a previous solve() result whose profiles seed this one (continuation).
+    # breaks: extra measured depths at which to split the solve, where a
+    # coefficient jumps for a reason other than geometry (exposure_breaks).
+    # film_mult: multiplier on the annulus film coefficient (a calibration knob).
     # friction_heat: add the heat dissipated by friction in the bore and annulus,
     # and across the bit nozzles (total flow area tfa), to the fluid. Off by
     # default, which is how the model was first calibrated.
@@ -180,7 +205,7 @@ def solve(m_dot=2.0, T_inj=40.0, G=C.GEOTHERM_GRADIENT, T_surf=C.SURFACE_TEMP,
 
     def derivs(zz, Td, Tu, geom_z=None):
         UAi, UAo, P = conductances(zz, Td, Tu, m_dot, t_years, k_rock, geometry, exposure,
-                                   fluid, rhocp_rock, geom_z)
+                                   fluid, rhocp_rock, geom_z, film_mult)
         cpd = _cp(Td, P, fluid)
         cpu = _cp(Tu, P, fluid)
         dTd = UAi * (Tu - Td) / (m_dot * cpd)
@@ -200,7 +225,7 @@ def solve(m_dot=2.0, T_inj=40.0, G=C.GEOTHERM_GRADIENT, T_surf=C.SURFACE_TEMP,
             dT += nozzle_dp(m_dot, rho_L, tfa) / (rho_L * cp_L)
         return dT
 
-    top, bot = _pieces(geometry)
+    top, bot = _pieces(geometry, breaks)
     if len(top) == 1:
         def odes(zz, y):
             return np.vstack(derivs(zz, y[0], y[1]))
@@ -209,7 +234,9 @@ def solve(m_dot=2.0, T_inj=40.0, G=C.GEOTHERM_GRADIENT, T_surf=C.SURFACE_TEMP,
             return np.array([ya[0] - T_inj, yb[1] - yb[0] - dT_face(yb[0])])
 
         y0 = np.vstack([np.linspace(T_inj, T_inj + 30, n_nodes),
-                        np.linspace(T_inj + 30, target_rock_T * 0.7, n_nodes)])
+                        np.linspace(T_inj + 30, target_rock_T * 0.7, n_nodes)]) \
+            if init is None else np.vstack([np.interp(z, init["z"], init["Td"]),
+                                            np.interp(z, init["z"], init["Tu"])])
         sol = solve_bvp(odes, bc, z, y0, max_nodes=20000, tol=1e-4)
         sol_at = sol.sol
     else:
@@ -237,8 +264,12 @@ def solve(m_dot=2.0, T_inj=40.0, G=C.GEOTHERM_GRADIENT, T_surf=C.SURFACE_TEMP,
         tau = np.linspace(0, 1, max(n_nodes // n, 20))
         frac = (top[:, None] + tau[None, :] * span[:, None]) / L
         Y0 = np.empty((2 * n, len(tau)))
-        Y0[0::2] = T_inj + 30 * frac
-        Y0[1::2] = T_inj + 30 + (target_rock_T * 0.7 - T_inj - 30) * frac
+        if init is None:
+            Y0[0::2] = T_inj + 30 * frac
+            Y0[1::2] = T_inj + 30 + (target_rock_T * 0.7 - T_inj - 30) * frac
+        else:
+            Y0[0::2] = np.interp(frac * L, init["z"], init["Td"])
+            Y0[1::2] = np.interp(frac * L, init["z"], init["Tu"])
         sol = solve_bvp(odes, bc, tau, Y0, max_nodes=20000, tol=1e-4)
 
         def sol_at(zq):
@@ -301,13 +332,15 @@ def _friction_gradient(m_dot, T, P, area, Dh, fluid=None):
     return f * v ** 2 / (2 * Dh)
 
 
-def _pieces(geometry):
+def _pieces(geometry, breaks=()):
     """Measured-depth pieces of constant geometry: cut at segment ends and
-    hole intervals."""
+    hole intervals, and at any extra breaks."""
     L = geometry.md_bit
     cuts = np.unique(np.concatenate([[0.0, L], geometry._seg_ends,
-                                     [h.md_top for h in geometry.hole]]))
+                                     [h.md_top for h in geometry.hole],
+                                     np.asarray(breaks, float)]))
     cuts = cuts[(cuts >= 0) & (cuts <= L)]
+    cuts = cuts[np.concatenate([[True], np.diff(cuts) > 1e-6])]
     return cuts[:-1], cuts[1:]
 
 

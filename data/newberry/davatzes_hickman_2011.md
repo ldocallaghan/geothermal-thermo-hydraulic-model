@@ -39,7 +39,8 @@ Read from the paper. Figure values are marked (fig.).
   contribute a tension to σθθ that would also inhibit breakout formation".
 - Linear SHmax fits (fig., psi with z the TVD in ft): 0.772·z + 1112.6 for
   μ = 0.55; 0.76336·z + 1094.1 for μ = 0.70.
-- Stress state at 8,420 ft MD GL (their Fig. 6, μ = 0.55, σthermal = 0):
+- Stress state at 8,420 ft MD GL (their Fig. 6, labelled μ = 0.55, σthermal = 0;
+  the Shmin value matches their formula at μ = 0.70, see `README.md`):
   Sv 8,852.9 psi, Pf 3,121.6 psi, Pm 3,121.6 psi, Shmin 4,675.3 psi,
   SHmax 7,305.1 psi. Pf/Sv ≈ 0.34 in the open hole (their Table 2).
 - Normal faulting, with SHmax below Sv over the open hole.
@@ -60,5 +61,5 @@ Read from the paper. Figure values are marked (fig.).
 - Porosity by rock type, other than as a log trace (their Fig. 4).
 - A mud weight: their model uses the equilibrated fluid profile (Pm = Pf).
 
-These need the NWG 55-29 temperature and porosity logs, to be found for the
-cross-check.
+The temperature and porosity logs are in GDR submission 271; see `README.md`.
+The wall temperature during logging remains unpublished.

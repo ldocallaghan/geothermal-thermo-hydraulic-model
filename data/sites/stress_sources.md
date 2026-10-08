@@ -11,6 +11,7 @@ the code come from, and what each rests on (the `data_basis` of each
 | United Downs | measured | Reinecker et al. (2021) | to 2.0 km (Shmin) |
 | Larderello | regime bounds | normal/strike-slip transition, SHmax ≈ Sv | none |
 | Pannonian | regime bounds | strike-slip, locally transtensional, SHmax ≈ Sv | none |
+| Newberry | measured range | Davatzes & Hickman (2011), μ 0.55 and 0.70 | 1.96–2.66 km TVD (imaged open hole) |
 
 ## Upper Rhine Graben / Soultz-sous-Forêts
 
@@ -143,3 +144,30 @@ cooling.
 with hydrostatic Pp and μ = 0.8. Every case is admissible by construction. The
 verdict reports the range across the cases; the table row's numbers come from
 the case with the worst verdict, then the narrowest mud window.
+
+## Newberry / NWG 55-29
+
+Davatzes, N.C. & Hickman, S.H. (2011), "Preliminary Analysis of Stress in the
+Newberry EGS Well NWG 55-29", *GRC Transactions* 35; logs from GDR submission
+271 (AltaRock). Details, files and checksums in `data/newberry/README.md`.
+
+- Sv: their 8,852.9 psi at 8,420 ft MD (8,285 ft TVD), carried linearly in TVD.
+- Pore pressure: the static survey of October 2008, fitted over the open hole;
+  the well is underpressured (Pf/Sv ≈ 0.34).
+- Shmin: frictional equilibrium for normal faulting, at their μ of 0.55 and
+  0.70. The model uses their friction coefficients for this site, not the 0.8
+  of United Downs, because their stresses were derived with them; each case's
+  admissibility is checked at its own μ.
+- SHmax: their fits to the breakout widths, 0.772 z + 1,112.6 psi (μ 0.55) and
+  0.76336 z + 1,094.1 psi (μ 0.70), z the TVD in feet.
+- Strength: their UCS–porosity relation on the neutron log of the granodiorite
+  from 8,807 ft to TD, the rock at TD and presumably at the target: 65, 79 and
+  86 MPa (10th percentile, median, 90th). Labelled "log-derived".
+- Temperature: 331.4 °C at 2,989 m TVD (static survey, 2008), extrapolated at
+  the deepest 460 m's 107 °C/km to 400 °C at 3.63 km TVD. Mazama Energy
+  reported 331 °C bottomhole in its Newberry EGS wells in 2025.
+- Well check (`crosscheck_newberry.py`): the volcanics' modal breakout width is
+  reproduced with 25–35 K of wall cooling, but the model also breaks out the
+  logged granodiorite, where there were no breakouts. So the site is
+  speculative, held back by its well check alone.
+

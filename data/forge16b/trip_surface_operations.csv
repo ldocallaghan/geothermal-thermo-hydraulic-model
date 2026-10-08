@@ -1,0 +1,6 @@
+trip,surface_start,surface_hours,routine,operations,source
+1,2023-05-22 04:34,10.633,no,"rack back BHA, break bit, retrieve gyro (1.5 h); change saver sub; rebuild roller reamer, change pulsar speed; pick up 10 stands of insulated drill pipe (1.5 h); make up BHA #17 (2 h)","EOW daily report 36-37"
+2,2023-05-23 20:29,23.583,no,"rack back BHA, break bit (1.5 h); wireline logging, UBI and FMI (17.5 h); make up BHA #19","EOW daily report 38-39"
+3,2023-05-25 22:50,14.200,no,"rack back BHA, lay out motor and bit (1.5 h); wear bushing (1.5 h); BOP test (5.5 h); swap heavy-weight pipe (4.75 h); slip and cut, brake repair","EOW daily report 40-41"
+4,2023-05-27 15:06,3.750,yes,"lay down BHA #20, clean floor, make up BHA #21","EOW daily report 42"
+5,2023-05-28 20:42,4.117,yes,"break off bit, make up core BHA #22, change 7 joints of HWDP","EOW daily report 43"

@@ -12,7 +12,7 @@ Expects the raw files in data/forge16b/raw/ (not committed; see README.md):
                                                        drilling_history_10min.csv
 
 run_observations.csv is transcribed by hand from the Eavor trial report, so it
-is not rebuilt here.
+is not rebuilt here. cycle_timings.csv is built from pason_trial_1min.csv.
 """
 import csv
 import io
@@ -170,8 +170,138 @@ def drilling_history(minutes=10, circulating_gpm=100.0):
     return len(out)
 
 
+def _pason_minutes():
+    from datetime import datetime
+    with open(os.path.join(HERE, "pason_trial_1min.csv"), newline="") as fh:
+        rows = list(csv.DictReader(fh))
+    num = lambda r, k: float(r[k]) if r[k] else float("nan")
+    return [dict(t=datetime.strptime(r["time"], "%Y-%m-%d %H:%M"),
+                 hole=num(r, "hole_depth_ft"), bit=num(r, "bit_depth_ft"),
+                 flow=num(r, "flow_gpm")) for r in rows]
+
+
+def _runs(flags):
+    """(start, end) index pairs of consecutive True values."""
+    out, i, n = [], 0, len(flags)
+    while i < n:
+        if flags[i]:
+            j = i
+            while j + 1 < n and flags[j + 1]:
+                j += 1
+            out.append((i, j))
+            i = j + 1
+        else:
+            i += 1
+    return out
+
+
+ON_BOTTOM_FT = 100.0      # bit within this of the hole bottom
+PUMPS_OFF_GPM = 100.0     # pump output below this is no circulation
+FULL_FLOW_GPM = 500.0
+# The Pason bit depth stops updating while the BHA and heavy-weight pipe
+# (about 1,300 ft together) are handled at surface; a bit shallower than this
+# is taken as out of the hole.
+SURFACE_FT = 1000.0
+STOP_MIN = 10             # a stationary spell longer than this is a stop on a trip
+
+
+def cycle_timings():
+    """Drilling-cycle timings of FORGE 16B, 21-29 May 2023, from the 1-minute
+    Pason extract: every gap in circulation with the bit on bottom (trips and
+    pauses), the trips' speeds out and in with stops excluded, the time at
+    surface, staged-circulation stops on the way in, connections while
+    drilling, and the stand length (hole drilled between connections)."""
+    m = _pason_minutes()
+    n = len(m)
+    hrs = lambda i, j: (m[j]["t"] - m[i]["t"]).total_seconds() / 3600.0
+    on_bottom_circ = [m[i]["flow"] >= PUMPS_OFF_GPM and m[i]["hole"] - m[i]["bit"] <= ON_BOTTOM_FT
+                      for i in range(n)]
+    rows = []
+
+    # gaps in circulation at the bottom of the hole
+    idx = [i for i in range(n) if on_bottom_circ[i]]
+    for i, j in zip(idx, idx[1:]):
+        if j - i < 20:
+            continue
+        bits = [m[k]["bit"] for k in range(i, j + 1)]
+        tripped = min(bits) < SURFACE_FT
+        rows.append(dict(kind="trip" if tripped else "pause on bottom",
+                         start=m[i]["t"], end=m[j]["t"], hours=hrs(i, j),
+                         depth_ft=m[i]["hole"], min_bit_ft=min(bits)))
+
+    # bit runs: on bottom between the end of one trip and the start of the next
+    # (only spans in which hole was drilled; the first starts when the bit
+    # first reached bottom in the record)
+    trips = sorted([r for r in rows if r["kind"] == "trip"], key=lambda r: r["start"])
+    hole_at = {m[i]["t"]: m[i]["hole"] for i in range(n)}
+    starts = [m[idx[0]]["t"]] + [r["end"] for r in trips[:-1]]
+    for t0, r1 in zip(starts, trips):
+        drilled = hole_at[r1["start"]] - hole_at[t0]
+        if drilled > 50.0:
+            rows.append(dict(kind="bit run", start=t0, end=r1["start"],
+                             hours=(r1["start"] - t0).total_seconds() / 3600.0,
+                             depth_ft=r1["depth_ft"], drilled_since_ft=drilled))
+
+    # trips out and in: from leaving bottom to surface, and from surface to bottom
+    for r in [r for r in rows if r["kind"] == "trip"]:
+        i0 = next(k for k in range(n) if m[k]["t"] == r["start"])
+        i1 = next(k for k in range(n) if m[k]["t"] == r["end"])
+        k_surf = next(k for k in range(i0, i1) if m[k]["bit"] < SURFACE_FT)
+        k_leave = max(k for k in range(i0, i1) if m[k]["bit"] < SURFACE_FT)
+        for kind, a, b in (("trip out", i0, k_surf), ("trip in", k_leave, i1)):
+            moving = 0
+            still = 0
+            for k in range(a + 1, b + 1):
+                if abs(m[k]["bit"] - m[k - 1]["bit"]) < 5.0:
+                    still += 1
+                else:
+                    moving += 1 + (still if still <= STOP_MIN else 0)
+                    still = 0
+            dist = abs(m[b]["bit"] - m[a]["bit"])
+            rows.append(dict(kind=kind, start=m[a]["t"], end=m[b]["t"], hours=hrs(a, b),
+                             depth_ft=r["depth_ft"], speed_ft_h=dist / (moving / 60.0),
+                             moving_hours=moving / 60.0))
+        rows.append(dict(kind="at surface", start=m[k_surf]["t"], end=m[k_leave]["t"],
+                         hours=hrs(k_surf, k_leave), depth_ft=r["depth_ft"]))
+        # staged circulation on the way in: circulating with the bit off bottom
+        circ = [m[k]["flow"] >= PUMPS_OFF_GPM and m[k]["hole"] - m[k]["bit"] > ON_BOTTOM_FT
+                for k in range(k_leave, i1)]
+        for a, b in _runs(circ):
+            if b - a + 1 >= 5:
+                rows.append(dict(kind="staged circulation", start=m[k_leave + a]["t"],
+                                 end=m[k_leave + b]["t"], hours=(b - a + 1) / 60.0,
+                                 depth_ft=m[k_leave + a]["bit"]))
+
+    # connections while drilling: pumps off for under an hour with the bit on
+    # bottom on both sides, during a run (hole depth rising)
+    off = [m[i]["flow"] < PUMPS_OFF_GPM for i in range(n)]
+    last_conn_hole = None
+    for a, b in _runs(off):
+        if a == 0 or b == n - 1 or b - a + 1 > 60:
+            continue
+        before, after = m[a - 1], m[b + 1]
+        if (before["hole"] - before["bit"] <= ON_BOTTOM_FT and after["hole"] - after["bit"] <= ON_BOTTOM_FT
+                and before["flow"] >= FULL_FLOW_GPM):
+            drilled = None if last_conn_hole is None else before["hole"] - last_conn_hole
+            rows.append(dict(kind="connection", start=m[a]["t"], end=m[b]["t"],
+                             hours=(b - a + 1) / 60.0, depth_ft=before["hole"],
+                             drilled_since_ft=drilled))
+            last_conn_hole = before["hole"]
+
+    cols = ["kind", "start", "end", "hours", "depth_ft", "min_bit_ft", "speed_ft_h",
+            "moving_hours", "drilled_since_ft"]
+    with open(os.path.join(HERE, "cycle_timings.csv"), "w", newline="") as fh:
+        w = csv.writer(fh)
+        w.writerow(cols)
+        for r in sorted(rows, key=lambda r: r["start"]):
+            w.writerow([r.get(c) if not isinstance(r.get(c), float) else f"{r[c]:.3f}"
+                        for c in cols])
+    return len(rows)
+
+
 if __name__ == "__main__":
     print("survey_16b.csv:", survey(), "stations")
     print("formation_temperature_16a.csv:", formation_temperature(), "points")
     print("pason_trial_1min.csv:", pason_trial(), "minutes")
     print("drilling_history_10min.csv:", drilling_history(), "bins")
+    print("cycle_timings.csv:", cycle_timings(), "periods")

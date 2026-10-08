@@ -82,6 +82,20 @@ The raw files are not committed. To rebuild the extracts, download these into
   deepest hole reached so far, and the fraction of the bin spent circulating
   (pump output above 100 gal/min).
 
+- `cycle_timings.csv`: the drilling cycle measured from the 1-minute Pason
+  extract (built by `cycle_timings()` in `build_extracts.py`): every gap in
+  circulation with the bit on bottom (trips, and pauses with the bit on
+  bottom), each trip's speed out and in with stationary spells over ten
+  minutes excluded, the time at surface, staged-circulation stops on the way
+  in, connections while drilling (pumps off for under an hour with the bit on
+  bottom on both sides), and the bit runs. The Pason bit depth stops updating
+  at about 900 ft while the BHA is handled, so a bit shallower than 1,000 ft
+  counts as out of the hole. In the Pason record the first trip runs from
+  22:38 on 21 May to 23:17 on 22 May.
+- `trip_surface_operations.csv`: what was done at surface on each trip, from
+  the daily reports in the End of Well Report, and whether it was routine (a
+  bit and BHA change and nothing else).
+
 ## Rock thermal properties
 
 Measured by MetaRock Laboratories (2021) on three FORGE granitoid cores, as

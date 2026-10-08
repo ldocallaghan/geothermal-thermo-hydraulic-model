@@ -1,0 +1,322 @@
+[
+ {
+  "source": "v1.0 UCS (unsourced)",
+  "ucs": 170.0,
+  "cooling": 0.0,
+  "width": [
+   47.281,
+   61.728,
+   70.759
+  ],
+  "onset": [
+   4230.0,
+   3680.0,
+   3250.0
+  ],
+  "verdicts": [
+   "GO",
+   "GO",
+   "GO"
+  ]
+ },
+ {
+  "source": "v1.0 UCS (unsourced)",
+  "ucs": 170.0,
+  "cooling": 40.0,
+  "width": [
+   10.544,
+   43.495,
+   57.041
+  ],
+  "onset": [
+   4960.0,
+   4310.0,
+   3810.0
+  ],
+  "verdicts": [
+   "GO",
+   "GO",
+   "GO"
+  ]
+ },
+ {
+  "source": "Soultz lab UCS 100-130",
+  "ucs": 100.0,
+  "cooling": 0.0,
+  "width": [
+   88.628,
+   93.847,
+   97.537
+  ],
+  "onset": [
+   2580.0,
+   2240.0,
+   1980.0
+  ],
+  "verdicts": [
+   "GO",
+   "CONDITIONAL",
+   "CONDITIONAL"
+  ]
+ },
+ {
+  "source": "Soultz lab UCS 100-130",
+  "ucs": 100.0,
+  "cooling": 40.0,
+  "width": [
+   72.501,
+   80.702,
+   86.351
+  ],
+  "onset": [
+   3270.0,
+   2830.0,
+   2500.0
+  ],
+  "verdicts": [
+   "GO",
+   "GO",
+   "GO"
+  ]
+ },
+ {
+  "source": "Soultz lab UCS 100-130",
+  "ucs": 115.0,
+  "cooling": 0.0,
+  "width": [
+   80.55,
+   87.204,
+   91.86
+  ],
+  "onset": [
+   2950.0,
+   2550.0,
+   2250.0
+  ],
+  "verdicts": [
+   "GO",
+   "GO",
+   "CONDITIONAL"
+  ]
+ },
+ {
+  "source": "Soultz lab UCS 100-130",
+  "ucs": 115.0,
+  "cooling": 40.0,
+  "width": [
+   63.454,
+   73.596,
+   80.41
+  ],
+  "onset": [
+   3640.0,
+   3160.0,
+   2790.0
+  ],
+  "verdicts": [
+   "GO",
+   "GO",
+   "GO"
+  ]
+ },
+ {
+  "source": "Soultz lab UCS 100-130",
+  "ucs": 130.0,
+  "cooling": 0.0,
+  "width": [
+   72.277,
+   80.523,
+   86.2
+  ],
+  "onset": [
+   3300.0,
+   2860.0,
+   2530.0
+  ],
+  "verdicts": [
+   "GO",
+   "GO",
+   "GO"
+  ]
+ },
+ {
+  "source": "Soultz lab UCS 100-130",
+  "ucs": 130.0,
+  "cooling": 40.0,
+  "width": [
+   53.619,
+   66.22,
+   74.364
+  ],
+  "onset": [
+   4010.0,
+   3480.0,
+   3070.0
+  ],
+  "verdicts": [
+   "GO",
+   "GO",
+   "GO"
+  ]
+ },
+ {
+  "source": "UD-1 weak zones",
+  "ucs": 147.0,
+  "cooling": 0.0,
+  "width": [
+   62.396,
+   72.783,
+   79.737
+  ],
+  "onset": [
+   3700.0,
+   3210.0,
+   2840.0
+  ],
+  "verdicts": [
+   "GO",
+   "GO",
+   "GO"
+  ]
+ },
+ {
+  "source": "UD-1 weak zones",
+  "ucs": 147.0,
+  "cooling": 40.0,
+  "width": [
+   40.634,
+   57.305,
+   67.282
+  ],
+  "onset": [
+   4420.0,
+   3830.0,
+   3390.0
+  ],
+  "verdicts": [
+   "GO",
+   "GO",
+   "GO"
+  ]
+ },
+ {
+  "source": "UD-1 weak zones",
+  "ucs": 118.0,
+  "cooling": 0.0,
+  "width": [
+   78.917,
+   85.874,
+   90.728
+  ],
+  "onset": [
+   3020.0,
+   2620.0,
+   2310.0
+  ],
+  "verdicts": [
+   "GO",
+   "GO",
+   "CONDITIONAL"
+  ]
+ },
+ {
+  "source": "UD-1 weak zones",
+  "ucs": 118.0,
+  "cooling": 40.0,
+  "width": [
+   61.564,
+   72.147,
+   79.212
+  ],
+  "onset": [
+   3720.0,
+   3220.0,
+   2840.0
+  ],
+  "verdicts": [
+   "GO",
+   "GO",
+   "GO"
+  ]
+ },
+ {
+  "source": "UD-1 intact bound",
+  "ucs": 203.0,
+  "cooling": 0.0,
+  "width": [
+   9.274,
+   43.232,
+   56.857
+  ],
+  "onset": [
+   4970.0,
+   4330.0,
+   3830.0
+  ],
+  "verdicts": [
+   "GO",
+   "GO",
+   "GO"
+  ]
+ },
+ {
+  "source": "UD-1 intact bound",
+  "ucs": 203.0,
+  "cooling": 40.0,
+  "width": [
+   0.0,
+   7.583,
+   39.6
+  ],
+  "onset": [
+   null,
+   4980.0,
+   4410.0
+  ],
+  "verdicts": [
+   "GO",
+   "GO",
+   "GO"
+  ]
+ },
+ {
+  "source": "UD-1 intact bound",
+  "ucs": 172.0,
+  "cooling": 0.0,
+  "width": [
+   45.805,
+   60.718,
+   69.959
+  ],
+  "onset": [
+   4280.0,
+   3720.0,
+   3290.0
+  ],
+  "verdicts": [
+   "GO",
+   "GO",
+   "GO"
+  ]
+ },
+ {
+  "source": "UD-1 intact bound",
+  "ucs": 172.0,
+  "cooling": 40.0,
+  "width": [
+   0.0,
+   42.137,
+   56.098
+  ],
+  "onset": [
+   null,
+   4350.0,
+   3850.0
+  ],
+  "verdicts": [
+   "GO",
+   "GO",
+   "GO"
+  ]
+ }
+]

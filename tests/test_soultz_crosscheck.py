@@ -60,3 +60,19 @@ def test_tensile_initiation_does_not_discriminate_with_t0_zero():
     zero tensile strength the model initiates them at every depth checked."""
     zs = cs.tensile_depths(cs.SOULTZ.stress_cases[1], 0.0)
     assert zs[0] == 1500.0 and zs[-1] == 5000.0
+
+
+def test_results_are_unchanged_from_v122():
+    """Every row of the cross-check (widths at 5 km, onsets, verdicts), as
+    v1.2.2 gave it; the wall-only stability check is held fixed."""
+    import json, os
+    from conftest import GOLDEN
+    with open(os.path.join(GOLDEN, "soultz_crosscheck_v122.json")) as fh:
+        pinned = json.load(fh)
+    rows = cs.crosscheck()
+    assert len(rows) == len(pinned)
+    for r, p in zip(rows, pinned):
+        assert (r["source"], r["ucs"] / 1e6, r["cooling"]) == (p["source"], p["ucs"], p["cooling"])
+        assert r["width"] == pytest.approx(p["width"], abs=1e-3)
+        assert r["onset"] == p["onset"]
+        assert [x["verdict"] for x in r["window"]] == p["verdicts"]

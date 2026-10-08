@@ -1,43 +1,43 @@
 {
  "vertical/conventional": {
   "wu": 179,
-  "mud": 171.73075516066703,
-  "whole_wall": 171.73075516066703
+  "mud": 171.7307589305007,
+  "whole_wall": 171.7307589305007
  },
  "vertical/internal": {
   "wu": 76,
-  "mud": 126.45673643404338,
-  "whole_wall": 65.93264167118681
+  "mud": 126.45673612218107,
+  "whole_wall": 65.93264190744624
  },
  "vertical/external": {
   "wu": 121,
-  "mud": 153.04755864792375,
-  "whole_wall": 90.55759054143768
+  "mud": 153.04754846543065,
+  "whole_wall": 90.55759036089418
  },
  "vertical/dual-wall": {
   "wu": 59,
-  "mud": 61.26201191453987,
-  "whole_wall": 60.732536657379725
+  "mud": 61.26201238618082,
+  "whole_wall": 60.73253713131357
  },
  "horizontal/conventional": {
   "wu": 206,
-  "mud": 206.99446672149406,
-  "whole_wall": 206.99446672149406
+  "mud": 206.9945188199837,
+  "whole_wall": 206.9945188199837
  },
  "horizontal/internal": {
   "wu": 100,
-  "mud": 161.3073152030929,
-  "whole_wall": 80.74694420587387
+  "mud": 161.30731164867774,
+  "whole_wall": 80.74695501097534
  },
  "horizontal/external": {
   "wu": 153,
-  "mud": 189.40530355908598,
-  "whole_wall": 116.80528099669547
+  "mud": 189.40534913146564,
+  "whole_wall": 116.80527399760354
  },
  "horizontal/dual-wall": {
   "wu": 65,
-  "mud": 67.14667916944236,
-  "whole_wall": 66.24148650350439
+  "mud": 67.1466807064029,
+  "whole_wall": 66.24148780749756
  },
  "spp/conventional": {
   "spp_MPa": 19.39205241220437

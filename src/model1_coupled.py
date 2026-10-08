@@ -44,8 +44,8 @@ P_SURF = 1.0e5  # Pa, atmospheric at wellhead
 P_OP = 5.0e6    # Pa, loop operating pressure for the surface heat-product calc
                 # (keeps the hot return liquid; a pumped loop is pressurized)
 
-def P_of_z(z):
-    return P_SURF + C.HYDROSTATIC_GRAD * z
+def P_of_z(z, P_surface=P_SURF):
+    return P_surface + C.HYDROSTATIC_GRAD * z
 
 
 def fluid_props(T_C, P_Pa, fluid=None):
@@ -80,6 +80,7 @@ HOLE_CLEANING_V = 1.245      # m/s, around the drill pipe at FORGE 16B, 600 gal/
 BIT_TFA_DEFAULT = 7.759e-4   # m^2, eight 14/32-inch nozzles (FORGE 16B trial bits)
 NOZZLE_CD = 0.95
 SECONDS_PER_YEAR = 3.1536e7
+BLEND = 1.0                 # m, width over which a change of geometry is ramped
 T_EXPOSURE_FLOOR = 3600.0   # s
 
 
@@ -145,13 +146,13 @@ def exposure_seconds(z, t_years, exposure):
 
 def conductances(z, T_d, T_u, m_dot, t_years, k_rock, geometry, exposure=None,
                  fluid=None, rhocp_rock=C.RHO_ROCK * C.CP_ROCK, geom_z=None,
-                 film_mult=1.0):
+                 film_mult=1.0, P_surface=P_SURF):
     """Vectorized per-length UAi (centre<->annulus), UAo (rock<->annulus).
     geom_z, if given, is where the string and hole are looked up (a point inside
     the same piece), so that nodes on a piece boundary take that piece's geometry."""
     g = geometry.at(z if geom_z is None else geom_z)
     g["tvd"] = geometry.survey.tvd(z)
-    P = P_of_z(g["tvd"])
+    P = P_of_z(g["tvd"], P_surface)
     h_d = h_dittus(m_dot, g["A_bore"], g["Dh_bore"], T_d, P, fluid=fluid)
     h_a = film_mult * h_dittus(m_dot, g["A_ann"], g["Dh_ann"], T_u, P, fluid=fluid)
 
@@ -174,7 +175,9 @@ def solve(m_dot=2.0, T_inj=40.0, G=C.GEOTHERM_GRADIENT, T_surf=C.SURFACE_TEMP,
           pipe=None, k_rock=C.K_ROCK, n_nodes=160, verbose=True,
           geotherm=None, target_depth=None, geometry=None, exposure=None,
           fluid=None, rhocp_rock=C.RHO_ROCK * C.CP_ROCK, friction_heat=False,
-          tfa=BIT_TFA_DEFAULT, film_mult=1.0, breaks=(), init=None):
+          tfa=BIT_TFA_DEFAULT, film_mult=1.0, breaks=(), init=None, P_surface=P_SURF):
+    # P_surface: pressure at the wellhead. Atmospheric by default; a closed,
+    # pressurized loop (P_OP) keeps a return above 100 C liquid.
     # init: a previous solve() result whose profiles seed this one (continuation).
     # breaks: extra measured depths at which to split the solve, where a
     # coefficient jumps for a reason other than geometry (exposure_breaks).
@@ -201,11 +204,11 @@ def solve(m_dot=2.0, T_inj=40.0, G=C.GEOTHERM_GRADIENT, T_surf=C.SURFACE_TEMP,
     T_tvd = geotherm if geotherm is not None else (lambda d: T_surf + G * d)
     Trock = lambda zz: T_tvd(geometry.survey.tvd(zz))
     z = np.linspace(0, L, n_nodes)
-    P_L = float(P_of_z(geometry.survey.tvd(L)))
+    P_L = float(P_of_z(geometry.survey.tvd(L), P_surface))
 
     def derivs(zz, Td, Tu, geom_z=None):
         UAi, UAo, P = conductances(zz, Td, Tu, m_dot, t_years, k_rock, geometry, exposure,
-                                   fluid, rhocp_rock, geom_z, film_mult)
+                                   fluid, rhocp_rock, geom_z, film_mult, P_surface)
         cpd = _cp(Td, P, fluid)
         cpu = _cp(Tu, P, fluid)
         dTd = UAi * (Tu - Td) / (m_dot * cpd)
@@ -225,59 +228,37 @@ def solve(m_dot=2.0, T_inj=40.0, G=C.GEOTHERM_GRADIENT, T_surf=C.SURFACE_TEMP,
             dT += nozzle_dp(m_dot, rho_L, tfa) / (rho_L * cp_L)
         return dT
 
-    top, bot = _pieces(geometry, breaks)
-    if len(top) == 1:
-        def odes(zz, y):
-            return np.vstack(derivs(zz, y[0], y[1]))
+    # Where the string or hole changes, the coefficients would jump, which the
+    # collocation solve can't resolve. Across each change they are ramped
+    # linearly over BLEND metres instead: within half of it either side, the
+    # derivatives are blended between the geometry above and below.
+    top, _ = _pieces(geometry, breaks)
+    changes = top[1:]
 
-        def bc(ya, yb):
-            return np.array([ya[0] - T_inj, yb[1] - yb[0] - dT_face(yb[0])])
+    def odes(zz, y):
+        dTd, dTu = derivs(zz, y[0], y[1])
+        for b in changes:
+            m = np.abs(zz - b) < 0.5 * BLEND
+            if m.any():
+                zm = zz[m]
+                aL = derivs(zm, y[0][m], y[1][m], np.full_like(zm, b - BLEND))
+                aR = derivs(zm, y[0][m], y[1][m], np.full_like(zm, b + BLEND))
+                w = (zm - b) / BLEND + 0.5
+                dTd[m] = (1 - w) * aL[0] + w * aR[0]
+                dTu[m] = (1 - w) * aL[1] + w * aR[1]
+        return np.vstack([dTd, dTu])
 
-        y0 = np.vstack([np.linspace(T_inj, T_inj + 30, n_nodes),
-                        np.linspace(T_inj + 30, target_rock_T * 0.7, n_nodes)]) \
-            if init is None else np.vstack([np.interp(z, init["z"], init["Td"]),
-                                            np.interp(z, init["z"], init["Tu"])])
-        sol = solve_bvp(odes, bc, z, y0, max_nodes=20000, tol=1e-4)
-        sol_at = sol.sol
-    else:
-        # Where the string or hole changes, the coefficients jump. Solve each
-        # piece of constant geometry on its own unit interval, joined by
-        # continuity of both temperatures (a multipoint problem).
-        n, span, mid = len(top), bot - top, 0.5 * (top + bot)
+    def bc(ya, yb):
+        return np.array([ya[0] - T_inj, yb[1] - yb[0] - dT_face(yb[0])])
 
-        def odes(tau, Y):
-            zz = top[:, None] + tau[None, :] * span[:, None]
-            gz = np.broadcast_to(mid[:, None], zz.shape)
-            dTd, dTu = derivs(zz.ravel(), Y[0::2].ravel(), Y[1::2].ravel(), gz.ravel())
-            out = np.empty_like(Y)
-            out[0::2] = dTd.reshape(zz.shape) * span[:, None]
-            out[1::2] = dTu.reshape(zz.shape) * span[:, None]
-            return out
-
-        def bc(ya, yb):
-            r = [ya[0] - T_inj]
-            for i in range(n - 1):
-                r += [yb[2 * i] - ya[2 * i + 2], yb[2 * i + 1] - ya[2 * i + 3]]
-            r.append(yb[-1] - yb[-2] - dT_face(yb[-2]))
-            return np.array(r)
-
-        tau = np.linspace(0, 1, max(n_nodes // n, 20))
-        frac = (top[:, None] + tau[None, :] * span[:, None]) / L
-        Y0 = np.empty((2 * n, len(tau)))
-        if init is None:
-            Y0[0::2] = T_inj + 30 * frac
-            Y0[1::2] = T_inj + 30 + (target_rock_T * 0.7 - T_inj - 30) * frac
-        else:
-            Y0[0::2] = np.interp(frac * L, init["z"], init["Td"])
-            Y0[1::2] = np.interp(frac * L, init["z"], init["Tu"])
-        sol = solve_bvp(odes, bc, tau, Y0, max_nodes=20000, tol=1e-4)
-
-        def sol_at(zq):
-            zq = np.asarray(zq, float)
-            i = np.clip(np.searchsorted(bot, zq, side="left"), 0, n - 1)
-            Y = sol.sol((zq - top[i]) / span[i])
-            cols = np.arange(len(zq))
-            return np.vstack([Y[2 * i, cols], Y[2 * i + 1, cols]])
+    if len(changes):
+        z = np.unique(np.concatenate([z, changes - 0.5 * BLEND, changes + 0.5 * BLEND]))
+    y0 = np.vstack([np.interp(z, [0, L], [T_inj, T_inj + 30]),
+                    np.interp(z, [0, L], [T_inj + 30, target_rock_T * 0.7])]) \
+        if init is None else np.vstack([np.interp(z, init["z"], init["Td"]),
+                                        np.interp(z, init["z"], init["Tu"])])
+    sol = solve_bvp(odes, bc, z, y0, max_nodes=20000, tol=1e-4)
+    sol_at = sol.sol
 
     zz = np.linspace(0, L, 400)
     Td, Tu = sol_at(zz)
@@ -292,7 +273,9 @@ def solve(m_dot=2.0, T_inj=40.0, G=C.GEOTHERM_GRADIENT, T_surf=C.SURFACE_TEMP,
     Trock_arr = np.array([Trock(zi) for zi in zz]) if geotherm is not None else Trock(zz)
     res = dict(sol=sol, z=zz, Td=Td, Tu=Tu, Trock=Trock_arr, L=L, geometry=geometry,
                T_bottom_delivered=Td[-1], T_return_surface=Tu[0],
-               Q_product=Q_product, m_dot=m_dot, success=sol.success,
+               Q_product=Q_product, m_dot=m_dot,
+               # a solution outside the water table's range (above 480 C) is spurious
+               success=bool(sol.success and max(Td.max(), Tu.max()) < 480.0),
                P_bottom=P_L)
     if verbose:
         _print(res, T_inj, Q_face, t_years if exposure is None else "by depth")
@@ -325,8 +308,11 @@ def nozzle_dp(m_dot, rho, tfa=BIT_TFA_DEFAULT, cd=NOZZLE_CD):
 
 def _friction_gradient(m_dot, T, P, area, Dh, fluid=None):
     """Friction pressure gradient divided by density, |dp/dz| / rho [J/kg/m]:
-    the heat dissipated per unit mass of fluid per metre."""
-    rho, _, mu, _ = fluid_props(T, P, fluid)
+    the heat dissipated per unit mass of fluid per metre. The circulating
+    fluid is liquid, so its properties are taken at no less than the loop
+    pressure P_OP: otherwise a solver iterate above 100 C near the surface
+    picks up steam's density and viscosity, and the friction heat runs away."""
+    rho, _, mu, _ = fluid_props(np.clip(T, 1, 480), np.maximum(P, P_OP), fluid)
     v = m_dot / (rho * area)
     f = friction_factor(rho * v * Dh / mu)
     return f * v ** 2 / (2 * Dh)
@@ -345,7 +331,7 @@ def _pieces(geometry, breaks=()):
 
 
 def hydraulics(m_dot, geometry, result=None, T_avg=80.0, tfa=BIT_TFA_DEFAULT,
-               friction="blasius", bit=True, fluid=None):
+               friction="blasius", bit=True, fluid=None, P_surface=P_SURF):
     """Pressure losses along the string and annulus, bit nozzle loss,
     standpipe pressure and annular velocity.
 
@@ -361,14 +347,14 @@ def hydraulics(m_dot, geometry, result=None, T_avg=80.0, tfa=BIT_TFA_DEFAULT,
     g = geometry.at(mid)
     dtvd = geometry.survey.tvd(bot) - geometry.survey.tvd(top)
     if result is None:
-        P = P_of_z(geometry.survey.tvd(geometry.md_bit / 2))
+        P = P_of_z(geometry.survey.tvd(geometry.md_bit / 2), P_surface)
         rho, _, mu, _ = (float(np.ravel(x)[0]) for x in
                          fluid_props(np.array([T_avg]), np.array([P]), fluid))
         rho_b = rho_a = np.full_like(mid, rho)
         mu_b = mu_a = np.full_like(mid, mu)
         rho_bit = rho
     else:
-        P = P_of_z(g["tvd"])
+        P = P_of_z(g["tvd"], P_surface)
         T_b = np.interp(mid, result["z"], result["Td"])
         T_a = np.interp(mid, result["z"], result["Tu"])
         rho_b, _, mu_b, _ = fluid_props(T_b, P, fluid)

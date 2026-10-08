@@ -53,10 +53,7 @@ TVD = 8600.0
 T_INLET = 40.0
 EXPOSURE = 1500 * 60.0    # s
 
-# Their Table 4 string below the drill pipe, conventional steel
-HWDP = wg.PipeType("heavy-weight drill pipe", (wg.Layer(0.083 / 2, 0.14 / 2, wg.K_STEEL),))
-COLLAR = wg.PipeType("drill collar", (wg.Layer(0.073 / 2, 0.17 / 2, wg.K_STEEL),))
-L_HWDP, L_COLLAR, L_BIT = 223.0, 143.0, 0.8
+HWDP, COLLAR = wg.WU_HWDP, wg.WU_COLLAR
 
 PIPES = {"conventional": wg.CONVENTIONAL, "internal": wg.INTERNALLY_COATED,
          "external": wg.EXTERNALLY_COATED, "dual-wall": wg.DUAL_WALL}
@@ -80,20 +77,6 @@ FIG6 = {"internal": (145, 123, 107, 95, 87), "external": (212, 186, 165, 148, 13
 SPP_600 = {"internal": (16, 18), "external": (16, 18), "dual-wall": (67, 67)}  # MPa, read off Fig. 7
 
 
-def _casing_hole(md_open_hole_bottom):
-    """Their Table 3, cased to surface and cemented between strings."""
-    st = lambda a, b: wg.Layer(a, b, wg.K_STEEL)
-    ce = lambda a, b: wg.Layer(a, b, wg.K_CEMENT)
-    inter, surf, cond = (0.11, 0.12), (0.16, 0.17), (0.24, 0.255)
-    return [
-        wg.HoleInterval(0.0, 100.0, inter[0], (st(*inter), ce(inter[1], surf[0]), st(*surf),
-                                              ce(surf[1], cond[0]), st(*cond))),
-        wg.HoleInterval(100.0, 1000.0, inter[0], (st(*inter), ce(inter[1], surf[0]), st(*surf))),
-        wg.HoleInterval(1000.0, 4000.0, inter[0], (st(*inter),)),
-        wg.open_hole(4000.0, md_open_hole_bottom, 0.22),
-    ]
-
-
 def well(pipe, horizontal=False):
     if horizontal:
         curve, lateral = 400.0, 2000.0
@@ -104,10 +87,7 @@ def well(pipe, horizontal=False):
             np.concatenate([[0.0, 0.0], np.linspace(0, 90, 41)[1:], [90.0]]))
     else:
         md, survey = TVD, None
-    l_dp = md - L_HWDP - L_COLLAR - L_BIT
-    string = [wg.StringSegment(l_dp, pipe), wg.StringSegment(L_HWDP, HWDP),
-              wg.StringSegment(L_COLLAR + L_BIT, COLLAR)]
-    return wg.WellGeometry(string, _casing_hole(md), survey)
+    return wg.wu2025_well(md, pipe, survey)
 
 
 def run(pipe, G_per_km=24.0, gpm=600.0, fluid=MUD, horizontal=False, friction_heat=True):

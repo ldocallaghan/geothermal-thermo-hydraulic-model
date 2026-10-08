@@ -255,3 +255,38 @@ class WellGeometry:
             A_bore=np.pi * r_bore ** 2, Dh_bore=2 * r_bore,
             A_ann=np.pi * (r_wall ** 2 - r_out ** 2), Dh_ann=2 * (r_wall - r_out),
         )
+
+
+# The deep vertical well of Wu et al. (2025), Tables 3 and 4: three casings
+# cemented to surface, 0.22 m (8.67-inch) open hole, and a string of drill pipe,
+# heavy-weight pipe and collars. Casings run to surface, the gap between two
+# casings is cement, and rock starts at the outermost casing (the drilled hole
+# sizes aren't given).
+WU_HWDP = PipeType("heavy-weight drill pipe", (Layer(0.083 / 2, 0.14 / 2, K_STEEL),))
+WU_COLLAR = PipeType("drill collar", (Layer(0.073 / 2, 0.17 / 2, K_STEEL),))
+WU_L_HWDP, WU_L_COLLAR, WU_L_BIT = 223.0, 143.0, 0.8
+WU_SHOES = (100.0, 1000.0, 4000.0)   # conductor, surface, intermediate [m]
+
+
+def wu2025_hole(md_bottom, shoes=WU_SHOES):
+    st = lambda a, b: Layer(a, b, K_STEEL)
+    ce = lambda a, b: Layer(a, b, K_CEMENT)
+    inter, surf, cond = (0.11, 0.12), (0.16, 0.17), (0.24, 0.255)
+    s_cond, s_surf, s_int = shoes
+    return [
+        HoleInterval(0.0, s_cond, inter[0], (st(*inter), ce(inter[1], surf[0]), st(*surf),
+                                            ce(surf[1], cond[0]), st(*cond))),
+        HoleInterval(s_cond, s_surf, inter[0], (st(*inter), ce(inter[1], surf[0]), st(*surf))),
+        HoleInterval(s_surf, s_int, inter[0], (st(*inter),)),
+        open_hole(s_int, md_bottom, 0.22),
+    ]
+
+
+def wu2025_string(md_bit, pipe):
+    l_dp = md_bit - WU_L_HWDP - WU_L_COLLAR - WU_L_BIT
+    return [StringSegment(l_dp, pipe), StringSegment(WU_L_HWDP, WU_HWDP),
+            StringSegment(WU_L_COLLAR + WU_L_BIT, WU_COLLAR)]
+
+
+def wu2025_well(md_bit, pipe, survey=None, shoes=WU_SHOES):
+    return WellGeometry(wu2025_string(md_bit, pipe), wu2025_hole(md_bit, shoes), survey)

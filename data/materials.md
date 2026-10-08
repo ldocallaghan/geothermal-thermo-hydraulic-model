@@ -28,9 +28,22 @@ were not reachable, and Finger and Blankenship (2010), *Handbook of Best
 Practices for Geothermal Drilling* (SAND2010-6048), calls for "high annular
 velocity to lift the cuttings" without a number.
 
-The model therefore takes its hole-cleaning reference from practice: the flow
-actually run in a comparable hole. FORGE 16B was drilled at 600 to 700 gal/min
-in 9-1/2-inch open hole (trial report), and Wu et al. (2025) use 600 gal/min in
-an 8.67-inch hole as their base case. The annular velocities those flows give
-with the string in the hole are the reference; they are computed in the model
-from the hole and pipe sizes, not assumed.
+The model therefore takes its hole-cleaning reference from practice: the
+annular velocity at which a comparable hole was actually drilled and cleaned.
+FORGE 16B was drilled through the trial interval, at 60 to 70° inclination in
+9-1/2-inch open hole, at 600 to 700 gal/min. The rig's daily reports give the
+annular velocity around the 5-1/2-inch drill pipe as 245.1 ft/min at 600 gal/min
+(1.245 m/s) and 286.0 ft/min at 700 gal/min (`data/forge16b/rig_hydraulics.csv`).
+The reference is the lower, 1.245 m/s. It is a deviated-hole value, so it is
+also used for vertical hole, where cuttings settle less readily and it is
+conservative. No vertical value from practice is available: Wu et al. (2025)
+run 600 gal/min in a 0.22 m hole with 139.7 mm pipe (1.67 m/s), but as a
+modelling choice, not a field observation.
+
+## Bit nozzles
+
+Nozzle pressure drop is ρQ²/(2C_d²A²) with a discharge coefficient
+C_d = 0.95. This reproduces the FORGE rig's own figure: 192 psi for eight 14/32-inch nozzles at 600 gal/min and
+8.40 lb/gal, against 193 psi in the daily report. Where a bit's nozzles aren't
+known, the model uses that FORGE bit's total flow area, 1.203 in² (776 mm²),
+as a stated default.

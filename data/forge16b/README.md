@@ -45,6 +45,20 @@ The raw files are not committed. To rebuild the extracts, download these into
   and MWD temperatures. Blank cells are not given in the report; flow and inlet
   temperature for BHA 12 and 13 will come from the Pason data.
 
+- `rig_hydraulics.csv`: the rig's hydraulics for each trial run, transcribed
+  from the daily drilling reports reproduced in the End of Well Report (reports
+  36 to 42, 22 to 28 May 2023): flow (average and maximum over the interval),
+  standpipe pressure, mud weight, bit nozzles in 32nds of an inch, and the
+  rig's own bit pressure drop and annular velocities around the drill pipe and
+  the BHA. The End of Well Report numbers these BHAs 17 to 20; the trial report
+  and the drilling contractors call them 10 to 13. Blank cells are not given.
+  The mud was a low-solids water-based mud at 8.40 lb/gal (99.5% water).
+  The standpipe pressure includes the mud motor and MWD, which a friction and
+  nozzle model does not, so it is an upper bound for that model; the bit
+  pressure drop and annular velocities are direct checks. The rig's annular
+  velocity around the drill pipe is 24.51 Q / (9.5² − 5.5²) ft/min, Q in gal/min.
+  The drill pipe is 5-1/2-inch, 24.7 lb/ft, S-135 (daily reports).
+
 ## What the dataset does and doesn't contain
 
 - The Pason 10-second record (1.8 GB) has flow rate, hole and bit depth,

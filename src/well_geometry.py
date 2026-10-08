@@ -99,6 +99,14 @@ INTERNALLY_COATED = PipeType(
 EXTERNALLY_COATED = PipeType(
     "externally coated", (_STEEL_BODY, Layer(_R_OD, 0.1417 / 2, 1.31)),
     source="1 mm composite at 1.31 W/m/K, Vetsak et al. (2024) via Wu et al. (2025)")
+# NOV Tuboscope's TK-Drakon internal coating (flyer D392006697, 2024): applied
+# 20-30 mils (0.51-0.76 mm) thick at 0.162 W/m/K, rated to 204 C while
+# circulating. The middle of the thickness range on the same 5-1/2 inch pipe;
+# TK_DRAKON_THICKNESS is the range.
+TK_DRAKON_THICKNESS = (0.508e-3, 0.762e-3)
+TK_DRAKON = PipeType(
+    "TK-Drakon coated", (Layer(_R_ID - 0.635e-3, _R_ID, 0.162), _STEEL_BODY),
+    source="0.635 mm at 0.162 W/m/K, NOV Tuboscope TK-Drakon flyer (2024)")
 # Wu et al. give the dual-wall pipe an 80 mm bore and a phenolic fill at
 # 0.092 W/m/K. The fill is taken to run from the bore to the outer tube, which
 # has the conventional pipe's wall; the inner tube's steel adds nothing measurable.
@@ -113,8 +121,8 @@ VACUUM_INSULATED = PipeType(
     source="apparent 0.04 W/m/K with connections, range 0.02-0.08, Dufrene et al. (2025)")
 
 PIPE_TYPES = {p.name: p for p in
-              (CONVENTIONAL, INTERNALLY_COATED, EXTERNALLY_COATED, DUAL_WALL,
-               VACUUM_INSULATED)}
+              (CONVENTIONAL, INTERNALLY_COATED, EXTERNALLY_COATED, TK_DRAKON,
+               DUAL_WALL, VACUUM_INSULATED)}
 
 # The wall the model used before it had named pipe types: 10 mm at 0.02 W/m/K
 # on a 100 mm bore, the best-case end of the vacuum-tubing range. Kept so the

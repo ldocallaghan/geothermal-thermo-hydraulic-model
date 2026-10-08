@@ -38,7 +38,7 @@ def test_series_resistance_against_hand_calculation():
 def test_insulation_ranks_as_published():
     R = {name: p.body_resistance() for name, p in wg.PIPE_TYPES.items()}
     assert (R["conventional"] < R["externally coated"] < R["internally coated"]
-            < R["dual-wall"] < R["vacuum-insulated (sensitivity)"])
+            < R["TK-Drakon coated"] < R["dual-wall"] < R["vacuum-insulated (sensitivity)"])
 
 
 def test_joint_is_bare_steel_across_the_pipe():

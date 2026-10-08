@@ -455,7 +455,11 @@ def worst_verdict(verdicts):
 # to the target, with the casing shoes moved up for shallow targets. Pipe types
 # are tried from best insulated to worst; vacuum-insulated tubing is not a drill
 # pipe, so it is a sensitivity only.
-SITE_PIPES = (wg.DUAL_WALL, wg.INTERNALLY_COATED, wg.EXTERNALLY_COATED, wg.CONVENTIONAL)
+SITE_PIPES = (wg.DUAL_WALL, wg.TK_DRAKON, wg.INTERNALLY_COATED, wg.EXTERNALLY_COATED,
+              wg.CONVENTIONAL)
+# The dual-wall pipe's figures come from a modelling study; no such drill pipe
+# is on sale (data/materials.md). The rest can be bought or have been run.
+COMMERCIAL_PIPES = SITE_PIPES[1:]
 SITE_FLOWS = (5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80)   # kg/s
 Q_FACE_SITE = 30000.0
 FILM_MULT_FORGE = 0.75   # fitted on FORGE 16B (validate_forge16b.py); a sensitivity
@@ -683,6 +687,12 @@ def _evaluate_v12(site, thermal=True):
     out["circ"]["vacuum"] = dict(m_dot=vit["m_dot"], conflict=vit["conflict"],
                                  bhct=float(vit["run"]["T_bottom_delivered"]))
     alt["vacuum-insulated pipe"] = vit["run"]["T_bottom_delivered"]
+    com = choose_circulation(site, z, geotherm, exposure, pipes=COMMERCIAL_PIPES)
+    out["circ"]["commercial"] = dict(pipe=com["pipe"].name, m_dot=com["m_dot"],
+                                     conflict=com["conflict"],
+                                     bhct=float(com["run"]["T_bottom_delivered"]),
+                                     spp=float(com["run"]["hyd"]["spp"]))
+    alt["commercial pipe only"] = com["run"]["T_bottom_delivered"]
     out["circ_sensitivity"] = {}
     for k, Tw in alt.items():
         r, c = stability_inputs(site, z, T_rock, T_wall=float(Tw), thermal=thermal)

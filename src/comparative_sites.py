@@ -337,13 +337,20 @@ def print_circulation(title, sites, results, olds):
     print("  exposed for a year, as before; heat: heat returned while drilling, early life, single")
     print("  loop, MW. Earlier model: the single 0.02 W/m K pipe at the lowest survivable flow.")
     print()
-    keys = ("rock exposed 1 yr", f"film x{se.FILM_MULT_FORGE}", "vacuum-insulated pipe")
-    print(f"{'Circulation sensitivities':<26}" + "".join(f"{k:<34}" for k in keys))
+    keys = ("commercial pipe only", "rock exposed 1 yr", f"film x{se.FILM_MULT_FORGE}",
+            "vacuum-insulated pipe")
+    print(f"{'Circulation sensitivities':<26}" + "".join(f"{k:<42}" for k in keys))
     for s, o in zip(sites, results):
         short = s.name.split("(")[0].strip()[:25]
         cells = [f"{classify_circ_sensitivity(o, k)} ({o['circ_sensitivity'][k]['T_wall']:.0f} C)"
                  for k in keys]
-        print(f"{short:<26}" + "".join(f"{x:<34}" for x in cells))
+        print(f"{short:<26}" + "".join(f"{x:<42}" for x in cells))
+    print("  commercial pipe only: the best pipe that can be bought (no dual-wall):")
+    for s, o in zip(sites, results):
+        c = o["circ"]["commercial"]
+        short = s.name.split("(")[0].strip()[:25]
+        print(f"    {short:<26}{c['pipe']} at {c['m_dot']} kg/s, SPP {c['spp']/1e6:.1f} MPa"
+              + (f"; conflict: {c['conflict']}" if c["conflict"] else ""))
     print()
 
 

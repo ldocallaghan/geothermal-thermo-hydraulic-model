@@ -6,6 +6,7 @@
 | Internally coated drill pipe | 1 mm coating, 0.47 W/m·K | Vetsak et al. (2024), as cited by Wu et al. (2025) |
 | Externally coated drill pipe | 1 mm coating, 1.31 W/m·K | Vetsak et al. (2024), as cited by Wu et al. (2025) |
 | Dual-wall drill pipe | phenolic resin fill, 80 mm bore, 0.092 W/m·K | Xiao et al. (2022), as cited by Wu et al. (2025) |
+| TK-Drakōn coated drill pipe | 0.51–0.76 mm internal coating, 0.162 W/m·K | NOV Tuboscope flyer (2024) |
 | Vacuum-insulated tubing | about 0.04 W/m·K averaged over body and connection; body as low as 0.001–0.005; industry range 0.02–0.08 | Dufrene et al. (2025) |
 | Cement sheath | 1 W/m·K as a central value, sensitivity 0.1–10 | Dufrene et al. (2025), simulation choice |
 
@@ -40,14 +41,20 @@ What can be bought or has been run in a well:
 - Eavor's internally and externally coated IDP, run at FORGE 16B in 2023
   (`data/forge16b/`); the fitted effective conductivity matches a 1 mm
   coating at 0.47 W/m·K.
-- NOV Tuboscope's TK-Drakōn internal coating, launched November 2024, with a
-  reported conductivity of 0.162 W/m·K (Energy Global, "Keeping fluids cool in
-  the hottest wells", December 2025); its thickness is not published.
+- NOV Tuboscope's TK-Drakōn internal coating, launched November 2024: applied
+  20–30 mils (0.51–0.76 mm) thick at 0.162 W/m·K, rated to 204 °C "or all
+  temperatures commonly encountered during the drilling process, provided that
+  circulation is maintained" (NOV flyer D392006697-MKT-001 Rev 01, 2024; also
+  Energy Global, "Keeping fluids cool in the hottest wells", December 2025).
+  The model's TK-Drakon pipe type is 0.635 mm, the middle of that range, on
+  5-1/2-inch pipe. Its coating resistance is about 1.8 times that of Eavor's 1 mm
+  coating at 0.47 W/m·K, and about 1/70 of the dual-wall pipe's.
 - Vacuum-insulated tubing (production tubing, not drill pipe).
 
 Pro-Pipe Service and Sales (Alberta) is developing an insulated drill pipe,
 with field trials at 300 °C and a 5,000 m string planned for 2027 (Emissions
-Reduction Alberta project page).
+Reduction Alberta project page). Its construction and conductivity are not
+published, so it is not modelled.
 
 ## Hole cleaning
 

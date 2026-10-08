@@ -20,6 +20,35 @@ describes a drill pipe built that way, so for drilling it is a sensitivity.
 The model's previous 0.02 W/m·K matches the best-case end of the vacuum-tubing
 range, with connections; 0.10 W/m·K matches none of the named products.
 
+## Which pipe types can be bought
+
+The site runs choose the best-insulated pipe within the pump limit, and that
+is the dual-wall pipe. Its figures (80 mm bore, phenolic fill at
+0.092 W/m·K) come from Xiao, D. et al. (2022), "Wellbore cooling and heat
+energy utilization method for deep shale gas horizontal well drilling",
+*Applied Thermal Engineering* 213, 118684, as used by Wu et al. (2025). That
+is a modelling study, not a product. A search on 8 October 2026, in English
+and Chinese, found no dual-wall insulated drill pipe on sale or reported in a
+field trial, in China or elsewhere; the Chinese work found models insulating
+coatings. Sandia and Drill Cool Systems field-tested a prototype insulated
+drill pipe around 2000 (Champness and Finger, OSTI 751131), not taken further
+as far as the search shows. The dual-wall figures are kept, as an engineering
+estimate of a pipe that could be built, and the README says so.
+
+What can be bought or has been run in a well:
+
+- Eavor's internally and externally coated IDP, run at FORGE 16B in 2023
+  (`data/forge16b/`); the fitted effective conductivity matches a 1 mm
+  coating at 0.47 W/m·K.
+- NOV Tuboscope's TK-Drakōn internal coating, launched November 2024, with a
+  reported conductivity of 0.162 W/m·K (Energy Global, "Keeping fluids cool in
+  the hottest wells", December 2025); its thickness is not published.
+- Vacuum-insulated tubing (production tubing, not drill pipe).
+
+Pro-Pipe Service and Sales (Alberta) is developing an insulated drill pipe,
+with field trials at 300 °C and a 5,000 m string planned for 2027 (Emissions
+Reduction Alberta project page).
+
 ## Hole cleaning
 
 No citable minimum annular velocity could be checked. PetroWiki's "Hole

@@ -16,7 +16,8 @@ drill pipe (IDP) trial Eavor ran in Utah FORGE well 16B(78)-32 in May 2023.
 Both are used under CC-BY 4.0. The extracts here are derived from them.
 
 The raw files are not committed. To rebuild the extracts, download these into
-`data/forge16b/raw/` and run `python data/forge16b/build_extracts.py`:
+`data/forge16b/raw/` (unzipping `16B_Pason.zip` to `raw/16B_Pason/`) and run
+`python data/forge16b/build_extracts.py`:
 
 | File (GDR) | SHA-256 (first 16) |
 |---|---|
@@ -27,6 +28,7 @@ The raw files are not committed. To rebuild the extracts, download these into
 | 16B_Pason.zip (1516) | 858a6eaf56c2cb3c |
 | End of Well Report-16B78-32-May_2024.pdf (1516) | b35f25eda60fcec9 |
 | Utah FORGE Deep Well Temperature Profiles_Sept 2022.xlsx (1421) | c1a35f7914b5f591 |
+| papers/xing_sgw2026.pdf (Stanford SGW 2026, Xing et al., for the rock properties) | 6d345bd2869d25fd |
 
 ## Extracts
 
@@ -58,6 +60,49 @@ The raw files are not committed. To rebuild the extracts, download these into
   pressure drop and annular velocities are direct checks. The rig's annular
   velocity around the drill pipe is 24.51 Q / (9.5² − 5.5²) ft/min, Q in gal/min.
   The drill pipe is 5-1/2-inch, 24.7 lb/ft, S-135 (daily reports).
+
+- `string_components.csv`: the BHA, collars and heavy-weight pipe, with OD, ID
+  and length, from the BHA tables in the End of Well Report (Fig. 90 for BHA
+  #17, trial BHA 10, and Fig. 102 for BHA #19, trial BHA 12; the trial report
+  says BHA 11 used the same BHA as BHA 10). BHA #19's table puts the
+  directional survey sensor 84 ft above the bit; that is taken as the MWD
+  temperature sensor's position in all four runs. It also lists "25 STD Drill
+  pipe" between the heavy-weight pipe and a crossover to the IDP, which
+  settles how BHA 12's string was made up: the trial report's 8,264.49 ft of
+  "IDP" is the whole drill pipe (it closes the depth tally with the BHA and
+  heavy-weight pipe), of which the bottom 2,378.5 ft was regular pipe, leaving
+  5,886 ft (71%) of IDP. The trial report's "~70% IDP" agrees.
+  The End of Well Report lists 30 joints of heavy-weight pipe for BHA #17
+  where the trial report gives 28; the trial report's tally closes on the run
+  depths, so its lengths are used, with the End of Well Report's dimensions.
+- `pason_trial_1min.csv`: the Pason record from 21 to 29 May 2023 averaged
+  per minute: hole and bit depth, standpipe pressure, pump output, inlet and
+  return mud temperature, rate of penetration and motor differential pressure.
+- `drilling_history_10min.csv`: the whole Pason record in 10-minute bins: the
+  deepest hole reached so far, and the fraction of the bin spent circulating
+  (pump output above 100 gal/min).
+
+## Rock thermal properties
+
+Measured by MetaRock Laboratories (2021) on three FORGE granitoid cores, as
+tabulated by Xing, P., Jones, C., Damjanac, B., Simmons, S., Moore, J., Deo, M.,
+McLennan, J. (2026), "Influence of Thermal Properties Heterogeneity on
+Geothermal Production and Fracture Spacing for Enhanced Geothermal System",
+*Proc. 51st Workshop on Geothermal Reservoir Engineering*, Stanford,
+SGP-TR-230, Table 1 (the underlying dataset is GDR submission 1430):
+
+| Sample | Density | k at 35 / 100 / 200 °C | cp at 35 / 100 / 200 °C |
+|---|---|---|---|
+| 58-32A (7,440 ft) | 2.68 g/cc | 2.165 / 2.149 / 2.041 W/m·K | 798.7 / 864.8 / 981.3 J/kg·K |
+| 16A(78)-32 | 2.60 g/cc | 2.389 / 2.341 / 2.206 W/m·K | 785.8 / 862.3 / 944.5 J/kg·K |
+| 58-32B (6,804 ft) | 2.65 g/cc | 3.087 / 3.002 / 2.672 W/m·K | 988.2 / 1091.1 / 1175.2 J/kg·K |
+
+The validation uses the means at 100 °C, the temperature of the cooled rock
+near the wall: k = 2.50 W/m·K and ρc = 2,643 × 939 = 2.48 MJ/m³·K. The
+spread across samples and temperatures, 2.04 to 3.09 W/m·K, is run as a
+sensitivity. Gwynn et al. (2019, UGS Misc. Pub. 169-L) report 2.0 to
+3.9 W/m·K on 58-32 cuttings at room temperature, depending on quartz content
+(as cited by Xing et al.).
 
 ## What the dataset does and doesn't contain
 

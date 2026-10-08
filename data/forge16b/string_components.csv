@@ -1,0 +1,20 @@
+bha,item,description,od_in,id_in,length_ft,source
+17,1,9 1/2 8-blade PDC bit,9.500,2.750,1.25,EOW Fig. 90
+17,2,7.15 mud motor,6.750,2.000,35.00,EOW Fig. 90
+17,3,9 1/2 roller reamer,6.625,3.000,5.39,EOW Fig. 90
+17,4,6 3/4 NM pony DC,6.438,3.250,9.22,EOW Fig. 90
+17,5,6 3/4 NMDC,6.813,3.250,31.11,EOW Fig. 90
+17,6,6 3/4 pulser sub,6.500,3.500,3.93,EOW Fig. 90
+17,7,6 3/4 NM pony DC,6.438,3.500,12.24,EOW Fig. 90
+17,8,6 3/4 NM pony DC,6.813,3.250,9.83,EOW Fig. 90
+17,9,6 3/4 black box,6.750,2.250,5.97,EOW Fig. 90
+17,10,6 3/4 filter sub,6.688,3.250,3.93,EOW Fig. 90
+17,11,9 joints 6 3/4 drill collars,6.813,2.875,278.27,EOW Fig. 90
+17,12,crossover DC to HWDP,6.937,3.000,3.15,EOW Fig. 90
+17,13,30 joints HWDP,5.500,3.625,913.42,EOW Fig. 90
+19,2,7.15 mud motor,7.188,2.000,,EOW Fig. 102
+19,3,9 1/2 roller reamer,6.563,3.000,,EOW Fig. 102
+19,11,6 3/4 float sub,6.375,2.875,,EOW Fig. 102
+19,13,28 joints HWDP,5.500,3.625,,EOW Fig. 102
+19,14,25 stands drill pipe,5.500,,,EOW Fig. 102
+all,,5 1/2 drill pipe 24.7 lb/ft S-135,5.500,4.670,,daily reports (size and weight); ID is the API 5DP nominal for that weight

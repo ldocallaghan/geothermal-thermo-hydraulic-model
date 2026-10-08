@@ -7,6 +7,9 @@ Expects the raw files in data/forge16b/raw/ (not committed; see README.md):
   - "16B(78)-32 Well Survey.zip"  (GDR 1516)        -> survey_16b.csv
   - "Utah FORGE Deep Well Temperature Profiles_Sept 2022.xlsx"
                                   (GDR 1421)        -> formation_temperature_16a.csv
+  - "16B_Pason.zip", unzipped to raw/16B_Pason/
+                                  (GDR 1516)        -> pason_trial_1min.csv,
+                                                       drilling_history_10min.csv
 
 run_observations.csv is transcribed by hand from the Eavor trial report, so it
 is not rebuilt here.
@@ -86,6 +89,89 @@ def formation_temperature(step_ft=25.0):
     return len(out)
 
 
+PASON_COLS = {
+    "Hole Depth (feet)": "hole_depth_ft",
+    "Bit Depth (feet)": "bit_depth_ft",
+    "Standpipe Pressure (psi)": "spp_psi",
+    "Total Pump Output (gal_per_min)": "flow_gpm",
+    "TEMP IN MANIFOLD (DEGREES)": "temp_in_F",
+    "TEMP OUT FLOW (DEGREES)": "temp_out_F",
+    "Rate Of Penetration (ft_per_hr)": "rop_ft_h",
+    "Differential Pressure (psi)": "diff_pressure_psi",
+}
+
+
+def pason_trial(start="2023/05/21", end="2023/05/29", minutes=1):
+    """The Pason 10-second record over the trial (BHA 10 to 13), averaged over
+    each minute. -999.25 is Pason's null and is dropped before averaging."""
+    path = os.path.join(RAW, "16B_Pason", "10 Second Data.csv")
+    with open(path, newline="") as fh:
+        rd = csv.reader(fh)
+        head = next(rd)
+        idx = {PASON_COLS[h]: i for i, h in enumerate(head) if h in PASON_COLS}
+        names = list(PASON_COLS.values())
+        buckets, order = {}, []
+        for r in rd:
+            if r[0] < start:
+                continue
+            if r[0] > end:
+                break
+            hh, mm, _ = r[1].split(":")
+            key = f"{r[0].replace('/', '-')} {hh}:{int(mm) // minutes * minutes:02d}"
+            if key not in buckets:
+                buckets[key] = {n: [] for n in names}
+                order.append(key)
+            for n in names:
+                try:
+                    v = float(r[idx[n]])
+                except ValueError:
+                    continue
+                if v != -999.25:
+                    buckets[key][n].append(v)
+    with open(os.path.join(HERE, "pason_trial_1min.csv"), "w", newline="") as fh:
+        w = csv.writer(fh)
+        w.writerow(["time"] + names)
+        for k in order:
+            b = buckets[k]
+            w.writerow([k] + [f"{sum(b[n]) / len(b[n]):.2f}" if b[n] else "" for n in names])
+    return len(order)
+
+
+def drilling_history(minutes=10, circulating_gpm=100.0):
+    """The whole Pason record in 10-minute bins: deepest hole depth reached and
+    the fraction of the bin spent circulating (pump output above 100 gal/min),
+    for the wall's exposure to circulation."""
+    path = os.path.join(RAW, "16B_Pason", "10 Second Data.csv")
+    out, key0, hmax, n, nc = [], None, 0.0, 0, 0
+    with open(path, newline="") as fh:
+        rd = csv.reader(fh)
+        head = next(rd)
+        ih, iq = head.index("Hole Depth (feet)"), head.index("Total Pump Output (gal_per_min)")
+        for r in rd:
+            hh, mm, _ = r[1].split(":")
+            key = f"{r[0].replace('/', '-')} {hh}:{int(mm) // minutes * minutes:02d}"
+            if key != key0 and key0 is not None:
+                out.append((key0, f"{hmax:.2f}", f"{nc / n:.3f}"))
+                n = nc = 0
+            key0 = key
+            try:
+                h, q = float(r[ih]), float(r[iq])
+            except ValueError:
+                continue
+            if h != -999.25:
+                hmax = max(hmax, h)
+            n += 1
+            nc += q != -999.25 and q > circulating_gpm
+        out.append((key0, f"{hmax:.2f}", f"{nc / max(n, 1):.3f}"))
+    with open(os.path.join(HERE, "drilling_history_10min.csv"), "w", newline="") as fh:
+        w = csv.writer(fh)
+        w.writerow(["time", "max_hole_depth_ft", "circulating_fraction"])
+        w.writerows(out)
+    return len(out)
+
+
 if __name__ == "__main__":
     print("survey_16b.csv:", survey(), "stations")
     print("formation_temperature_16a.csv:", formation_temperature(), "points")
+    print("pason_trial_1min.csv:", pason_trial(), "minutes")
+    print("drilling_history_10min.csv:", drilling_history(), "bins")

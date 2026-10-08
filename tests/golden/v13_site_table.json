@@ -1,0 +1,407 @@
+{
+ "Upper Rhine Graben / Soultz-sous-Forets (France)": {
+  "verdicts": {
+   "drilling": "CONDITIONAL",
+   "connection": "CONDITIONAL",
+   "trip": "CONDITIONAL"
+  },
+  "site_verdict": "CONDITIONAL",
+  "drill_SG": 1.1387498319603502,
+  "safe_pause_h": 0.3944549560546875,
+  "trip_h": 43.805945595885035,
+  "trip_SG": 1.3009631312549932,
+  "trip_SG_hi": 1.3662736860156048,
+  "T_ref": {
+   "drilling": 226.3341048922957,
+   "connection": 241.92301235332258,
+   "trip": 374.70867753639254
+  },
+  "sensitivities": {
+   "half trip time": {
+    "site_verdict": "CONDITIONAL",
+    "trip_SG": 1.277941683338928
+   },
+   "double trip time": {
+    "site_verdict": "CONDITIONAL",
+    "trip_SG": 1.3151825695938557
+   },
+   "no fluid node": {
+    "site_verdict": "CONDITIONAL",
+    "trip_SG": 1.3087240549576322
+   },
+   "dual-wall pipe": {
+    "site_verdict": "CONDITIONAL",
+    "trip_SG": 1.2820240579809907
+   },
+   "highest flow, 90 kg/s": {
+    "site_verdict": "CONDITIONAL",
+    "trip_SG": 1.2922824471719458
+   }
+  },
+  "trip_profile": [
+   [
+    0.0,
+    "CONDITIONAL",
+    1.3006826233572508
+   ],
+   [
+    100.0,
+    "CONDITIONAL",
+    1.2759531930132157
+   ],
+   [
+    250.0,
+    "CONDITIONAL",
+    1.2565086134176824
+   ],
+   [
+    500.0,
+    "CONDITIONAL",
+    1.237696367944475
+   ],
+   [
+    1000.0,
+    "CONDITIONAL",
+    1.2156956922615583
+   ],
+   [
+    2000.0,
+    "CONDITIONAL",
+    1.1849942264869182
+   ],
+   [
+    3000.0,
+    "CONDITIONAL",
+    1.154018260774272
+   ],
+   [
+    4000.0,
+    "CONDITIONAL",
+    1.1144734987498803
+   ],
+   [
+    5000.0,
+    "CONDITIONAL",
+    1.0617573811330894
+   ],
+   [
+    6000.0,
+    "GO",
+    1.019367991845056
+   ]
+  ]
+ },
+ "Larderello (Italy)": {
+  "verdicts": {
+   "drilling": "GO",
+   "connection": "GO",
+   "trip": "GO"
+  },
+  "site_verdict": "GO",
+  "drill_SG": 1.019367991845056,
+  "safe_pause_h": null,
+  "trip_h": 12.87685228318917,
+  "trip_SG": 1.019367991845056,
+  "trip_SG_hi": 1.3344943714370232,
+  "T_ref": {
+   "drilling": 76.96072323594099,
+   "connection": 129.75733783426924,
+   "trip": 328.6940913582951
+  },
+  "sensitivities": {
+   "half trip time": {
+    "site_verdict": "GO",
+    "trip_SG": 1.019367991845056
+   },
+   "double trip time": {
+    "site_verdict": "GO",
+    "trip_SG": 1.019367991845056
+   },
+   "no fluid node": {
+    "site_verdict": "GO",
+    "trip_SG": 1.019367991845056
+   },
+   "dual-wall pipe": {
+    "site_verdict": "GO",
+    "trip_SG": 1.019367991845056
+   },
+   "highest flow, 100 kg/s": {
+    "site_verdict": "GO",
+    "trip_SG": 1.019367991845056
+   }
+  },
+  "trip_profile": [
+   [
+    0.0,
+    "GO",
+    1.0193679918450562
+   ],
+   [
+    100.0,
+    "GO",
+    1.0193679918450562
+   ],
+   [
+    250.0,
+    "GO",
+    1.0193679918450562
+   ],
+   [
+    500.0,
+    "GO",
+    1.0193679918450562
+   ],
+   [
+    1000.0,
+    "GO",
+    1.019367991845056
+   ]
+  ]
+ },
+ "United Downs / Carnmenellis (UK)": {
+  "verdicts": {
+   "drilling": "CONDITIONAL",
+   "connection": "CONDITIONAL",
+   "trip": "CONDITIONAL"
+  },
+  "site_verdict": "CONDITIONAL",
+  "drill_SG": 1.1211193549587901,
+  "safe_pause_h": 0.3181915283203125,
+  "trip_h": 51.84431580279911,
+  "trip_SG": 1.2666232164379472,
+  "trip_SG_hi": 1.3203703703703702,
+  "T_ref": {
+   "drilling": 225.48021736897533,
+   "connection": 240.76946707962725,
+   "trip": 380.1545800083409
+  },
+  "sensitivities": {
+   "half trip time": {
+    "site_verdict": "CONDITIONAL",
+    "trip_SG": 1.2497872328607176
+   },
+   "double trip time": {
+    "site_verdict": "CONDITIONAL",
+    "trip_SG": 1.2764677950376282
+   },
+   "no fluid node": {
+    "site_verdict": "CONDITIONAL",
+    "trip_SG": 1.271421361868342
+   },
+   "dual-wall pipe": {
+    "site_verdict": "CONDITIONAL",
+    "trip_SG": 1.2526278818556495
+   },
+   "highest flow, 90 kg/s": {
+    "site_verdict": "CONDITIONAL",
+    "trip_SG": 1.26212084507957
+   }
+  },
+  "trip_profile": [
+   [
+    0.0,
+    "CONDITIONAL",
+    1.2663952906570979
+   ],
+   [
+    100.0,
+    "CONDITIONAL",
+    1.2475644279688618
+   ],
+   [
+    250.0,
+    "CONDITIONAL",
+    1.2321340964157441
+   ],
+   [
+    500.0,
+    "CONDITIONAL",
+    1.2168516125669917
+   ],
+   [
+    1000.0,
+    "CONDITIONAL",
+    1.1987339582261451
+   ],
+   [
+    2000.0,
+    "CONDITIONAL",
+    1.1744366407291567
+   ],
+   [
+    3000.0,
+    "CONDITIONAL",
+    1.1522154846658517
+   ],
+   [
+    4000.0,
+    "CONDITIONAL",
+    1.1273371327394492
+   ],
+   [
+    5000.0,
+    "CONDITIONAL",
+    1.0969557230397504
+   ],
+   [
+    6000.0,
+    "CONDITIONAL",
+    1.0578779788051207
+   ]
+  ]
+ },
+ "Pannonian Basin (Hungary)": {
+  "verdicts": {
+   "drilling": "CONDITIONAL",
+   "connection": "CONDITIONAL",
+   "trip": "CONDITIONAL"
+  },
+  "site_verdict": "CONDITIONAL",
+  "drill_SG": 1.1921516963493612,
+  "safe_pause_h": 0.2842254638671875,
+  "trip_h": 40.131718366208155,
+  "trip_SG": 1.3945891145113878,
+  "trip_SG_hi": 2.5,
+  "T_ref": {
+   "drilling": 218.7530969996987,
+   "connection": 234.43413883107894,
+   "trip": 372.49904653820505
+  },
+  "sensitivities": {
+   "half trip time": {
+    "site_verdict": "CONDITIONAL",
+    "trip_SG": 1.3649034803682136
+   },
+   "double trip time": {
+    "site_verdict": "CONDITIONAL",
+    "trip_SG": 1.4134298150154538
+   },
+   "no fluid node": {
+    "site_verdict": "CONDITIONAL",
+    "trip_SG": 1.4056092631657087
+   },
+   "dual-wall pipe": {
+    "site_verdict": "CONDITIONAL",
+    "trip_SG": 1.3689893990198057
+   },
+   "highest flow, 100 kg/s": {
+    "site_verdict": "CONDITIONAL",
+    "trip_SG": 1.3805907828455508
+   }
+  },
+  "trip_profile": [
+   [
+    0.0,
+    "CONDITIONAL",
+    1.1429719100837934
+   ],
+   [
+    100.0,
+    "CONDITIONAL",
+    1.1110344481601269
+   ],
+   [
+    250.0,
+    "CONDITIONAL",
+    1.0854540482930355
+   ],
+   [
+    500.0,
+    "CONDITIONAL",
+    1.0594167856625196
+   ],
+   [
+    1000.0,
+    "CONDITIONAL",
+    1.025451715013888
+   ],
+   [
+    2000.0,
+    "CONDITIONAL",
+    1.0316631575205857
+   ],
+   [
+    3000.0,
+    "CONDITIONAL",
+    1.030203453044733
+   ],
+   [
+    4000.0,
+    "CONDITIONAL",
+    1.0710236239505333
+   ],
+   [
+    5000.0,
+    "GO",
+    1.019367991845056
+   ]
+  ]
+ },
+ "Newberry / NWG 55-29 (USA)": {
+  "verdicts": {
+   "drilling": "GO",
+   "connection": "GO",
+   "trip": "GO"
+  },
+  "site_verdict": "GO",
+  "drill_SG": 1.019367991845056,
+  "safe_pause_h": null,
+  "trip_h": 17.458607852696083,
+  "trip_SG": 1.019367991845056,
+  "trip_SG_hi": 1.3581093532249562,
+  "T_ref": {
+   "drilling": 110.64151399894837,
+   "connection": 144.8487814196655,
+   "trip": 315.9651380041228
+  },
+  "sensitivities": {
+   "half trip time": {
+    "site_verdict": "GO",
+    "trip_SG": 1.019367991845056
+   },
+   "double trip time": {
+    "site_verdict": "GO",
+    "trip_SG": 1.019367991845056
+   },
+   "no fluid node": {
+    "site_verdict": "GO",
+    "trip_SG": 1.019367991845056
+   },
+   "dual-wall pipe": {
+    "site_verdict": "GO",
+    "trip_SG": 1.019367991845056
+   },
+   "highest flow, 100 kg/s": {
+    "site_verdict": "GO",
+    "trip_SG": 1.019367991845056
+   }
+  },
+  "trip_profile": [
+   [
+    0.0,
+    "GO",
+    1.019367991845056
+   ],
+   [
+    100.0,
+    "GO",
+    1.019367991845056
+   ],
+   [
+    250.0,
+    "GO",
+    1.0193679918450562
+   ],
+   [
+    500.0,
+    "GO",
+    1.0193679918450562
+   ],
+   [
+    1000.0,
+    "GO",
+    1.0193679918450562
+   ]
+  ]
+ }
+}

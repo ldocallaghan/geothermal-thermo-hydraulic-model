@@ -76,6 +76,20 @@ conservative. No vertical value from practice is available: Wu et al. (2025)
 run 600 gal/min in a 0.22 m hole with 139.7 mm pipe (1.67 m/s), but as a
 modelling choice, not a field observation.
 
+## Rig pump capacity
+
+The flow a rig can deliver at a given standpipe pressure is taken from NOV's
+technical marketing sheet for the 14-P-220 triplex mud pump, a 2,200 hp pump
+rated for 7,500 psi: at the rated 105 strokes/min it delivers 1,980 hydraulic
+hp, which is 1,215 gal/min at 2,795 psi on 9-inch liners, 960 gal/min at
+3,535 psi on 8-inch, and so on to 454 gal/min at 7,475 psi on 5.5-inch. A
+pump's flow at a pressure is therefore about 1,980 x 1,714 / psi gal/min, up
+to 1,215. FORGE 16B's rig had at least three mud pumps (its daily reports
+mention "No. 3 mud pump"; the Pason record has a third pump channel) and ran
+5.5-inch liners; the model takes three pumps of the 14-P-220's rating, which a
+rig for 10 to 13 km would at least match. The pump models on FORGE's rig
+aren't given.
+
 ## Bit nozzles
 
 Nozzle pressure drop is ρQ²/(2C_d²A²) with a discharge coefficient

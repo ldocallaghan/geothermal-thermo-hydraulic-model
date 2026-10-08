@@ -362,7 +362,7 @@ def print_circulation(title, sites, results, olds):
         go = ("already GO" if classify(o)[2].startswith("GO") else
               "none within the limit" if g is None else
               f"{g['m_dot']:.0f} kg/s, {g['gpm']:.0f} gpm, {g['spp']/1e6:.0f} MPa"
-              + ("*" if g["above_forge"] else ""))
+              + (", within rig" if g["within_rig"] else ", beyond rig"))
         print(f"{short:<26}{c['pipe'].name:>17}{c['m_dot']:6.0f}{c['gpm']:6.0f}{spp:>6}"
               f"{c['ecd_SG']:6.3f}{va:>6}{c['bhct']:6.0f}{c['bhct_one_year']:6.0f}"
               f"{o['MW_prod']:6.1f}  {classify(o)[2]:<30}{go:<26}{classify(old)[2]:<30}")
@@ -376,9 +376,8 @@ def print_circulation(title, sites, results, olds):
     print("  bottom-hole circulating temperature, C, the wall temperature for the verdict; 1 yr: the")
     print("  same with the rock exposed for a year; heat: heat returned while drilling, early life,")
     print("  single loop, MW. GO at: the lowest flow at which the same pipe gives GO within the pump")
-    print(f"  limit; * above the {se.FORGE_MAX_FLOW_GPM:.0f} gal/min FORGE 16B was drilled at, so unverified")
-    print("  for what a rig can deliver. Earlier model: the single 0.02 W/m K pipe at the lowest")
-    print("  survivable flow.")
+    print(f"  limit, against what {se.RIG_PUMPS} pumps rated as NOV's 2,200 hp 14-P-220 deliver at that")
+    print("  standpipe pressure. Earlier model: the single 0.02 W/m K pipe at the lowest survivable flow.")
     print()
     keys = ("dual-wall pipe (not manufactured)", "static fracture bound", "rock exposed 1 yr",
             f"film x{se.FILM_MULT_FORGE}", "vacuum-insulated pipe")
@@ -389,6 +388,48 @@ def print_circulation(title, sites, results, olds):
         for k in keys:
             v = o["circ_sensitivity"][k]
             print(f"    {k:<36}{classify_circ_sensitivity(o, k)} ({v['T_wall']:.0f} C)")
+    print()
+
+
+def print_cycle(title, sites, results):
+    """The verdict through the drilling cycle: while drilling, at a connection
+    and through a trip, with the safe pause, the trip and its fluid weight."""
+    hdr = (f"{'Site':<26}{'drilling':>13}{'connection':>13}{'trip':>13}{'drill SG':>9}{'safe pause':>11}"
+           f"{'trip h':>7}{'trip SG':>8}{'limit':>7}  {'over the cycle':<15}{'while circulating (v1.2)'}")
+    print("=" * len(hdr))
+    print(title)
+    print("=" * len(hdr))
+    print(hdr)
+    print("-" * len(hdr))
+    fmt_pause = lambda h: "> 7 d" if h == float("inf") else f"{h * 60:.0f} min" if h < 1 else f"{h:.1f} h"
+    for s, o in zip(sites, results):
+        c = o["cycle"]
+        short = s.name.split("(")[0].strip()[:25]
+        st = {k: f"{v['window']['verdict']}" for k, v in c["states"].items()}
+        print(f"{short:<26}{st['drilling']:>13}{st['connection']:>13}{st['trip']:>13}"
+              f"{c['drill_SG']:9.2f}{fmt_pause(c['safe_pause_h']):>11}{c['trip_h']:7.0f}"
+              f"{c['trip_SG']:8.2f}{c['trip_SG_hi']:7.2f}  {c['site_verdict']:<15}{classify(o)[2]}")
+    print("-" * len(hdr))
+    print("  drill SG: the static fluid weight that holds the wall while drilling and through a")
+    print("  connection; safe pause: how long from the end of drilling the hole holds at that weight")
+    print("  with no circulation; trip h: the bottom of the hole without circulation for a trip, from")
+    print("  FORGE 16B's tripping speeds and routine surface time scaled to depth; trip SG: the static")
+    print("  fluid the hole needs for the trip, against the fracture limit (Shmin less 0.05 SG).")
+    print()
+    print("Cycle sensitivities (over the cycle; safe pause; trip SG)")
+    for s, o in zip(sites, results):
+        short = s.name.split("(")[0].strip()[:25]
+        print(f"  {short}")
+        for k, c in o["cycle_sensitivity"].items():
+            print(f"    {k:<28}{c['site_verdict']:<13}{fmt_pause(c['safe_pause_h']):>10}{c['trip_SG']:8.2f}")
+        print(f"    {'staged circulation':<28}no change at the bottom: staging cools only the hole above the bit")
+        print(f"    {'double bit run':<28}no change at the bottom: the element one stand up is the same")
+    print()
+    print("Trip verdict up the open hole (height above the bit; trip SG needed)")
+    for s, o in zip(sites, results):
+        short = s.name.split("(")[0].strip()[:25]
+        cells = "  ".join(f"{r['height']:.0f} m {r['SG_needed']:.2f}" for r in o["trip_profile"])
+        print(f"  {short:<26}{cells}")
     print()
 
 
@@ -407,6 +448,21 @@ def golden_rows(results):
     return rows
 
 
+def golden_rows_v13(results):
+    rows = {}
+    for o in results:
+        c = o["cycle"]
+        rows[o["site"].name] = dict(
+            verdicts=c["verdicts"], site_verdict=c["site_verdict"], drill_SG=c["drill_SG"],
+            safe_pause_h=None if c["safe_pause_h"] == float("inf") else c["safe_pause_h"],
+            trip_h=c["trip_h"], trip_SG=c["trip_SG"], trip_SG_hi=c["trip_SG_hi"],
+            T_ref=c["T_ref"],
+            sensitivities={k: dict(site_verdict=v["site_verdict"], trip_SG=v["trip_SG"])
+                           for k, v in o["cycle_sensitivity"].items()},
+            trip_profile=[(r["height"], r["verdict"], r["SG_needed"]) for r in o["trip_profile"]])
+    return rows
+
+
 def print_basis(site):
     """Each input's data basis and source."""
     for k in ("stress", "strength", "pore pressure", "temperature", "well check"):
@@ -420,9 +476,11 @@ if __name__ == "__main__":
     olds = [evaluate(s, circulation="v1.1") for s in SITES]
     if "--write-golden" in sys.argv:
         import json, os
-        path = os.path.join(os.path.dirname(__file__), "..", "tests", "golden", "v12_site_table.json")
-        with open(path, "w") as fh:
+        gold = os.path.join(os.path.dirname(__file__), "..", "tests", "golden")
+        with open(os.path.join(gold, "v12_site_table.json"), "w") as fh:
             json.dump(golden_rows(results), fh, indent=1)
+        with open(os.path.join(gold, "v13_site_table.json"), "w") as fh:
+            json.dump(golden_rows_v13(results), fh, indent=1)
     tiers = {t: [(s, o) for s, o in zip(SITES, results) if s.tier == t]
              for t in ("evidence-based", "speculative")}
     tiers_old = {t: [o for s, o in zip(SITES, olds) if s.tier == t]
@@ -445,6 +503,10 @@ if __name__ == "__main__":
     print("       trouble-free section (site-calibrated), in place of 90 deg.")
     print("       beyond data: how far the target lies below the deepest stress / temperature data.")
     print()
+    for tier in ("evidence-based", "speculative"):
+        if tiers[tier]:
+            print_cycle(f"THE DRILLING CYCLE, {tier.upper()} SITES: drilling, connection and trip",
+                        *zip(*tiers[tier]))
     for tier in ("evidence-based", "speculative"):
         if tiers[tier]:
             print_circulation(f"CIRCULATION, {tier.upper()} SITES: the flow, pipe and wall "

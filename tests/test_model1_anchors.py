@@ -45,6 +45,6 @@ def test_soultz_at_10_kg_s():
 def test_soultz_wall_temperature_for_the_verdict():
     """The wall temperature the stability verdict uses: the bit temperature
     at the minimum flow that keeps the tools below 200 C."""
-    o = se.evaluate(se.SOULTZ)
+    o = se.evaluate(se.SOULTZ, circulation="v1.1")
     assert o["m_min"] == 2
     assert o["T_wall"] == pytest.approx(148.088, abs=0.5)

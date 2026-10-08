@@ -450,8 +450,86 @@ def worst_verdict(verdicts):
 
 
 # ------------------------------------------------------------- the evaluation
-def evaluate(site: SiteProfile, v10=False, thermal=True):
+# ------------------------------------------------------------ circulation
+# The site well: Wu et al. (2025)'s deep-well design (well_geometry.wu2025_well)
+# to the target, with the casing shoes moved up for shallow targets. Pipe types
+# are tried from best insulated to worst; vacuum-insulated tubing is not a drill
+# pipe, so it is a sensitivity only.
+SITE_PIPES = (wg.DUAL_WALL, wg.INTERNALLY_COATED, wg.EXTERNALLY_COATED, wg.CONVENTIONAL)
+SITE_FLOWS = (5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80)   # kg/s
+Q_FACE_SITE = 30000.0
+FILM_MULT_FORGE = 0.75   # fitted on FORGE 16B (validate_forge16b.py); a sensitivity
+
+
+def site_well(z, pipe):
+    shoes = tuple(min(s, f * z) for s, f in zip(wg.WU_SHOES, (0.05, 0.25, 0.5)))
+    return wg.wu2025_well(z, pipe, shoes=shoes)
+
+
+def circulate(site, z, geotherm, pipe, m_dot, exposure=None, film_mult=1.0):
+    """Model 1 on the site well, with friction heating, the loop held at the
+    model's operating pressure (5 MPa at the wellhead) so the return stays liquid. Solved first with the
+    rock exposed for a year (the earlier setting, kept as `old`), then, if an
+    exposure function is given, with that, seeded from the first."""
+    g = site_well(z, pipe)
+    kw = dict(m_dot=m_dot, T_inj=site.T_inj, k_rock=site.k_rock, geotherm=geotherm,
+              geometry=g, target_rock_T=float(geotherm(z)), Q_face=Q_FACE_SITE,
+              friction_heat=True, film_mult=film_mult, P_surface=m1.P_OP, verbose=False)
+    old = m1.solve(**kw, t_years=1.0)
+    r = old if exposure is None else m1.solve(**kw, exposure=exposure, init=old)
+    r["old"] = old
+    r["hyd"] = m1.hydraulics(m_dot, g, result=r, P_surface=m1.P_OP)
+    return r
+
+
+def choose_circulation(site, z, geotherm, exposure=None, pipes=SITE_PIPES, film_mult=1.0):
+    """The flow for the wall temperature: the larger of the lowest flow that
+    keeps the bit below its survival limit and the lowest that meets the
+    hole-cleaning annular velocity, with the standpipe pressure within the pump
+    limit; and the best-insulated pipe for which such a flow exists.
+
+    If no pipe meets all three, the conflict is reported and the verdict uses
+    the lowest survivable flow within the pump limit, as before; if nothing
+    survives, the best pipe's highest flow within the limit."""
+    tried = []
+    for pipe in pipes:
+        t = dict(pipe=pipe, survival_flow=None, cleaning_flow=None, runs={})
+        for md in SITE_FLOWS:
+            r = circulate(site, z, geotherm, pipe, md, exposure, film_mult)
+            if r["hyd"]["over_pump_limit"]:
+                t["pump_limited_at"] = md
+                break
+            t["runs"][md] = r
+            if t["survival_flow"] is None and r["T_bottom_delivered"] < C.BHA_SURVIVAL_TEMP:
+                t["survival_flow"] = md
+            if t["cleaning_flow"] is None and r["hyd"]["cleans_hole"]:
+                t["cleaning_flow"] = md
+            if t["survival_flow"] is not None and t["cleaning_flow"] is not None:
+                return dict(pipe=pipe, m_dot=md, run=r, conflict=None, tried=tried + [t])
+        tried.append(t)
+    for t in tried:
+        if t["survival_flow"] is not None:
+            md = t["survival_flow"]
+            why = ("no flow within the pump limit both keeps the bit below "
+                   f"{C.BHA_SURVIVAL_TEMP:.0f} C and cleans the hole")
+            return dict(pipe=t["pipe"], m_dot=md, run=t["runs"][md], conflict=why, tried=tried)
+    t = next((t for t in tried if t["runs"]), tried[0])
+    md = max(t["runs"]) if t["runs"] else SITE_FLOWS[0]
+    r = t["runs"].get(md) or circulate(site, z, geotherm, t["pipe"], md, exposure, film_mult)
+    return dict(pipe=t["pipe"], m_dot=md, run=r, tried=tried,
+                conflict=f"no pipe keeps the bit below {C.BHA_SURVIVAL_TEMP:.0f} C "
+                         "within the pump limit")
+
+
+def evaluate(site: SiteProfile, v10=False, thermal=True, circulation="v1.2"):
     """Run Models 1-5 for one site.
+
+    circulation="v1.2" is the circulation model as validated: the site well and
+    string, a named pipe type, friction heating, the wall's exposure from Model
+    3's rate of penetration, and the flow rule above. circulation="v1.1" keeps
+    the earlier single-pipe model (a 0.02 W/m K wall, a year's exposure, the
+    lowest survivable flow) for the comparison with v1.1.1; the v1.0 adapter
+    always uses it.
 
     v10=True is the v1.0 adapter: it reproduces v1.0 exactly (the global C.UCS
     instead of the site's own), for the regression tests. Each v1.1 change that
@@ -464,6 +542,9 @@ def evaluate(site: SiteProfile, v10=False, thermal=True):
     z = site.target(v10)
     geotherm = site.temperature(v10)
     T_rock = float(geotherm(z))
+
+    if circulation == "v1.2" and not v10:
+        return _evaluate_v12(site, thermal)
 
     # --- (1) SURVIVAL & ENERGY: Model 1 with the real LAYERED geotherm ---
     # scan flow for the minimum that keeps the bit < survival ceiling
@@ -482,6 +563,30 @@ def evaluate(site: SiteProfile, v10=False, thermal=True):
     # minimum survivable flow, for strength and thermal stress alike; v1.0's
     # 200 C cap under the adapter
     T_wall = None if v10 else float(m1_run["T_bottom_delivered"])
+    out = _stability(site, z, T_rock, T_wall, v10, thermal)
+    out["m_min"], out["m1"] = m_min, m1_run
+    K0, G_deep = out["K0"], out["G_deep"]
+
+    # --- (2/3) DRILLABILITY: regime + quench ROP gain (spallation uses K0=Shmin)
+    drill = m3.evaluate(G_deep, K0, out["m_min"], pipe=wg.LEGACY_VACUUM,
+                        target_rock_T=T_rock, quench=True)
+    drill_nq = m3.evaluate(G_deep, K0, out["m_min"], pipe=wg.LEGACY_VACUUM,
+                           target_rock_T=T_rock, quench=False)
+    out["drill"] = drill
+    out["rop_gain"] = drill["ROP"] / drill_nq["ROP"] if drill_nq["ROP"] > 0 else np.nan
+
+    # production-flow energy (the survival run uses min flow, which minimises MW)
+    rp = m1.solve(m_dot=10.0, T_inj=site.T_inj, pipe=wg.LEGACY_VACUUM, k_rock=site.k_rock,
+                  geotherm=geotherm, target_depth=z, Q_face=30000.0, verbose=False)
+    out["MW_prod"] = rp["Q_product"] / 1e6
+    out["Tret_prod"] = rp["T_return_surface"]
+    out["circulation"] = "v1.1"
+    return out
+
+
+def _stability(site, z, T_rock, T_wall, v10=False, thermal=True):
+    """Stability (Models 4 and 5) for a wall temperature, with the three
+    sensitivities."""
     ref, cases = stability_inputs(site, z, T_rock, v10=v10, T_wall=T_wall,
                                   thermal=thermal)
     # sensitivities, each a full re-run of the stability check (no Model 1).
@@ -510,16 +615,8 @@ def evaluate(site: SiteProfile, v10=False, thermal=True):
                T_wall=ref["T_wall"], dsigma_T=ref["dsigma_T"],
                sensitivity={k: dict(stress=r, stress_cases=c) for k, (r, c) in sens.items()},
                no_thermal=None if v10 else dict(stress=sens["no wall cooling"][0],
-                                                stress_cases=sens["no wall cooling"][1]))
-    out["m_min"], out["m1"] = m_min, m1_run
-
-    # --- (2/3) DRILLABILITY: regime + quench ROP gain (spallation uses K0=Shmin)
-    drill = m3.evaluate(G_deep, K0, out["m_min"], pipe=wg.LEGACY_VACUUM,
-                        target_rock_T=T_rock, quench=True)
-    drill_nq = m3.evaluate(G_deep, K0, out["m_min"], pipe=wg.LEGACY_VACUUM,
-                           target_rock_T=T_rock, quench=False)
-    out["drill"] = drill
-    out["rop_gain"] = drill["ROP"] / drill_nq["ROP"] if drill_nq["ROP"] > 0 else np.nan
+                                                stress_cases=sens["no wall cooling"][1]),
+               G_deep=G_deep)
 
     # --- (4) CREEP closure: hot vs cooled wall ---
     # cooled wall at the same temperature as the stability checks; 200 C
@@ -533,12 +630,63 @@ def evaluate(site: SiteProfile, v10=False, thermal=True):
     out["grc"] = dict(u_hot=u_hot, u_cold=u_cold, rp_hot=rp_hot, rp_cold=rp_cold,
                       reg_h=reg_h, reg_c=reg_c)
     out["breakout"] = ref["breakout"]
+    return out
 
-    # production-flow energy (the survival run uses min flow, which minimises MW)
-    rp = m1.solve(m_dot=10.0, T_inj=site.T_inj, pipe=wg.LEGACY_VACUUM, k_rock=site.k_rock,
-                  geotherm=geotherm, target_depth=z, Q_face=30000.0, verbose=False)
-    out["MW_prod"] = rp["Q_product"] / 1e6
-    out["Tret_prod"] = rp["T_return_surface"]
+
+def _evaluate_v12(site, thermal=True):
+    z = site.target()
+    geotherm = site.temperature()
+    T_rock = float(geotherm(z))
+    # Shmin/Sv for Model 3 doesn't depend on the wall temperature
+    pre = stability_inputs(site, z, T_rock, T_wall=T_rock, thermal=False)[0]
+    K0 = pre["Shmin"] / pre["Sv"]
+    G_deep = (T_rock - C.SURFACE_TEMP) / z
+
+    # pass 1, rock exposed for a year: pipe and flow, then Model 3's rate of
+    # penetration for them; pass 2, the wall's exposure from that rate
+    first = choose_circulation(site, z, geotherm)
+    rop = m3.evaluate(G_deep, K0, first["m_dot"], pipe=first["pipe"],
+                      target_rock_T=T_rock, quench=True)["ROP"]
+    exposure = m1.exposure_from_rop(z, rop * 3600.0, 0.0)
+    circ = choose_circulation(site, z, geotherm, exposure)
+    run = circ["run"]
+    T_wall = float(run["T_bottom_delivered"])
+
+    out = _stability(site, z, T_rock, T_wall, thermal=thermal)
+    out["m_min"], out["m1"] = circ["m_dot"], run
+    out["circulation"] = "v1.2"
+    out["circ"] = dict(pipe=circ["pipe"], m_dot=circ["m_dot"], conflict=circ["conflict"],
+                       rop=rop, hyd=run["hyd"], bhct=T_wall,
+                       bhct_one_year=float(run["old"]["T_bottom_delivered"]),
+                       tried=[dict(pipe=t["pipe"].name, survival_flow=t["survival_flow"],
+                                   cleaning_flow=t["cleaning_flow"],
+                                   pump_limited_at=t.get("pump_limited_at"))
+                              for t in circ["tried"]])
+
+    drill = m3.evaluate(G_deep, K0, circ["m_dot"], pipe=circ["pipe"],
+                        target_rock_T=T_rock, quench=True)
+    drill_nq = m3.evaluate(G_deep, K0, circ["m_dot"], pipe=circ["pipe"],
+                           target_rock_T=T_rock, quench=False)
+    out["drill"] = drill
+    out["rop_gain"] = drill["ROP"] / drill_nq["ROP"] if drill_nq["ROP"] > 0 else np.nan
+    # heat returned while drilling, early life, single loop
+    out["MW_prod"] = run["Q_product"] / 1e6
+    out["Tret_prod"] = run["T_return_surface"]
+
+    # circulation sensitivities, each with its own wall temperature
+    alt = {
+        "rock exposed 1 yr": run["old"]["T_bottom_delivered"],
+        f"film x{FILM_MULT_FORGE}": circulate(site, z, geotherm, circ["pipe"], circ["m_dot"],
+                                              exposure, FILM_MULT_FORGE)["T_bottom_delivered"],
+    }
+    vit = choose_circulation(site, z, geotherm, exposure, pipes=(wg.VACUUM_INSULATED,))
+    out["circ"]["vacuum"] = dict(m_dot=vit["m_dot"], conflict=vit["conflict"],
+                                 bhct=float(vit["run"]["T_bottom_delivered"]))
+    alt["vacuum-insulated pipe"] = vit["run"]["T_bottom_delivered"]
+    out["circ_sensitivity"] = {}
+    for k, Tw in alt.items():
+        r, c = stability_inputs(site, z, T_rock, T_wall=float(Tw), thermal=thermal)
+        out["circ_sensitivity"][k] = dict(stress=r, stress_cases=c, T_wall=float(Tw))
     return out
 
 

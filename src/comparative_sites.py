@@ -18,8 +18,11 @@ Speculative: stresses bounded by the faulting regime, strength unsourced.
 Every input's basis and source is in its SiteProfile.data_basis; the sources
 are written up in data/sites/stress_sources.md.
 """
+import sys
+
 import numpy as np
 import geo_constants as C
+import model1_coupled as m1
 import site_evaluation as se
 from site_evaluation import (SiteProfile, SOULTZ, StressProfile, evaluate,
                              transitional_bounds)
@@ -284,6 +287,80 @@ def print_table(title, sites, results):
     print("-" * len(hdr))
 
 
+def classify_circ_sensitivity(o, key):
+    """A verdict with the wall temperature from a circulation sensitivity:
+    "rock exposed 1 yr", "film x0.75" (FORGE's fitted annulus film) or
+    "vacuum-insulated pipe"."""
+    s = (o.get("circ_sensitivity") or {}).get(key)
+    if s is None:
+        return None
+    return classify(dict(o, stress=s["stress"], stress_cases=s["stress_cases"]))[2]
+
+
+def change_reason(o, old):
+    """Why the verdict moved from the earlier circulation model, in words."""
+    new_v, old_v = classify(o)[2], classify(old)[2]
+    c = o["circ"]
+    t = next(t for t in c["tried"] if t["pipe"] == c["pipe"].name)
+    set_by = ("hole cleaning sets the flow" if (t["cleaning_flow"] or 0) > (t["survival_flow"] or 0)
+              else "tool survival sets the flow")
+    wall = f"wall {old['T_wall']:.0f} -> {o['T_wall']:.0f} C"
+    if new_v == old_v:
+        return f"unchanged; {wall}"
+    return f"{wall}: {c['pipe'].name} pipe at {c['m_dot']} kg/s ({set_by})"
+
+
+def print_circulation(title, sites, results, olds):
+    lim, vmin = m1.PUMP_LIMIT / 1e6, m1.HOLE_CLEANING_V
+    hdr = (f"{'Site':<26}{'pipe':>18}{'flow':>6}{'SPP':>7}{'v_ann':>7}{'BHCT':>6}{'1 yr':>6}"
+           f"{'heat':>6}  {'verdict':<30}{'earlier model':<30}{'why'}")
+    print("=" * 150)
+    print(title)
+    print("=" * 150)
+    print(hdr)
+    print("-" * 150)
+    for s, o, old in zip(sites, results, olds):
+        c = o["circ"]
+        h = c["hyd"]
+        short = s.name.split("(")[0].strip()[:25]
+        spp = f"{h['spp']/1e6:.1f}" + ("!" if h["over_pump_limit"] else "")
+        va = f"{h['v_ann_min']:.2f}" + ("" if h["cleans_hole"] else "!")
+        print(f"{short:<26}{c['pipe'].name:>18}{c['m_dot']:6.0f}{spp:>7}{va:>7}"
+              f"{c['bhct']:6.0f}{c['bhct_one_year']:6.0f}{o['MW_prod']:6.1f}  "
+              f"{classify(o)[2]:<30}{classify(old)[2]:<30}{change_reason(o, old)}")
+        if c["conflict"]:
+            print(f"{'':<26}   conflict: {c['conflict']}")
+    print("-" * 150)
+    print(f"  flow kg/s; SPP standpipe pressure, MPa (limit {lim:.1f}, ! over); v_ann lowest annular")
+    print(f"  velocity, m/s (hole-cleaning reference {vmin:.3f}, ! under); BHCT bottom-hole circulating")
+    print("  temperature, C, the wall temperature for the verdict; 1 yr: the same with the rock")
+    print("  exposed for a year, as before; heat: heat returned while drilling, early life, single")
+    print("  loop, MW. Earlier model: the single 0.02 W/m K pipe at the lowest survivable flow.")
+    print()
+    keys = ("rock exposed 1 yr", f"film x{se.FILM_MULT_FORGE}", "vacuum-insulated pipe")
+    print(f"{'Circulation sensitivities':<26}" + "".join(f"{k:<34}" for k in keys))
+    for s, o in zip(sites, results):
+        short = s.name.split("(")[0].strip()[:25]
+        cells = [f"{classify_circ_sensitivity(o, k)} ({o['circ_sensitivity'][k]['T_wall']:.0f} C)"
+                 for k in keys]
+        print(f"{short:<26}" + "".join(f"{x:<34}" for x in cells))
+    print()
+
+
+def golden_rows(results):
+    rows = {}
+    for o in results:
+        c = o["circ"]
+        rows[o["site"].name] = dict(
+            verdict=classify(o)[2], pipe=c["pipe"].name, m_dot=float(c["m_dot"]),
+            bhct=float(c["bhct"]), bhct_one_year=float(c["bhct_one_year"]),
+            spp_MPa=float(c["hyd"]["spp"]) / 1e6, v_ann=float(c["hyd"]["v_ann_min"]),
+            MW=float(o["MW_prod"]),
+            sensitivities={k: classify_sensitivity(o, k) for k in o["sensitivity"]}
+            | {k: classify_circ_sensitivity(o, k) for k in o["circ_sensitivity"]})
+    return rows
+
+
 def print_basis(site):
     """Each input's data basis and source."""
     for k in ("stress", "strength", "pore pressure", "temperature", "well check"):
@@ -294,8 +371,16 @@ def print_basis(site):
 if __name__ == "__main__":
     import sys; sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     results = [evaluate(s) for s in SITES]
+    olds = [evaluate(s, circulation="v1.1") for s in SITES]
+    if "--write-golden" in sys.argv:
+        import json, os
+        path = os.path.join(os.path.dirname(__file__), "..", "tests", "golden", "v12_site_table.json")
+        with open(path, "w") as fh:
+            json.dump(golden_rows(results), fh, indent=1)
     tiers = {t: [(s, o) for s, o in zip(SITES, results) if s.tier == t]
              for t in ("evidence-based", "speculative")}
+    tiers_old = {t: [o for s, o in zip(SITES, olds) if s.tier == t]
+                 for t in ("evidence-based", "speculative")}
 
     print_table("EVIDENCE-BASED SITES  (target 400 C; stress and strength measured or "
                 "calibrated at the site, stability checked against a well there)",
@@ -303,7 +388,8 @@ if __name__ == "__main__":
     print()
     print_table("SPECULATIVE SITES  (inputs missing, so the verdict rests on assumptions; "
                 "NOT comparable with the table above)", *zip(*tiers["speculative"]))
-    print("notes: MW at 10 kg/s early-life; ROP m/hr; gain = quench ROP multiplier;")
+    print("notes: MW = heat returned while drilling, early life, single loop; ROP m/hr;")
+    print("       gain = quench ROP multiplier; bitC = the wall temperature for the verdict;")
     print(f"       stability: breakout lobe width at hydrostatic mud, or the overbalance")
     print(f"       (and mud SG) that brings it within {C.BREAKOUT_W_MAX_DEG:.0f} deg below Shmin less")
     print(f"       {C.MUD_MARGIN_SG} SG; [a..b] = verdict range across the site's stress and strength cases.")
@@ -313,6 +399,11 @@ if __name__ == "__main__":
     print("       trouble-free section (site-calibrated), in place of 90 deg.")
     print("       beyond data: how far the target lies below the deepest stress / temperature data.")
     print()
+    for tier in ("evidence-based", "speculative"):
+        if tiers[tier]:
+            print_circulation(f"CIRCULATION, {tier.upper()} SITES: the flow, pipe and wall "
+                              "temperature behind each verdict, beside the earlier model's verdict",
+                              *zip(*tiers[tier]), tiers_old[tier])
     for tier in ("evidence-based", "speculative"):
         for s, o in tiers[tier]:
             b = o["breakout"]

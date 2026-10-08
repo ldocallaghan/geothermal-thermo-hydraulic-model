@@ -1,0 +1,74 @@
+{
+ "Upper Rhine Graben / Soultz-sous-Forets (France)": {
+  "verdict": "GO",
+  "pipe": "dual-wall",
+  "m_dot": 30.0,
+  "bhct": 63.861564038517756,
+  "bhct_one_year": 53.747098403391576,
+  "spp_MPa": 22.70824451847007,
+  "v_ann": 1.29916363955864,
+  "MW": 10.691111547508461,
+  "sensitivities": {
+   "no wall cooling": "CONDITIONAL",
+   "W_max 63": "CONDITIONAL [GO..CONDITIONAL]",
+   "no wall cooling, W_max 63": "NO-GO",
+   "rock exposed 1 yr": "GO",
+   "film x0.75": "GO",
+   "vacuum-insulated pipe": "GO"
+  }
+ },
+ "Larderello (Italy)": {
+  "verdict": "GO",
+  "pipe": "dual-wall",
+  "m_dot": 30.0,
+  "bhct": 48.339578530949325,
+  "bhct_one_year": 44.16705040038504,
+  "spp_MPa": 6.9313826171773325,
+  "v_ann": 1.3287974366763415,
+  "MW": 2.8095529029086435,
+  "sensitivities": {
+   "no wall cooling": "GO",
+   "W_max 63": "GO",
+   "no wall cooling, W_max 63": "GO",
+   "rock exposed 1 yr": "GO",
+   "film x0.75": "GO",
+   "vacuum-insulated pipe": "GO"
+  }
+ },
+ "United Downs / Carnmenellis (UK)": {
+  "verdict": "GO",
+  "pipe": "dual-wall",
+  "m_dot": 30.0,
+  "bhct": 65.17273073218617,
+  "bhct_one_year": 57.62693502076747,
+  "spp_MPa": 26.661030361898643,
+  "v_ann": 1.2899058302498376,
+  "MW": 10.248676230515326,
+  "sensitivities": {
+   "no wall cooling": "CONDITIONAL",
+   "W_max 63": "CONDITIONAL",
+   "no wall cooling, W_max 63": "NO-GO",
+   "rock exposed 1 yr": "GO",
+   "film x0.75": "GO",
+   "vacuum-insulated pipe": "GO"
+  }
+ },
+ "Pannonian Basin (Hungary)": {
+  "verdict": "GO",
+  "pipe": "dual-wall",
+  "m_dot": 30.0,
+  "bhct": 61.51836637052134,
+  "bhct_one_year": 52.149193672618544,
+  "spp_MPa": 21.285793031854215,
+  "v_ann": 1.3018797088697818,
+  "MW": 9.526534418876295,
+  "sensitivities": {
+   "no wall cooling": "CONDITIONAL",
+   "W_max 63": "GO",
+   "no wall cooling, W_max 63": "NO-GO [CONDITIONAL..NO-GO]",
+   "rock exposed 1 yr": "GO",
+   "film x0.75": "GO",
+   "vacuum-insulated pipe": "GO"
+  }
+ }
+}

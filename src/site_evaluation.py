@@ -419,8 +419,11 @@ def mud_window(Shmin, SHmax, Pp, z, Pw_hydro, T_rock, T_wall=None, UCS=None,
     """Mud window and drillability verdict, judged on breakout width.
 
     The two bounds are checked under the conditions that set them. Breakout,
-    the lower bound, at static mud weight: with the pumps off, at every
-    connection and trip, the wall sees only the static column. Fracture, the
+    the lower bound, at static mud weight: with the pumps off at a connection,
+    for minutes while the wall is still cool, it sees only the static column.
+    A trip takes the hole out of circulation for a day or more at these
+    depths, and the wall reheats towards rock temperature; that is closer to
+    the uncooled sensitivity, and reheating is not modelled. Fracture, the
     upper bound, at circulating pressure: the static mud plus ecd_SG, the
     annular friction loss as an equivalent density, must stay below Shmin less
     the margin. ecd_SG = 0 is the static check on both.
@@ -535,9 +538,10 @@ def flow_for_go(site, z, geotherm, pipe, exposure, start, thermal=True):
             return None
         if r["T_bottom_delivered"] >= C.BHA_SURVIVAL_TEMP:
             continue
-        ref, _ = stability_inputs(site, z, T_rock, T_wall=float(r["T_bottom_delivered"]),
-                                  thermal=thermal, ecd_SG=ecd_sg(r, z))
-        if ref["window"]["verdict"] == "GO" and ref["admissible"]["admissible"]:
+        ref, cases = stability_inputs(site, z, T_rock, T_wall=float(r["T_bottom_delivered"]),
+                                      thermal=thermal, ecd_SG=ecd_sg(r, z))
+        if (ref["window"]["verdict"] == "GO"
+                and all(c["admissible"]["admissible"] for c in cases)):
             gpm = flow_gpm(r)
             return dict(m_dot=md, bhct=float(r["T_bottom_delivered"]),
                         spp=float(r["hyd"]["spp"]), ecd_SG=ecd_sg(r, z), gpm=gpm,

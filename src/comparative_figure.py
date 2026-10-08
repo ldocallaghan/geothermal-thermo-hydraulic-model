@@ -21,6 +21,10 @@ INK, INK2, GRID, SURF = "#0b0b0b", "#52514e", "#e4e3df", "#fcfcfb"
 
 results = [evaluate(s) for s in SITES]
 short = {s.name: s.name.split("(")[0].split("/")[0].strip() for s in SITES}
+# the x-axis of the right panel has room for one short word per site
+tick = {s.name: {"Upper Rhine Graben": "Soultz", "United Downs": "United\nDowns",
+                 "Pannonian Basin": "Pannonian"}.get(short[s.name], short[s.name])
+        for s in SITES}
 
 fig, (a1, a2) = plt.subplots(1, 2, figsize=(12, 6.5), sharey=True,
                              gridspec_kw=dict(width_ratios=[1.35, 1]), facecolor=SURF)
@@ -73,7 +77,7 @@ for i, (s, o) in enumerate(zip(SITES, results)):
     if zd is None:
         a2.text(x - 0.12, 0.6, "no stress\ndata", color=INK2, fontsize=7, ha="center")
 a2.set_xticks(range(1, len(SITES) + 1))
-a2.set_xticklabels([short[s.name] for s in SITES], fontsize=8, color=INK)
+a2.set_xticklabels([tick[s.name] for s in SITES], fontsize=8, color=INK)
 a2.set_xlim(0.4, len(SITES) + 0.6)
 a2.text(1.55, 7.0, "dark: stress data\nlight: temperature data\n"
         "dotted: extrapolation\nto the target", color=INK2, fontsize=8)

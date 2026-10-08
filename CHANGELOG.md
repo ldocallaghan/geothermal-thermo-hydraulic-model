@@ -1,5 +1,48 @@
 # Changelog
 
+## v1.2.1: commercial pipe as the base case (October 2026)
+
+Corrections from a review of v1.2.
+
+- **The site verdicts now use pipe that can be bought.** v1.2 tried pipe types
+  from best insulated to worst and picked the dual-wall pipe, which exists
+  only in a modelling study. The base case is now the best-insulated pipe that
+  is commercially available, TK-Drakōn coated pipe; dual-wall pipe and
+  vacuum-insulated tubing are sensitivities.
+- **Flow for GO.** For each site the table also gives the lowest flow at which
+  the same pipe gives GO within the pump limit, with its standpipe pressure,
+  flagged where it exceeds the 700 gal/min at which FORGE 16B was drilled.
+- **Circulating pressure on the fracture bound.** The annular friction loss,
+  as an equivalent density (0.02 to 0.04 SG at the sites), is added to the
+  fluid weight on the upper bound of the window. The breakout bound stays at
+  static fluid weight, which the wall sees whenever circulation stops. The
+  static check on both bounds is a sensitivity.
+- **Solver seeds.** A solve with a depth-varying exposure that fails from one
+  starting profile is retried from others. Where it converges the answer is
+  the same to within 0.01 °C; before, which FORGE samples failed, and so
+  dropped out of a run mean, depended on library versions, and one slow test
+  failed on another machine. `requirements-lock.txt` records the versions the
+  reference results were made with.
+- **README.** The models' accuracy is stated by model; Eavor's full 47 to
+  75 °F estimate of the pipe's benefit is quoted; the Fig. 1 caption notes the
+  TK-Drakōn case is above the tool limit at 30 kg/s; the Holtzman et al. (2023)
+  reference is completed.
+
+### Verdicts, v1.2 → v1.2.1 (target 400 °C)
+
+| Site | v1.2 (dual-wall pipe) | v1.2.1 (TK-Drakōn) | Flow for GO |
+|---|---|---|---|
+| Upper Rhine / Soultz | GO | CONDITIONAL [GO..CONDITIONAL], 1.07 SG | 60 kg/s |
+| United Downs | GO | CONDITIONAL [GO..CONDITIONAL], 1.07 SG | 80 kg/s |
+| Larderello | GO | GO | |
+| Pannonian Basin | GO | CONDITIONAL [GO..CONDITIONAL], 1.06 SG | 70 kg/s |
+| Newberry | GO | GO | |
+
+Each change follows from the pipe: TK-Drakōn needs 35 to 50 kg/s to keep the
+bit below 200 °C, and the wall is then at 184 to 188 °C, against 60 to 65 °C
+with dual-wall pipe. With circulating pressure on the fracture bound, United
+Downs is NO-GO in its worst case with an uncooled wall or with the 63° limit.
+
 ## v1.2: circulation checked against field data (October 2026)
 
 The circulation model (Model 1) was rebuilt on real well and string geometry,

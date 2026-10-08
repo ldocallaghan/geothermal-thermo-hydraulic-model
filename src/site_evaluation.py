@@ -266,7 +266,7 @@ def thermal_hoop_stress(T_rock, T_wall):
 
 
 def stability_inputs(site, z, T_rock, v10=False, mu=None, UCS=None,
-                     T_wall=None, thermal=True, W_max=C.BREAKOUT_W_MAX_DEG):
+                     T_wall=None, thermal=True, W_max=C.BREAKOUT_W_MAX_DEG, ecd_SG=0.0):
     """Stress state, frictional admissibility, breakout and mud window for
     every stress and strength case at depth z.
 
@@ -314,7 +314,7 @@ def stability_inputs(site, z, T_rock, v10=False, mu=None, UCS=None,
             SHmax = SHmax_lim
         if not v10:
             window = mud_window(Shmin, SHmax, Pp, z, P_mud, T_rock, T_wall=T_wall,
-                                UCS=UCS, dsigma_T=dsigma_T, W_max=W_max)
+                                UCS=UCS, dsigma_T=dsigma_T, W_max=W_max, ecd_SG=ecd_SG)
         cases.append(dict(window=window, T_wall=T_wall, dsigma_T=dsigma_T,
             UCS=C.UCS if UCS is None else UCS, strength_label=s_label,
             label=p.label + (f", {s_label}" if len(strengths) > 1 else ""),
@@ -415,8 +415,15 @@ def describe_width(width_deg):
 
 def mud_window(Shmin, SHmax, Pp, z, Pw_hydro, T_rock, T_wall=None, UCS=None,
                dsigma_T=0.0, W_max=C.BREAKOUT_W_MAX_DEG, margin_SG=C.MUD_MARGIN_SG,
-               T0=C.WALL_T0):
+               T0=C.WALL_T0, ecd_SG=0.0):
     """Mud window and drillability verdict, judged on breakout width.
+
+    The two bounds are checked under the conditions that set them. Breakout,
+    the lower bound, at static mud weight: with the pumps off, at every
+    connection and trip, the wall sees only the static column. Fracture, the
+    upper bound, at circulating pressure: the static mud plus ecd_SG, the
+    annular friction loss as an equivalent density, must stay below Shmin less
+    the margin. ecd_SG = 0 is the static check on both.
 
     Lower bound: the lightest mud keeping the breakout lobe at or below W_max,
     and never below pore pressure (no underbalanced drilling). Upper bound:
@@ -432,9 +439,9 @@ def mud_window(Shmin, SHmax, Pp, z, Pw_hydro, T_rock, T_wall=None, UCS=None,
     sg = C.MUD_SG_GRAD * z                       # Pa per unit SG at this depth
     width = lambda Pw: m5.breakout_width(SHmax, Shmin, Pw, Pp, T_wall, UCS, dsigma_T)
     Pw_lo = max(m5.mud_for_width(SHmax, Shmin, Pp, T_wall, W_max, UCS, dsigma_T), Pp)
-    Pw_hi = Shmin - margin_SG * sg
+    Pw_hi = Shmin - margin_SG * sg - ecd_SG * sg
     w_hydro = width(Pw_hydro)
-    if w_hydro <= W_max:
+    if w_hydro <= W_max and Pw_hydro <= Pw_hi:
         verdict, Pw_mud = "GO", Pw_hydro
     elif Pw_lo <= Pw_hi:
         verdict, Pw_mud = "CONDITIONAL", Pw_lo
@@ -445,7 +452,8 @@ def mud_window(Shmin, SHmax, Pp, z, Pw_hydro, T_rock, T_wall=None, UCS=None,
     return dict(
         verdict=verdict, W_max=W_max, T_wall=T_wall,
         Pw_hydro=Pw_hydro, Pw_lo=Pw_lo, Pw_hi=Pw_hi, open=bool(Pw_lo <= Pw_hi),
-        SG_hydro=Pw_hydro / sg, SG_lo=Pw_lo / sg, SG_hi=Pw_hi / sg,
+        SG_hydro=Pw_hydro / sg, SG_lo=Pw_lo / sg, SG_hi=Pw_hi / sg, ecd_SG=ecd_SG,
+        SG_hi_static=(Shmin - margin_SG * sg) / sg,
         width_hydro=w_hydro, width_hi=width(Pw_hi),
         Pw_mud=Pw_mud,
         overbalance_MPa=None if Pw_mud is None else (Pw_mud - Pw_hydro) / 1e6,
@@ -462,15 +470,19 @@ def worst_verdict(verdicts):
 # ------------------------------------------------------------- the evaluation
 # ------------------------------------------------------------ circulation
 # The site well: Wu et al. (2025)'s deep-well design (well_geometry.wu2025_well)
-# to the target, with the casing shoes moved up for shallow targets. Pipe types
-# are tried from best insulated to worst; vacuum-insulated tubing is not a drill
-# pipe, so it is a sensitivity only.
-SITE_PIPES = (wg.DUAL_WALL, wg.TK_DRAKON, wg.INTERNALLY_COATED, wg.EXTERNALLY_COATED,
-              wg.CONVENTIONAL)
-# The dual-wall pipe's figures come from a modelling study; no such drill pipe
-# is on sale (data/materials.md). The rest can be bought or have been run.
-COMMERCIAL_PIPES = SITE_PIPES[1:]
-SITE_FLOWS = (5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80)   # kg/s
+# to the target, with the casing shoes moved up for shallow targets. The pipe
+# is the best-insulated one that is commercially available, trying the
+# commercial types from best insulated to worst. The dual-wall pipe's figures
+# come from a modelling study and no such drill pipe is on sale
+# (data/materials.md), so it is a sensitivity, as is vacuum-insulated tubing,
+# which is not a drill pipe.
+SITE_PIPES = (wg.TK_DRAKON, wg.INTERNALLY_COATED, wg.EXTERNALLY_COATED, wg.CONVENTIONAL)
+COMMERCIAL_PIPES = SITE_PIPES
+SITE_FLOWS = (5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80, 90, 100)   # kg/s
+# The highest flow FORGE 16B was drilled at (rig_hydraulics.csv); a flow above
+# it is reported as unverified for what a rig can deliver.
+FORGE_MAX_FLOW_GPM = 700.0
+GPM = 6.30902e-5   # m^3/s
 Q_FACE_SITE = 30000.0
 FILM_MULT_FORGE = 0.75   # fitted on FORGE 16B (validate_forge16b.py); a sensitivity
 
@@ -490,10 +502,47 @@ def circulate(site, z, geotherm, pipe, m_dot, exposure=None, film_mult=1.0):
               geometry=g, target_rock_T=float(geotherm(z)), Q_face=Q_FACE_SITE,
               friction_heat=True, film_mult=film_mult, P_surface=m1.P_OP, verbose=False)
     old = m1.solve(**kw, t_years=1.0)
-    r = old if exposure is None else m1.solve(**kw, exposure=exposure, init=old)
+    if exposure is None:
+        r = old
+    else:
+        r = m1.solve(**kw, exposure=exposure, init=old)
+        if not r["success"]:
+            r = m1.solve_seeded(exposure, **kw)
     r["old"] = old
     r["hyd"] = m1.hydraulics(m_dot, g, result=r, P_surface=m1.P_OP)
     return r
+
+
+def ecd_sg(run, z):
+    """Annular friction loss of a circulating run as an equivalent density [SG]."""
+    return run["hyd"]["dp_annulus"] / (C.MUD_SG_GRAD * z)
+
+
+def flow_gpm(run):
+    """Volumetric flow [gal/min] at the inlet."""
+    rho_in = float(m1.fluid_props(np.array([run["Td"][0]]), np.array([m1.P_OP]))[0][0])
+    return run["m_dot"] / rho_in / GPM
+
+
+def flow_for_go(site, z, geotherm, pipe, exposure, start, thermal=True):
+    """The lowest flow, from `start` up, at which the verdict is GO within the
+    pump limit and with the bit below its survival limit; None if there is
+    none up to SITE_FLOWS[-1]."""
+    T_rock = float(geotherm(z))
+    for md in (f for f in SITE_FLOWS if f >= start):
+        r = circulate(site, z, geotherm, pipe, md, exposure)
+        if r["hyd"]["over_pump_limit"]:
+            return None
+        if r["T_bottom_delivered"] >= C.BHA_SURVIVAL_TEMP:
+            continue
+        ref, _ = stability_inputs(site, z, T_rock, T_wall=float(r["T_bottom_delivered"]),
+                                  thermal=thermal, ecd_SG=ecd_sg(r, z))
+        if ref["window"]["verdict"] == "GO" and ref["admissible"]["admissible"]:
+            gpm = flow_gpm(r)
+            return dict(m_dot=md, bhct=float(r["T_bottom_delivered"]),
+                        spp=float(r["hyd"]["spp"]), ecd_SG=ecd_sg(r, z), gpm=gpm,
+                        above_forge=gpm > FORGE_MAX_FLOW_GPM)
+    return None
 
 
 def choose_circulation(site, z, geotherm, exposure=None, pipes=SITE_PIPES, film_mult=1.0):
@@ -598,23 +647,23 @@ def evaluate(site: SiteProfile, v10=False, thermal=True, circulation="v1.2"):
     return out
 
 
-def _stability(site, z, T_rock, T_wall, v10=False, thermal=True):
+def _stability(site, z, T_rock, T_wall, v10=False, thermal=True, ecd_SG=0.0):
     """Stability (Models 4 and 5) for a wall temperature, with the three
-    sensitivities."""
+    sensitivities; ecd_SG is the circulating friction on the fracture bound."""
     ref, cases = stability_inputs(site, z, T_rock, v10=v10, T_wall=T_wall,
-                                  thermal=thermal)
+                                  thermal=thermal, ecd_SG=ecd_SG)
     # sensitivities, each a full re-run of the stability check (no Model 1).
     # "No wall cooling" puts the wall at rock temperature: no thermal hoop
     # stress and no strength gain from cooling, i.e. an uncooled hole.
     w63 = f"W_max {C.BREAKOUT_W_MAX_SITE_DEG:.0f}"
     sens = {} if v10 else {
         "no wall cooling": stability_inputs(site, z, T_rock, T_wall=T_rock,
-                                            thermal=False),
+                                            thermal=False, ecd_SG=ecd_SG),
         w63: stability_inputs(site, z, T_rock, T_wall=T_wall, thermal=thermal,
-                              W_max=C.BREAKOUT_W_MAX_SITE_DEG),
+                              W_max=C.BREAKOUT_W_MAX_SITE_DEG, ecd_SG=ecd_SG),
         f"no wall cooling, {w63}": stability_inputs(
             site, z, T_rock, T_wall=T_rock, thermal=False,
-            W_max=C.BREAKOUT_W_MAX_SITE_DEG)}
+            W_max=C.BREAKOUT_W_MAX_SITE_DEG, ecd_SG=ecd_SG)}
     UCS = ref["UCS"]
     Sv, Shmin, SHmax = ref["Sv"], ref["Shmin"], ref["SHmax"]
     P_fluid = site.rho_fluid_grad * z
@@ -665,12 +714,14 @@ def _evaluate_v12(site, thermal=True):
     circ = choose_circulation(site, z, geotherm, exposure)
     run = circ["run"]
     T_wall = float(run["T_bottom_delivered"])
+    ecd = ecd_sg(run, z)
 
-    out = _stability(site, z, T_rock, T_wall, thermal=thermal)
+    out = _stability(site, z, T_rock, T_wall, thermal=thermal, ecd_SG=ecd)
     out["m_min"], out["m1"] = circ["m_dot"], run
     out["circulation"] = "v1.2"
     out["circ"] = dict(pipe=circ["pipe"], m_dot=circ["m_dot"], conflict=circ["conflict"],
-                       rop=rop, hyd=run["hyd"], bhct=T_wall,
+                       rop=rop, hyd=run["hyd"], bhct=T_wall, ecd_SG=ecd,
+                       gpm=flow_gpm(run), above_forge=flow_gpm(run) > FORGE_MAX_FLOW_GPM,
                        bhct_one_year=float(run["old"]["T_bottom_delivered"]),
                        tried=[dict(pipe=t["pipe"].name, survival_flow=t["survival_flow"],
                                    cleaning_flow=t["cleaning_flow"],
@@ -687,26 +738,33 @@ def _evaluate_v12(site, thermal=True):
     out["MW_prod"] = run["Q_product"] / 1e6
     out["Tret_prod"] = run["T_return_surface"]
 
-    # circulation sensitivities, each with its own wall temperature
+    # the lowest flow at which the same pipe gives GO, within the pump limit
+    out["circ"]["go"] = flow_for_go(site, z, geotherm, circ["pipe"], exposure,
+                                    circ["m_dot"], thermal)
+
+    # circulation sensitivities, each with its own wall temperature and
+    # circulating friction
+    film = circulate(site, z, geotherm, circ["pipe"], circ["m_dot"], exposure, FILM_MULT_FORGE)
     alt = {
-        "rock exposed 1 yr": run["old"]["T_bottom_delivered"],
-        f"film x{FILM_MULT_FORGE}": circulate(site, z, geotherm, circ["pipe"], circ["m_dot"],
-                                              exposure, FILM_MULT_FORGE)["T_bottom_delivered"],
+        "rock exposed 1 yr": (run["old"]["T_bottom_delivered"], ecd),
+        f"film x{FILM_MULT_FORGE}": (film["T_bottom_delivered"], ecd_sg(film, z)),
+        "static fracture bound": (T_wall, 0.0),
     }
+    dual = choose_circulation(site, z, geotherm, exposure, pipes=(wg.DUAL_WALL,))
+    out["circ"]["dual_wall"] = dict(pipe=dual["pipe"].name, m_dot=dual["m_dot"],
+                                    conflict=dual["conflict"],
+                                    bhct=float(dual["run"]["T_bottom_delivered"]),
+                                    spp=float(dual["run"]["hyd"]["spp"]))
+    alt["dual-wall pipe (not manufactured)"] = (dual["run"]["T_bottom_delivered"],
+                                                ecd_sg(dual["run"], z))
     vit = choose_circulation(site, z, geotherm, exposure, pipes=(wg.VACUUM_INSULATED,))
     out["circ"]["vacuum"] = dict(m_dot=vit["m_dot"], conflict=vit["conflict"],
                                  bhct=float(vit["run"]["T_bottom_delivered"]))
-    alt["vacuum-insulated pipe"] = vit["run"]["T_bottom_delivered"]
-    com = choose_circulation(site, z, geotherm, exposure, pipes=COMMERCIAL_PIPES)
-    out["circ"]["commercial"] = dict(pipe=com["pipe"].name, m_dot=com["m_dot"],
-                                     conflict=com["conflict"],
-                                     bhct=float(com["run"]["T_bottom_delivered"]),
-                                     spp=float(com["run"]["hyd"]["spp"]))
-    alt["commercial pipe only"] = com["run"]["T_bottom_delivered"]
+    alt["vacuum-insulated pipe"] = (vit["run"]["T_bottom_delivered"], ecd_sg(vit["run"], z))
     out["circ_sensitivity"] = {}
-    for k, Tw in alt.items():
-        r, c = stability_inputs(site, z, T_rock, T_wall=float(Tw), thermal=thermal)
-        out["circ_sensitivity"][k] = dict(stress=r, stress_cases=c, T_wall=float(Tw))
+    for k, (Tw, e) in alt.items():
+        r, c = stability_inputs(site, z, T_rock, T_wall=float(Tw), thermal=thermal, ecd_SG=e)
+        out["circ_sensitivity"][k] = dict(stress=r, stress_cases=c, T_wall=float(Tw), ecd_SG=e)
     return out
 
 

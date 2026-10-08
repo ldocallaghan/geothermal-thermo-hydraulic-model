@@ -24,10 +24,11 @@ def test_site_table_is_unchanged(results):
     now = golden_rows(results)
     assert now.keys() == pinned.keys()
     for site, row in pinned.items():
-        for k in ("verdict", "pipe", "m_dot", "sensitivities"):
+        for k in ("verdict", "pipe", "m_dot", "go_m_dot", "sensitivities"):
             assert now[site][k] == row[k], (site, k)
         for k in ("bhct", "bhct_one_year", "spp_MPa", "v_ann", "MW"):
             assert now[site][k] == pytest.approx(row[k], abs=0.5), (site, k)
+        assert now[site]["ecd_SG"] == pytest.approx(row["ecd_SG"], abs=0.005), site
 
 
 def test_flow_rule(results):
@@ -40,6 +41,23 @@ def test_flow_rule(results):
         assert c["bhct"] < se.C.BHA_SURVIVAL_TEMP
         assert c["hyd"]["v_ann_min"] >= m1.HOLE_CLEANING_V
         assert c["hyd"]["spp"] <= m1.PUMP_LIMIT
+
+
+def test_base_case_pipe_is_commercial(results):
+    for o in results:
+        assert o["circ"]["pipe"] in se.COMMERCIAL_PIPES
+        assert "dual-wall pipe (not manufactured)" in o["circ_sensitivity"]
+
+
+def test_flow_for_go_is_a_go(results):
+    """Where a higher flow gives GO, it is within the pump limit, keeps the bit
+    below the tool limit, and is at least the flow the verdict uses."""
+    for o in results:
+        g = o["circ"]["go"]
+        if g is not None:
+            assert g["spp"] <= m1.PUMP_LIMIT
+            assert g["bhct"] < se.C.BHA_SURVIVAL_TEMP
+            assert g["m_dot"] >= o["circ"]["m_dot"]
 
 
 def test_wall_temperature_is_the_chosen_runs_bhct(results):

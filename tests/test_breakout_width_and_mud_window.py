@@ -205,3 +205,16 @@ def test_classify_inadmissible_stress_is_never_go():
 def test_all_round_failure_is_labelled_as_yielding():
     assert se.describe_width(180.0) == "wall yields all round"
     assert se.describe_width(63.3) == "63 deg breakout"
+
+
+def test_circulating_friction_narrows_only_the_fracture_bound():
+    """The breakout bound is set at static mud; the annular friction (ECD) is
+    added to the mud only on the fracture bound."""
+    import site_evaluation as se
+    MPa, z = 1e6, 4000.0
+    args = (60 * MPa, 100 * MPa, 40 * MPa, z, 40 * MPa, 150.0)
+    a = se.mud_window(*args, UCS=100 * MPa)
+    b = se.mud_window(*args, UCS=100 * MPa, ecd_SG=0.05)
+    assert b["SG_lo"] == pytest.approx(a["SG_lo"])
+    assert b["SG_hi"] == pytest.approx(a["SG_hi"] - 0.05)
+    assert b["SG_hi_static"] == pytest.approx(a["SG_hi"])

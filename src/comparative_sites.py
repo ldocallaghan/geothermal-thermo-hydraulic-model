@@ -321,8 +321,9 @@ def print_table(title, sites, results):
 
 def classify_circ_sensitivity(o, key):
     """A verdict with the wall temperature from a circulation sensitivity:
-    "rock exposed 1 yr", "film x0.75" (FORGE's fitted annulus film) or
-    "vacuum-insulated pipe"."""
+    "dual-wall pipe (not manufactured)", "static fracture bound" (no
+    circulating friction on the upper bound), "rock exposed 1 yr", "film x0.75"
+    (FORGE's fitted annulus film) or "vacuum-insulated pipe"."""
     s = (o.get("circ_sensitivity") or {}).get(key)
     if s is None:
         return None
@@ -344,45 +345,50 @@ def change_reason(o, old):
 
 def print_circulation(title, sites, results, olds):
     lim, vmin = m1.PUMP_LIMIT / 1e6, m1.HOLE_CLEANING_V
-    hdr = (f"{'Site':<26}{'pipe':>18}{'flow':>6}{'SPP':>7}{'v_ann':>7}{'BHCT':>6}{'1 yr':>6}"
-           f"{'heat':>6}  {'verdict':<30}{'earlier model':<30}{'why'}")
-    print("=" * 150)
+    hdr = (f"{'Site':<26}{'pipe':>17}{'flow':>6}{'gpm':>6}{'SPP':>6}{'ECD':>6}{'v_ann':>6}"
+           f"{'BHCT':>6}{'1 yr':>6}{'heat':>6}  {'verdict':<30}{'GO at':<26}{'earlier model':<30}")
+    print("=" * len(hdr))
     print(title)
-    print("=" * 150)
+    print("=" * len(hdr))
     print(hdr)
-    print("-" * 150)
+    print("-" * len(hdr))
     for s, o, old in zip(sites, results, olds):
         c = o["circ"]
         h = c["hyd"]
         short = s.name.split("(")[0].strip()[:25]
         spp = f"{h['spp']/1e6:.1f}" + ("!" if h["over_pump_limit"] else "")
         va = f"{h['v_ann_min']:.2f}" + ("" if h["cleans_hole"] else "!")
-        print(f"{short:<26}{c['pipe'].name:>18}{c['m_dot']:6.0f}{spp:>7}{va:>7}"
-              f"{c['bhct']:6.0f}{c['bhct_one_year']:6.0f}{o['MW_prod']:6.1f}  "
-              f"{classify(o)[2]:<30}{classify(old)[2]:<30}{change_reason(o, old)}")
+        g = c["go"]
+        go = ("already GO" if classify(o)[2].startswith("GO") else
+              "none within the limit" if g is None else
+              f"{g['m_dot']:.0f} kg/s, {g['gpm']:.0f} gpm, {g['spp']/1e6:.0f} MPa"
+              + ("*" if g["above_forge"] else ""))
+        print(f"{short:<26}{c['pipe'].name:>17}{c['m_dot']:6.0f}{c['gpm']:6.0f}{spp:>6}"
+              f"{c['ecd_SG']:6.3f}{va:>6}{c['bhct']:6.0f}{c['bhct_one_year']:6.0f}"
+              f"{o['MW_prod']:6.1f}  {classify(o)[2]:<30}{go:<26}{classify(old)[2]:<30}")
+        print(f"{'':<26}   against the earlier model: {change_reason(o, old)}")
         if c["conflict"]:
             print(f"{'':<26}   conflict: {c['conflict']}")
-    print("-" * 150)
-    print(f"  flow kg/s; SPP standpipe pressure, MPa (limit {lim:.1f}, ! over); v_ann lowest annular")
-    print(f"  velocity, m/s (hole-cleaning reference {vmin:.3f}, ! under); BHCT bottom-hole circulating")
-    print("  temperature, C, the wall temperature for the verdict; 1 yr: the same with the rock")
-    print("  exposed for a year, as before; heat: heat returned while drilling, early life, single")
-    print("  loop, MW. Earlier model: the single 0.02 W/m K pipe at the lowest survivable flow.")
+    print("-" * len(hdr))
+    print(f"  flow kg/s and gal/min; SPP standpipe pressure, MPa (limit {lim:.1f}, ! over); ECD the")
+    print("  annular friction as an equivalent density, SG, added to the mud on the fracture bound;")
+    print(f"  v_ann lowest annular velocity, m/s (hole-cleaning reference {vmin:.3f}, ! under); BHCT")
+    print("  bottom-hole circulating temperature, C, the wall temperature for the verdict; 1 yr: the")
+    print("  same with the rock exposed for a year; heat: heat returned while drilling, early life,")
+    print("  single loop, MW. GO at: the lowest flow at which the same pipe gives GO within the pump")
+    print(f"  limit; * above the {se.FORGE_MAX_FLOW_GPM:.0f} gal/min FORGE 16B was drilled at, so unverified")
+    print("  for what a rig can deliver. Earlier model: the single 0.02 W/m K pipe at the lowest")
+    print("  survivable flow.")
     print()
-    keys = ("commercial pipe only", "rock exposed 1 yr", f"film x{se.FILM_MULT_FORGE}",
-            "vacuum-insulated pipe")
-    print(f"{'Circulation sensitivities':<26}" + "".join(f"{k:<42}" for k in keys))
+    keys = ("dual-wall pipe (not manufactured)", "static fracture bound", "rock exposed 1 yr",
+            f"film x{se.FILM_MULT_FORGE}", "vacuum-insulated pipe")
+    print("Circulation sensitivities (verdict, wall temperature)")
     for s, o in zip(sites, results):
         short = s.name.split("(")[0].strip()[:25]
-        cells = [f"{classify_circ_sensitivity(o, k)} ({o['circ_sensitivity'][k]['T_wall']:.0f} C)"
-                 for k in keys]
-        print(f"{short:<26}" + "".join(f"{x:<42}" for x in cells))
-    print("  commercial pipe only: the best pipe that can be bought (no dual-wall):")
-    for s, o in zip(sites, results):
-        c = o["circ"]["commercial"]
-        short = s.name.split("(")[0].strip()[:25]
-        print(f"    {short:<26}{c['pipe']} at {c['m_dot']} kg/s, SPP {c['spp']/1e6:.1f} MPa"
-              + (f"; conflict: {c['conflict']}" if c["conflict"] else ""))
+        print(f"  {short}")
+        for k in keys:
+            v = o["circ_sensitivity"][k]
+            print(f"    {k:<36}{classify_circ_sensitivity(o, k)} ({v['T_wall']:.0f} C)")
     print()
 
 
@@ -394,7 +400,8 @@ def golden_rows(results):
             verdict=classify(o)[2], pipe=c["pipe"].name, m_dot=float(c["m_dot"]),
             bhct=float(c["bhct"]), bhct_one_year=float(c["bhct_one_year"]),
             spp_MPa=float(c["hyd"]["spp"]) / 1e6, v_ann=float(c["hyd"]["v_ann_min"]),
-            MW=float(o["MW_prod"]),
+            ecd_SG=float(c["ecd_SG"]), MW=float(o["MW_prod"]),
+            go_m_dot=None if c["go"] is None else float(c["go"]["m_dot"]),
             sensitivities={k: classify_sensitivity(o, k) for k in o["sensitivity"]}
             | {k: classify_circ_sensitivity(o, k) for k in o["circ_sensitivity"]})
     return rows

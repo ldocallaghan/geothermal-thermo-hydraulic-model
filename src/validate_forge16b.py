@@ -347,6 +347,14 @@ def run_all(every_min=30):
     out.update(step1=step1, k_idp=k_idp, k_idp_range=k_range, series=series,
                bha12_mean=mean_mwd(s12), bha12_late=mean_mwd(late),
                decomposition=decomposition(f, k_idp))
+    # The same chain with the film left at the correlation's value (1.0): the
+    # configuration the site runs use, so it has its own blind error.
+    k1 = fit_idp(1.0)
+    ser1 = {run: run_series(run, 1.0, k1, every_min) for run in ("BHA10", "BHA11", "BHA12", "BHA13")}
+    out["unfitted_chain"] = dict(
+        k_idp=k1, series=ser1, bha12_mean=mean_mwd(ser1["BHA12"]),
+        bha12_late=mean_mwd([p for p in ser1["BHA12"] if p["bit_ft"] > 8700]),
+        decomposition=decomposition(1.0, k1))
     # rock conductivity sensitivity on the fitted model
     out["rock_sensitivity"] = {
         k: {run: mean_mwd(run_series(run, f, k_idp, 60, k_rock=k)) for run in ("BHA10", "BHA11", "BHA12")}
@@ -385,6 +393,18 @@ def report(o):
     print(f"{'factor':>36}{'Model 1':>9}{'Eavor':>13}")
     for name, d, eav in rows:
         print(f"{name:>36}{d:+9.1f}{eav:>13}")
+    u = o["unfitted_chain"]
+    print(f"\n5. The same with the annulus film unfitted (multiplier 1.0), as the sites use it")
+    print(f"  IDP effective wall conductivity, refitted on BHA 11: {u['k_idp']:.3f} W/m K")
+    print(f"{'run':>8}{'measured':>16}{'model':>8}{'error':>7}")
+    for run, meas in (("BHA10", 180.0), ("BHA11", 149.0), ("BHA12", 164.0), ("BHA13", 220.0)):
+        mm = mean_mwd(u["series"][run])
+        print(f"{run:>8}{meas:16.0f}{mm:8.1f}{mm-meas:+7.1f}" + ("  (blind)" if run == "BHA12" else ""))
+    print(f"{'BHA12':>8}{'150-160 (late)':>16}{u['bha12_late']:8.1f}{u['bha12_late']-155:+7.1f}"
+          "  (blind, below 8,700 ft)")
+    t0u, rows_u = u["decomposition"]
+    print(f"  one factor at a time (from {t0u:.0f} F): "
+          + "; ".join(f"{n.split(',')[0]} {d:+.1f}" for n, d, _ in rows_u))
     print("\nRock conductivity sensitivity (fitted model, run means)")
     for k, v in o["rock_sensitivity"].items():
         print(f"  k = {k:.2f}: " + ", ".join(f"{r} {x:.0f}" for r, x in v.items()))
@@ -429,10 +449,15 @@ GOLDEN = os.path.join(HERE, "..", "tests", "golden", "validate_forge16b.json")
 def golden(o):
     s1 = o["step1"]
     t0, rows = o["decomposition"]
+    u = o["unfitted_chain"]
     return dict(film_mult=s1["film_mult"], k_idp=o["k_idp"],
                 run_means={r: mean_mwd(o["series"][r]) for r in o["series"]},
                 bha12_late=o["bha12_late"],
-                decomposition={name: d for name, d, _ in rows})
+                decomposition={name: d for name, d, _ in rows},
+                unfitted=dict(k_idp=u["k_idp"],
+                              run_means={r: mean_mwd(u["series"][r]) for r in u["series"]},
+                              bha12_late=u["bha12_late"],
+                              decomposition={n: d for n, d, _ in u["decomposition"][1]}))
 
 
 if __name__ == "__main__":

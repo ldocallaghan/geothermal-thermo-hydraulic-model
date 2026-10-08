@@ -37,6 +37,14 @@ def test_decomposition(results, pinned):
         assert results["decomposition"][name] == pytest.approx(d, abs=1.0), name
 
 
+def test_unfitted_chain(results, pinned):
+    u, pu = results["unfitted"], pinned["unfitted"]
+    assert u["k_idp"] == pytest.approx(pu["k_idp"], rel=0.03)
+    for run, t in pu["run_means"].items():
+        assert u["run_means"][run] == pytest.approx(t, abs=1.0), run
+    assert u["bha12_late"] == pytest.approx(pu["bha12_late"], abs=1.0)
+
+
 def test_mwd_sensor_sits_in_the_bha():
     for run in v.RUNS:
         bha = float(v.RUNS[run]["bha_nmdc_ft"])

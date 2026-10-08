@@ -87,3 +87,13 @@ def test_hot_annulus_lowers_standpipe_pressure():
     assert h["dp_buoyancy"] < 0
     assert h["spp"] == pytest.approx(h["dp_string"] + h["dp_annulus"] + h["dp_bit"]
                                      + h["dp_buoyancy"])
+
+
+@pytest.mark.slow
+def test_friction_heat_in_an_insulated_string():
+    """With a near-adiabatic string, the bore warms by its friction loss over
+    rho cp, give or take what crosses the wall."""
+    import benchmark_utaustin as b
+    on, off = b.run(wg.DUAL_WALL), b.run(wg.DUAL_WALL, friction_heat=False)
+    expect = on["hyd"]["dp_string"] / (b.MUD["rho"] * b.MUD["cp"])
+    assert b.bhct(on) - b.bhct(off) == pytest.approx(expect, rel=0.15)

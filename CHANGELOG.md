@@ -1,5 +1,23 @@
 # Changelog
 
+## v1.2.2: the verdicts hold while circulating (October 2026)
+
+Corrections from a review of v1.2.1. No verdict changes.
+
+- **Trips.** v1.2.1 checked the breakout bound at static fluid weight, citing
+  connections and trips, but with the circulating wall temperature. That
+  pairing holds for a connection, minutes with the wall still cool, but not
+  for a trip: at 11 to 13 km a bit change takes the bottom of the hole out of
+  circulation for a day or more, and the wall loses most of its cooling. The
+  README and the code now say that the cooled verdicts hold while circulating
+  and that the uncooled sensitivity is the guide to a trip. Modelling the
+  reheating over the drilling cycle, with the mitigations it allows, is left
+  for v1.3.
+- **Flow for GO** now requires every case to be within the frictional cap,
+  not only the worst-verdict case. No result changes.
+- **README.** The opening carries the rig-capacity caveat on higher flows.
+- **Fig. 6.** The site names on the right panel no longer run together.
+
 ## v1.2.1: commercial pipe as the base case (October 2026)
 
 Corrections from a review of v1.2.

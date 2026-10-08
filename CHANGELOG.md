@@ -1,5 +1,90 @@
 # Changelog
 
+## v1.2: circulation checked against field data (October 2026)
+
+The circulation model (Model 1) was rebuilt on real well and string geometry,
+benchmarked against a published simulator and validated against the FORGE
+16B insulated drill pipe trial. The sites were rerun with it, Newberry was
+added, and the README now places the work in its literature.
+
+### Circulation model
+
+- **Well and string geometry.** Model 1 runs along measured depth through a
+  survey, casing and cement, and a string of segments (drill pipe, heavy-weight
+  pipe, collars), each with its own pipe type. Rock temperature is taken at
+  true vertical depth.
+- **Named pipe types.** The pipe wall is a set of layers in series, with an
+  optional fraction of bare tool joints. Conventional, internally and
+  externally coated and dual-wall pipe follow Wu et al. (2025); NOV's
+  TK-Drakōn coating (0.635 mm at 0.162 W/m·K) is the best-insulated pipe that is
+  commercially available; vacuum-insulated tubing is a sensitivity. The 0.02 and 0.10 W/m·K
+  walls are gone; the old 0.02 wall survives only as "legacy vacuum tubing"
+  for the earlier results.
+- **Exposure time by depth.** The rock term can take each depth's time since
+  the bit passed, from a rate of penetration or a drilling record, at least
+  one hour.
+- **Hydraulics.** Friction loss in each piece of pipe and annulus, bit nozzle
+  loss, buoyancy and standpipe pressure against a 51.7 MPa pump limit, and the
+  lowest annular velocity against a hole-cleaning reference: the 1.245 m/s at
+  which FORGE 16B was drilled and cleaned. No published minimum could be
+  checked.
+- **Friction heating**, found missing by the benchmark: the dual-wall pipe
+  there loses about 70 MPa to friction and warms the mud by about 18 °C.
+- **Numerics.** Changes of string or hole are ramped over 1 m in a single
+  domain, an exposure history is smoothed, a solve can be seeded from an
+  earlier one, friction heat uses liquid properties, and a solution outside the
+  water table's range is reported as failed.
+
+### Benchmark and validation
+
+- **Wu et al. (2025)** (`benchmark_utaustin.py`): conventional and dual-wall
+  pipe within 7 °C; coated pipe 30 to 60 °C hotter with their stated 1 mm
+  coatings and 10 to 36 °C colder with their conductivity across the whole
+  wall. Nothing fitted.
+- **FORGE 16B** (`validate_forge16b.py`): an annulus film multiplier of 0.75
+  fitted on the runs without insulated pipe, Eavor's pipe at an effective
+  4.9 W/m·K fitted on BHA 11 (close to a 1 mm coating at 0.47 W/m·K), and BHA 12
+  predicted blind to within 7 °F, or 4 to 6 °F with the film unfitted. The
+  sites use the unfitted film, with 0.75 as a sensitivity.
+
+### Sites
+
+- **Flow and pipe.** Each site is drilled on Wu et al.'s well design. The flow
+  is the larger of the survival and hole-cleaning flows within the pump limit,
+  on the best-insulated pipe that allows it; this replaces the lowest
+  survivable flow. Hole cleaning sets 30 kg/s everywhere, on dual-wall pipe.
+- **Newberry** added, for 400 °C at 3.6 km, with the NWG 55-29 cross-check
+  (`crosscheck_newberry.py`). The volcanic breakout width is matched at 25 to
+  35 K of wall cooling, but the model also breaks out the granodiorite, where
+  none were logged, so Newberry is speculative. Its friction coefficient
+  (0.55, and 0.70) is the one its stresses were derived with; stress cases can
+  now carry their own.
+- **Commercial-pipe sensitivity.** The dual-wall pipe exists only in a
+  modelling study, so each site also reports the verdict with TK-Drakōn.
+
+### Verdicts, v1.1.1 → v1.2 (target 400 °C)
+
+| Site | v1.1.1 | v1.2, dual-wall pipe | v1.2, commercial pipe | Why |
+|---|---|---|---|---|
+| Upper Rhine / Soultz | CONDITIONAL [GO..CONDITIONAL] | GO | CONDITIONAL [GO..CONDITIONAL] | wall 148 → 64 °C: hole cleaning sets 30 kg/s, on dual-wall pipe |
+| United Downs | CONDITIONAL [GO..CONDITIONAL] | GO | CONDITIONAL [GO..CONDITIONAL] | wall 165 → 65 °C, the same reason |
+| Larderello | GO | GO | GO | wall 55 → 48 °C |
+| Pannonian Basin | CONDITIONAL [GO..CONDITIONAL] | GO | CONDITIONAL [GO..CONDITIONAL] | wall 139 → 62 °C, the same reason |
+| Newberry | (new) | GO | GO | wall 49 °C; speculative |
+
+The uncooled and 63° sensitivities don't depend on the circulation and are
+unchanged: both well-characterised sites are NO-GO with an uncooled wall and
+the 63° limit together.
+
+### README
+
+The introduction treats the loop as a way of drilling, with its heat a
+by-product: a single closed loop is conduction-limited to a few MW, and the
+case for superhot rock assumes open-loop flow. A related-work section, the
+benchmark and validation, the Newberry cross-check and the commercial-pipe
+results are new; the figures are regenerated; the data credits cover the
+FORGE and NWG 55-29 datasets.
+
 ## v1.1.1: how far the verdicts depend on wall cooling (October 2026)
 
 Corrections from a review of v1.1. The verdicts themselves are unchanged;

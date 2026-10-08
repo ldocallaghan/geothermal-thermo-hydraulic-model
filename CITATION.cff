@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "Quenchwell: models of circulating temperature and borehole stability for drilling into superhot rock"
+authors:
+  - family-names: "O'Callaghan"
+    given-names: "Liam"
+version: "1.2"
+license: MIT
+date-released: "2026-10-08"
+repository-code: "https://github.com/ldocallaghan/geothermal-thermo-hydraulic-model"
+# doi: "10.5281/zenodo.XXXXXXX"   # to be added once the repository is archived on Zenodo
+keywords:
+  - geothermal
+  - superhot rock
+  - drilling
+  - borehole stability
+  - insulated drill pipe

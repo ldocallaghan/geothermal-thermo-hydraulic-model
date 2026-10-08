@@ -277,3 +277,116 @@ if __name__ == "__main__":
     print("     it helps but does NOT license arbitrary anisotropy. The defensible claim:")
     print("     in moderate-anisotropy, low-K0 crust, cooling + fluid support keep a")
     print("     stable hole several km below the conventional ductile limit.")
+
+
+# ------------------------------------------------- stresses behind the wall face
+def kirsch(r, theta_deg, SHmax, Shmin, Pw, a):
+    """Stresses around a vertical hole of radius a at radius r, angle theta from
+    the SHmax azimuth, with wellbore pressure Pw; compression positive (Jaeger,
+    Cook and Zimmerman 2007; Zoback 2007). Returns sigma_r, sigma_theta, tau_rt.
+    Broadcasts over r and theta."""
+    r = np.asarray(r, float)
+    th = np.radians(np.asarray(theta_deg, float))
+    q2, q4 = (a / r) ** 2, (a / r) ** 4
+    s, d = 0.5 * (SHmax + Shmin), 0.5 * (SHmax - Shmin)
+    c2, s2 = np.cos(2 * th), np.sin(2 * th)
+    sr = s * (1 - q2) + d * (1 - 4 * q2 + 3 * q4) * c2 + Pw * q2
+    st = s * (1 + q2) - d * (1 + 3 * q4) * c2 - Pw * q2
+    tau = -d * (1 + 2 * q2 - 3 * q4) * s2
+    return sr, st, tau
+
+
+def thermal_stresses(r, dT, a, thermo):
+    """Plane-strain thermoelastic stresses [Pa] at radii r (from a outwards)
+    for an axisymmetric temperature change dT(r) = T(r) - T_rock, with the inner
+    boundary free and the rock unbounded (Timoshenko and Goodier 1970, section
+    150), compression positive. thermo = E alpha / (1 - nu), held at its value
+    at the rock temperature. Returns dsigma_r, dsigma_theta.
+
+      dsigma_r     =  thermo (1/r^2) int_a^r dT s ds
+      dsigma_theta =  thermo [dT(r) - (1/r^2) int_a^r dT s ds]
+    """
+    r = np.asarray(r, float)
+    dT = np.asarray(dT, float)
+    f = dT * r
+    integral = np.concatenate([[0.0], np.cumsum(0.5 * (f[1:] + f[:-1]) * np.diff(r))])
+    I = integral / r ** 2
+    return thermo * I, thermo * (dT - I)
+
+
+def failure_margin(sr, st, tau, Pp, T, UCS):
+    """Mohr-Coulomb margin [Pa] in effective stress, in the plane of the hole:
+    sigma_1' - (sigma_cm(T) + KMC sigma_3'); failure where it is positive."""
+    m = 0.5 * (sr + st) - Pp
+    rad = np.sqrt((0.5 * (st - sr)) ** 2 + tau ** 2)
+    s1, s3 = m + rad, m - rad
+    cm = np.vectorize(lambda t: sigma_cm(t, UCS))(T) if np.ndim(T) else sigma_cm(T, UCS)
+    return s1 - (cm + KMC * s3)
+
+
+def breakout_behind_wall(SHmax, Shmin, Pw, Pp, a, r_field, T_field, T_rock, UCS, thermo,
+                         r_out=2.0, n_r=81, d_theta=0.1):
+    """Failure over the rock from the wall out to r_out * a, with the stresses
+    from Kirsch and the thermal field, and the strength at the local
+    temperature. In elastic Mohr-Coulomb the failed region reaches wider just
+    behind the wall than at it, so "width" here is reported, not used for the
+    verdict (see breakout_with_skin). T_field(r_field) is the temperature around the hole (T_rock
+    beyond it). Returns the width [deg] (the angular extent, about the Shmin
+    azimuth, of failure at any radius), the width at the wall alone, the depth
+    of the failed zone at the Shmin azimuth [m beyond the wall], and the
+    radius at which the failure margin is greatest there."""
+    r = a * np.geomspace(1.0, r_out, n_r)
+    T = np.interp(r, r_field, T_field, right=T_rock)
+    dsr, dst = thermal_stresses(r, T - T_rock, a, thermo)
+    # angles from the Shmin azimuth (90 deg from SHmax), 0 to 90
+    phi = np.arange(0.0, 90.0 + d_theta / 2, d_theta)
+    R, PH = np.meshgrid(r, phi, indexing="ij")
+    sr, st, tau = kirsch(R, 90.0 - PH, SHmax, Shmin, Pw, a)
+    sr, st = sr + dsr[:, None], st + dst[:, None]
+    marg = failure_margin(sr, st, tau, Pp, np.broadcast_to(T[:, None], R.shape), UCS)
+    fails = marg > 0
+    def extent(col):
+        # contiguous failed angles from the Shmin azimuth
+        if not col[0]:
+            return 0.0
+        k = np.argmin(col) if not col.all() else len(col)
+        return 2 * phi[k - 1] if k > 0 else 0.0
+    any_r = fails.any(axis=0)
+    width = extent(any_r)
+    width_wall = extent(fails[0])
+    at_shmin = fails[:, 0]
+    depth = float(r[np.max(np.nonzero(at_shmin))] - a) if at_shmin.any() else 0.0
+    r_first = float(r[np.argmax(marg[:, 0])])
+    return dict(width=width, width_wall=width_wall, depth=depth, r_first=r_first,
+                r=r, phi=phi, margin=marg)
+
+
+def breakout_with_skin(SHmax, Shmin, Pw, Pp, a, r_field, T_field, T_rock, UCS, thermo):
+    """Breakout width with the cooling credited only as deep as the breakout
+    would reach.
+
+    The width is judged at the wall, as an image log measures it and as the
+    90 deg limit and the UD-1 calibration assume. Elastic Mohr-Coulomb gives
+    failure behind the wall that reaches wider than the wall's breakout (wings
+    just behind its edges), so the extent at any radius is not a measure of
+    breakout width. What the cooled skin changes is the rock the breakout grows
+    into. So: find the depth the uncooled breakout's failure reaches at the
+    Shmin azimuth, and apply the wall check with the temperature (strength and
+    thermal stress) of the rock at that depth. A skin thicker than that keeps
+    its benefit; a thin or reheated one is judged by the warmer rock behind it.
+    With no cooling this is the wall width exactly.
+
+    Returns the width, the wall-only width (the v1.2.2 measure), the reference
+    depth and the temperature used, and the behind-wall failure analysis of
+    the cooled field (failed depth at the Shmin azimuth, where failure starts)."""
+    uncooled = breakout_behind_wall(SHmax, Shmin, Pw, Pp, a, np.array([a, 1e3]),
+                                    np.array([T_rock, T_rock]), T_rock, UCS, thermo)
+    r_ref = a + uncooled["depth"]
+    T_ref = float(np.interp(r_ref, r_field, T_field, right=T_rock))
+    T_wall = float(np.interp(a, r_field, T_field, right=T_rock))
+    width = breakout_width(SHmax, Shmin, Pw, Pp, T_ref, UCS, thermo * (T_ref - T_rock))
+    width_wall = breakout_width(SHmax, Shmin, Pw, Pp, T_wall, UCS, thermo * (T_wall - T_rock))
+    cooled = breakout_behind_wall(SHmax, Shmin, Pw, Pp, a, r_field, T_field, T_rock, UCS, thermo)
+    return dict(width=width, width_wall=width_wall, depth_ref=uncooled["depth"], T_ref=T_ref,
+                T_wall=T_wall, failed_depth=cooled["depth"], r_first=cooled["r_first"],
+                behind=cooled)

@@ -1,24 +1,22 @@
-"""Dashboard figure for the site evaluation (Soultz / Upper Rhine Graben), v1.1:
-measured stress profiles (Valley & Evans 2007), the breakout-width verdict
-and the data basis."""
+"""Dashboard figure for the site evaluation (Soultz / Upper Rhine Graben): the
+circulating temperatures behind the verdict, the measured stress profiles
+(Valley & Evans 2007), the breakout-width verdict and the data basis."""
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import geo_constants as C
-import model1_coupled as m1
 from comparative_sites import classify
 from site_evaluation import SOULTZ, evaluate
-import well_geometry as wg
 
 o = evaluate(SOULTZ)
 s = SOULTZ
 z = o["z"]
 surv, stab, verdict = classify(o)
 
-# Model 1 profiles with the layered geotherm at a production flow
-r = m1.solve(m_dot=10.0, T_inj=s.T_inj, pipe=wg.LEGACY_VACUUM, k_rock=s.k_rock,
-             geotherm=s.temperature(), target_depth=z, Q_face=30000.0, verbose=False)
+# the Model 1 run behind the verdict: the chosen pipe and flow
+r = o["m1"]
+c = o["circ"]
 zkm = r["z"] / 1000
 
 fig, ax = plt.subplots(1, 3, figsize=(15, 6))
@@ -30,8 +28,9 @@ ax[0].plot(r["Tu"], zkm, color="tab:red", lw=2, label="annulus (return)")
 ax[0].axvline(200, color="gray", ls=":", lw=1); ax[0].text(205, 1, "200C\nceiling", fontsize=7, color="gray")
 ax[0].axvline(374, color="purple", ls=":", lw=1); ax[0].text(330, 9.5, "supercrit\n374C", fontsize=7, color="purple")
 ax[0].invert_yaxis(); ax[0].set_xlabel("Temperature [C]"); ax[0].set_ylabel("Depth [km]")
-ax[0].set_title(f"Thermal: bit {r['T_bottom_delivered']:.0f}C, "
-                f"return {r['T_return_surface']:.0f}C, {r['Q_product']/1e6:.1f} MW", fontsize=9)
+ax[0].set_title(f"Thermal: {c['pipe'].name} pipe, {c['m_dot']:.0f} kg/s\n"
+                f"bit {r['T_bottom_delivered']:.0f}C, return {r['T_return_surface']:.0f}C, "
+                f"{r['Q_product']/1e6:.1f} MW", fontsize=9)
 ax[0].legend(fontsize=7, loc="lower left"); ax[0].grid(alpha=0.3)
 
 # panel 2: measured stress profiles (Valley & Evans 2007), extrapolated below 5 km
@@ -58,7 +57,8 @@ rows = [
     ("Target", f"{o['T_rock']:.0f} C @ {o['z']/1000:.1f} km", "k"),
     ("", "", "k"),
     ("Tool survival", f"OK ({o['m1']['T_bottom_delivered']:.0f} C bit)", "g"),
-    ("Energy (10 kg/s)", f"{o['MW_prod']:.1f} MW_th", "k"),
+    ("Heat while drilling", f"{o['MW_prod']:.1f} MW_th at {c['m_dot']:.0f} kg/s", "k"),
+    ("Commercial pipe", f"{c['commercial']['pipe']}: {c['commercial']['bhct']:.0f} C wall", "k"),
     ("Drillability", f"{d['regime']}, {d['ROP']*3600:.1f} m/hr, {o['rop_gain']:.1f}x", "g"),
     ("Creep closure", f"controlled ({o['creep_hot']/max(o['creep_cold'],1e-30):.0e}x)", "g"),
     ("Isotropic stab.", f"{o['grc']['reg_c']}, {o['grc']['u_cold']*1000:.1f} mm", "g"),

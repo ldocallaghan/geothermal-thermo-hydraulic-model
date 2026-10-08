@@ -58,7 +58,51 @@ def h_dittus(m_dot, area, Dh, T_C, P_Pa, n=0.4):
     return Nu * k / Dh
 
 
-def conductances(z, T_d, T_u, m_dot, t_years, k_rock, geometry):
+SECONDS_PER_YEAR = 3.1536e7
+T_EXPOSURE_FLOOR = 3600.0   # s
+
+
+def exposure_from_rop(md_bit, rop_m_per_h, t_circulating=0.0):
+    """Exposure time t(s) [s] when the hole was drilled at a constant rate of
+    penetration and has since circulated for t_circulating seconds: the wall at
+    s has been exposed since the bit passed it."""
+    v = rop_m_per_h / 3600.0
+    return lambda s: (md_bit - np.asarray(s, float)) / v + t_circulating
+
+
+def exposure_from_history(time_s, bit_md, t_now):
+    """Exposure time t(s) [s] from a drilling record: times and bit depths. The
+    wall at s was first exposed when the bit first reached s, which is taken
+    from the running maximum of bit depth (reaming and trips don't reset it)."""
+    time_s = np.asarray(time_s, float)
+    deepest = np.maximum.accumulate(np.asarray(bit_md, float))
+
+    def t(s):
+        s = np.asarray(s, float)
+        # first record at or below s, interpolated from the record before it
+        i = np.clip(np.searchsorted(deepest, s, side="left"), 1, len(deepest) - 1)
+        d0, d1 = deepest[i - 1], deepest[i]
+        frac = np.where(d1 > d0, (s - d0) / np.where(d1 > d0, d1 - d0, 1.0), 1.0)
+        return t_now - (time_s[i - 1] + np.clip(frac, 0, 1) * (time_s[i] - time_s[i - 1]))
+    return t
+
+
+def exposure_seconds(z, t_years, exposure):
+    """The time the rock term uses at each node. With exposure=None it is the
+    constant t_years (floored at 1e-3 yr, as the model always has); otherwise
+    exposure(z), floored at one hour.
+
+    The rock term is quasi-steady line-source conduction, r_inf = r + 2 sqrt(alpha t).
+    Its logarithm only makes sense once 2 sqrt(alpha t) is well beyond the hole
+    radius; at alpha ~1e-6 m^2/s it is about 12 cm after an hour, comparable to
+    a 10 cm hole. Shorter times would need the transient cylindrical-source
+    solution, so they are floored instead."""
+    if exposure is None:
+        return np.full_like(np.asarray(z, float), max(t_years, 1e-3) * SECONDS_PER_YEAR)
+    return np.maximum(exposure(z), T_EXPOSURE_FLOOR)
+
+
+def conductances(z, T_d, T_u, m_dot, t_years, k_rock, geometry, exposure=None):
     """Vectorized per-length UAi (centre<->annulus), UAo (rock<->annulus)."""
     g = geometry.at(z)
     P = P_of_z(g["tvd"])
@@ -71,7 +115,7 @@ def conductances(z, T_d, T_u, m_dot, t_years, k_rock, geometry):
     UAi = (1 - f) / (R_in + g["R_body"] + R_ao) + f / (R_in + g["R_joint"] + R_ao)
 
     alpha = k_rock / (C.RHO_ROCK * C.CP_ROCK)
-    t = max(t_years, 1e-3) * 3.1536e7
+    t = exposure_seconds(z, t_years, exposure)
     r_inf = g["r_rock"] + 2.0 * np.sqrt(alpha * t)
     R_aw = 1.0 / (h_a * 2 * np.pi * g["r_wall"])
     R_rock = np.log(r_inf / g["r_rock"]) / (2 * np.pi * k_rock)
@@ -82,7 +126,9 @@ def conductances(z, T_d, T_u, m_dot, t_years, k_rock, geometry):
 def solve(m_dot=2.0, T_inj=40.0, G=C.GEOTHERM_GRADIENT, T_surf=C.SURFACE_TEMP,
           target_rock_T=C.TARGET_ROCK_TEMP, Q_face=28000.0, t_years=1.0,
           pipe=None, k_rock=C.K_ROCK, n_nodes=160, verbose=True,
-          geotherm=None, target_depth=None, geometry=None):
+          geotherm=None, target_depth=None, geometry=None, exposure=None):
+    # exposure: optional callable MD[m]->seconds the wall has been exposed to
+    # circulation (exposure_from_rop, exposure_from_history); else t_years everywhere.
     # geotherm: optional callable TVD[m]->T_rock[degC] (e.g. a layered site profile).
     # The well is either a full WellGeometry, or one pipe type in a vertical open
     # hole of the original radius, whose length is target_depth if a geotherm is
@@ -102,7 +148,7 @@ def solve(m_dot=2.0, T_inj=40.0, G=C.GEOTHERM_GRADIENT, T_surf=C.SURFACE_TEMP,
 
     def odes(zz, y):
         Td, Tu = y
-        UAi, UAo, P = conductances(zz, Td, Tu, m_dot, t_years, k_rock, geometry)
+        UAi, UAo, P = conductances(zz, Td, Tu, m_dot, t_years, k_rock, geometry, exposure)
         cpd = wt.CP(np.column_stack([np.clip(Td, 1, 480), np.clip(P, 1e5, 220e6)]))
         cpu = wt.CP(np.column_stack([np.clip(Tu, 1, 480), np.clip(P, 1e5, 220e6)]))
         dTd = UAi * (Tu - Td) / (m_dot * cpd)
@@ -133,7 +179,7 @@ def solve(m_dot=2.0, T_inj=40.0, G=C.GEOTHERM_GRADIENT, T_surf=C.SURFACE_TEMP,
                Q_product=Q_product, m_dot=m_dot, success=sol.success,
                P_bottom=P_L)
     if verbose:
-        _print(res, T_inj, Q_face, t_years)
+        _print(res, T_inj, Q_face, t_years if exposure is None else "by depth")
     return res
 
 
@@ -169,7 +215,7 @@ def _print(r, T_inj, Q_face, t_years):
     print(f"  Depth L                 : {r['L']/1000:.1f} km   (bottom rock {r['Trock'][-1]:.0f} C)")
     print(f"  Mass flow (per leg)     : {r['m_dot']:.2f} kg/s")
     pipes = ", ".join(dict.fromkeys(seg.pipe.name for seg in r["geometry"].string))
-    print(f"  Injection temp          : {T_inj:.0f} C ; pipe: {pipes} ; t={t_years} yr")
+    print(f"  Injection temp          : {T_inj:.0f} C ; pipe: {pipes} ; t={t_years}{' yr' if isinstance(t_years, (int, float)) else ''}")
     print(f"  Face heat load Q_face   : {Q_face/1000:.1f} kW")
     print(f"  BVP converged           : {r['success']}  (P_bottom {r['P_bottom']/1e6:.0f} MPa)")
     print("-" * 72)

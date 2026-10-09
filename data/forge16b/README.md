@@ -92,6 +92,13 @@ The raw files are not committed. To rebuild the extracts, download these into
   at about 900 ft while the BHA is handled, so a bit shallower than 1,000 ft
   counts as out of the hole. In the Pason record the first trip runs from
   22:38 on 21 May to 23:17 on 22 May.
+- `connections_10s.csv`: every connection while drilling over the whole well,
+  from the 10-second record (built by `connections_10s()`): the pumps off for
+  under an hour, at full flow in the minute before, with the bit within 100 ft
+  of bottom on both sides and new hole made in the half hour before. For each,
+  how long the pumps were off, and how long the fluid circulated between the
+  last new hole and the pumps stopping. The 10-second record resolves both
+  better than the 1-minute extract, which also covers only the trial week.
 - `trip_surface_operations.csv`: what was done at surface on each trip, from
   the daily reports in the End of Well Report, and whether it was routine (a
   bit and BHA change and nothing else).

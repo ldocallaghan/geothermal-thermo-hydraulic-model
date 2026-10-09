@@ -5,6 +5,10 @@ The drilling cycle a point on the borehole wall goes through, with timings
 measured from the FORGE 16B record (data/forge16b/cycle_timings.csv and
 trip_surface_operations.csv, built by data/forge16b/build_extracts.py).
 
+The connections come from connections_10s.csv, the 10-second record over the
+whole well: how long the pumps were off, and how long the fluid circulated
+between the last new hole and the pumps stopping.
+
 A wall element at depth z, one stand above the end of a bit run (the element
 that has circulated least before the trip, and so reheats fastest), goes
 through:
@@ -18,7 +22,8 @@ through:
 
 Timings (D3): the medians of the trips' speeds out and in, with stops over
 ten minutes excluded, scaled to the site's depth; the median and 90th
-percentile connection; the routine surface time (a bit and BHA change and
+percentile connection, and the median and 10th percentile circulation after
+the last new hole; the routine surface time (a bit and BHA change and
 nothing else); bit runs of the FORGE length in hours. FORGE 16B is the only
 drilling record in the repository, drilled in hot granite at 2.5 km TVD.
 """
@@ -52,6 +57,8 @@ class Timings:
     surface_h: float
     connection_median_min: float
     connection_p90_min: float
+    fresh_circ_median_min: float     # circulation between the last new hole and the pumps stopping
+    fresh_circ_p10_min: float
     stand_ft: float
     bit_run_h: float
     stage_spacing_ft: float
@@ -63,7 +70,9 @@ def forge_timings():
     rows = _read("cycle_timings.csv")
     by = lambda k: [r for r in rows if r["kind"] == k]
     f = lambda r, c: float(r[c])
-    conn = [60 * f(r, "hours") for r in by("connection")]
+    conn10 = _read("connections_10s.csv")
+    conn = [float(r["pumps_off_min"]) for r in conn10]
+    fresh = [float(r["circulated_after_drilling_min"]) for r in conn10]
     # stand length: the hole drilled between connections where it was a whole
     # stand (connections are also taken for surveys and checks in between)
     drilled = [f(r, "drilled_since_ft") for r in by("connection")
@@ -83,6 +92,8 @@ def forge_timings():
         surface_h=statistics.median(surf),
         connection_median_min=statistics.median(conn),
         connection_p90_min=_pct(conn, 90),
+        fresh_circ_median_min=statistics.median(fresh),
+        fresh_circ_p10_min=_pct(fresh, 10),
         stand_ft=statistics.median(drilled),
         bit_run_h=statistics.median(f(r, "hours") for r in by("bit run")),
         stage_spacing_ft=statistics.median(spacing),
@@ -125,15 +136,18 @@ def element_history(md_m, rop_m_h, bottoms_up_h, t=None, connection="median",
 def report(t=None):
     t = t or forge_timings()
     print("=" * 72)
-    print("Drilling-cycle timings, FORGE 16B, 21-29 May 2023 (Pason 1-minute record)")
+    print("Drilling-cycle timings, FORGE 16B: trips from the Pason 1-minute record, 21-29 May 2023;")
+    print("connections from the 10-second record over the whole well")
     print("=" * 72)
     print("bottom of the hole without circulation, each trip [h]: "
           + ", ".join(f"{h:.1f}" for h in t.trips_h))
     print(f"tripping speed, stops over 10 min excluded: out {t.trip_out_ft_h:.0f} ft/h, "
           f"in {t.trip_in_ft_h:.0f} ft/h (medians)")
     print(f"routine surface time (bit and BHA change only): {t.surface_h:.1f} h")
-    print(f"connection, pumps off: median {t.connection_median_min:.1f} min, "
-          f"90th percentile {t.connection_p90_min:.1f} min")
+    print(f"connection, pumps off (10-second record, whole well): median "
+          f"{t.connection_median_min:.1f} min, 90th percentile {t.connection_p90_min:.1f} min")
+    print(f"circulation between the last new hole and the pumps stopping: median "
+          f"{60 * t.fresh_circ_median_min:.0f} s, 10th percentile {60 * t.fresh_circ_p10_min:.0f} s")
     print(f"stand length: {t.stand_ft:.0f} ft")
     print(f"bit run: median {t.bit_run_h:.1f} h on bottom")
     print(f"staged circulation on the way in: every {t.stage_spacing_ft:.0f} ft, "

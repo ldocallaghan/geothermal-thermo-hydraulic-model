@@ -19,8 +19,10 @@ def test_measured_timings_are_unchanged(t):
     assert t.trip_out_ft_h == pytest.approx(1694, abs=1)
     assert t.trip_in_ft_h == pytest.approx(1833, abs=1)
     assert t.surface_h == pytest.approx(3.93, abs=0.01)
-    assert t.connection_median_min == pytest.approx(2.0, abs=0.05)
-    assert t.connection_p90_min == pytest.approx(5.0, abs=0.05)
+    assert t.connection_median_min == pytest.approx(2.83, abs=0.05)
+    assert t.connection_p90_min == pytest.approx(6.33, abs=0.05)
+    assert t.fresh_circ_median_min == pytest.approx(1.0, abs=0.05)
+    assert t.fresh_circ_p10_min == pytest.approx(0.33, abs=0.05)
     assert t.stand_ft == pytest.approx(94, abs=1)
     assert t.bit_run_h == pytest.approx(11.4, abs=0.05)
 

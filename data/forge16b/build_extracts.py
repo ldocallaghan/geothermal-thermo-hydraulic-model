@@ -9,7 +9,8 @@ Expects the raw files in data/forge16b/raw/ (not committed; see README.md):
                                   (GDR 1421)        -> formation_temperature_16a.csv
   - "16B_Pason.zip", unzipped to raw/16B_Pason/
                                   (GDR 1516)        -> pason_trial_1min.csv,
-                                                       drilling_history_10min.csv
+                                                       drilling_history_10min.csv,
+                                                       connections_10s.csv
 
 run_observations.csv is transcribed by hand from the Eavor trial report, so it
 is not rebuilt here. cycle_timings.csv is built from pason_trial_1min.csv.
@@ -299,9 +300,62 @@ def cycle_timings():
     return len(rows)
 
 
+def connections_10s(full_gpm=500.0):
+    """Connections while drilling over the whole well, from the 10-second
+    record: the pumps off (below 100 gal/min) for under an hour, at full flow
+    in the minute before, with the bit within 100 ft of bottom on both sides
+    and new hole made in the half hour before. For each, how long the pumps
+    were off, and how long the fluid circulated between the last new hole and
+    the pumps stopping (the cooling the freshly drilled rock gets before the
+    connection)."""
+    from datetime import datetime
+    path = os.path.join(RAW, "16B_Pason", "10 Second Data.csv")
+    t, hole, bit, q = [], [], [], []
+    with open(path, newline="") as fh:
+        rd = csv.reader(fh)
+        head = next(rd)
+        ih, ib = head.index("Hole Depth (feet)"), head.index("Bit Depth (feet)")
+        iq = head.index("Total Pump Output (gal_per_min)")
+        for r in rd:
+            try:
+                h, b, f = float(r[ih]), float(r[ib]), float(r[iq])
+            except ValueError:
+                continue
+            if -999.25 in (h, b, f):
+                continue
+            t.append(datetime.strptime(r[0] + " " + r[1], "%Y/%m/%d %H:%M:%S"))
+            hole.append(h); bit.append(b); q.append(f)
+    ts = [x.timestamp() for x in t]
+    n = len(t)
+    off = [f < PUMPS_OFF_GPM for f in q]
+    rows = []
+    for a, b in _runs(off):
+        if a == 0 or b == n - 1:
+            continue
+        dur = ts[b] - ts[a] + 10.0
+        before = a - 1
+        if (dur > 3600.0 or max(q[max(0, before - 6):before + 1]) < full_gpm
+                or hole[before] - bit[before] > ON_BOTTOM_FT
+                or hole[b + 1] - bit[b + 1] > ON_BOTTOM_FT):
+            continue
+        k = before
+        while k > 0 and ts[before] - ts[k] < 1800.0 and not hole[k] > hole[k - 1] + 0.01:
+            k -= 1
+        if not (hole[k] > hole[k - 1] + 0.01 and ts[before] - ts[k] < 1800.0):
+            continue
+        rows.append((t[a].strftime("%Y-%m-%d %H:%M:%S"), f"{hole[before]:.1f}",
+                     f"{dur / 60.0:.2f}", f"{(ts[a] - ts[k]) / 60.0:.2f}"))
+    with open(os.path.join(HERE, "connections_10s.csv"), "w", newline="") as fh:
+        w = csv.writer(fh)
+        w.writerow(["start", "hole_depth_ft", "pumps_off_min", "circulated_after_drilling_min"])
+        w.writerows(rows)
+    return len(rows)
+
+
 if __name__ == "__main__":
     print("survey_16b.csv:", survey(), "stations")
     print("formation_temperature_16a.csv:", formation_temperature(), "points")
     print("pason_trial_1min.csv:", pason_trial(), "minutes")
     print("drilling_history_10min.csv:", drilling_history(), "bins")
     print("cycle_timings.csv:", cycle_timings(), "periods")
+    print("connections_10s.csv:", connections_10s(), "connections")

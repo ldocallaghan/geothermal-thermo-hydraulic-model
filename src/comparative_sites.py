@@ -394,8 +394,9 @@ def print_circulation(title, sites, results, olds):
 def print_cycle(title, sites, results):
     """The verdict through the drilling cycle: while drilling, at a connection
     and through a trip, with the safe pause, the trip and its fluid weight."""
-    hdr = (f"{'Site':<26}{'drilling':>13}{'connection':>13}{'trip':>13}{'drill SG':>9}{'safe pause':>11}"
-           f"{'trip h':>7}{'trip SG':>8}{'limit':>7}  {'over the cycle':<15}{'while circulating (v1.2)'}")
+    hdr = (f"{'Site':<26}{'drilling':>13}{'connection':>13}{'fresh rock':>13}{'trip':>13}{'drill SG':>9}"
+           f"{'limit':>7}{'safe pause':>11}{'trip h':>7}{'trip SG':>8}{'limit':>7}  {'over the cycle':<15}"
+           f"{'while circulating (v1.2)'}")
     print("=" * len(hdr))
     print(title)
     print("=" * len(hdr))
@@ -405,27 +406,39 @@ def print_cycle(title, sites, results):
     for s, o in zip(sites, results):
         c = o["cycle"]
         short = s.name.split("(")[0].strip()[:25]
-        st = {k: f"{v['window']['verdict']}" for k, v in c["states"].items()}
-        print(f"{short:<26}{st['drilling']:>13}{st['connection']:>13}{st['trip']:>13}"
-              f"{c['drill_SG']:9.2f}{fmt_pause(c['safe_pause_h']):>11}{c['trip_h']:7.0f}"
+        st = c["verdicts"]
+        print(f"{short:<26}{st['drilling']:>13}{st['connection']:>13}{st['connection, fresh rock']:>13}"
+              f"{st['trip']:>13}{c['drill_SG']:9.2f}{c['drill_SG_hi']:7.2f}{fmt_pause(c['safe_pause_h']):>11}"
+              f"{c['trip_h']:7.0f}"
               f"{c['trip_SG']:8.2f}{c['trip_SG_hi']:7.2f}  {c['site_verdict']:<15}{classify(o)[2]}")
     print("-" * len(hdr))
-    print("  drill SG: the static fluid weight that holds the wall as the bit exposes it (with the")
-    print("  circulating friction) and through a connection; safe pause: how long from the end of")
-    print("  drilling the hole holds at that weight with no circulation; trip h: the bottom of the")
-    print("  hole without circulation for a trip, from FORGE 16B's tripping speeds and routine surface")
-    print("  time scaled to depth; trip SG: the static fluid the hole needs for the trip, against the")
-    print("  fracture limit (Shmin less 0.05 SG).")
+    print("  fresh rock: a connection on the rock just drilled, after FORGE's 10th-percentile circulation")
+    print("  between the last new hole and the pumps stopping. drill SG: the static fluid weight that")
+    print("  holds the wall as the bit exposes it (with the circulating friction) and through both")
+    print("  connections, against its limit (the fracture limit less the friction); safe pause: how")
+    print("  long from the end of drilling the hole holds at that weight with no circulation; trip h:")
+    print("  the bottom of the hole without circulation for a trip, from FORGE 16B's tripping speeds")
+    print("  and routine surface time scaled to depth; trip SG: the static fluid the hole needs for")
+    print("  the trip, against the fracture limit (Shmin less 0.05 SG).")
     print()
     print("Cycle sensitivities (over the cycle; drill SG; safe pause; trip SG)")
     for s, o in zip(sites, results):
         short = s.name.split("(")[0].strip()[:25]
         print(f"  {short}")
         for k, c in o["cycle_sensitivity"].items():
-            print(f"    {k:<28}{c['site_verdict']:<13}{c['drill_SG']:6.2f}{fmt_pause(c['safe_pause_h']):>10}"
+            print(f"    {k:<40}{c['site_verdict']:<28}{c['drill_SG']:6.2f}{fmt_pause(c['safe_pause_h']):>10}"
                   f"{c['trip_SG']:8.2f}")
-        print(f"    {'staged circulation':<28}no change at the bottom: staging cools only the hole above the bit")
-        print(f"    {'double bit run':<28}no change at the bottom: the element one stand up is the same")
+        print(f"    {'staged circulation':<40}no change at the bottom: staging cools only the hole above the bit")
+        print(f"    {'double bit run':<40}no change at the bottom: the element one stand up is the same")
+    print()
+    print("Failed depth at the Shmin azimuth from the full stress field, minutes after the bit exposes")
+    print("the rock, at the drilling fluid with its circulating friction (deciding case), against the")
+    print("uncooled depth whose temperature the width check uses")
+    for s_, o in zip(sites, results):
+        c = o["cycle"]
+        short = s_.name.split("(")[0].strip()[:25]
+        cells = "  ".join(f"{k['minutes']:.0f} min {100 * k['depth']:.1f} cm" for k in c["skin"])
+        print(f"  {short:<26}uncooled {100 * c['skin_depth_uncooled']:.1f} cm;  {cells}")
     print()
     print("Trip verdict up the open hole (height above the bit; trip SG needed)")
     for s, o in zip(sites, results):
@@ -456,6 +469,7 @@ def golden_rows_v13(results):
         c = o["cycle"]
         rows[o["site"].name] = dict(
             verdicts=c["verdicts"], site_verdict=c["site_verdict"], drill_SG=c["drill_SG"],
+            drill_SG_hi=c["drill_SG_hi"],
             safe_pause_h=None if c["safe_pause_h"] == float("inf") else c["safe_pause_h"],
             trip_h=c["trip_h"], trip_SG=c["trip_SG"], trip_SG_hi=c["trip_SG_hi"],
             T_ref=c["T_ref"],

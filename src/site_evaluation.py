@@ -843,7 +843,7 @@ def _ref_depth(site, z, T_rock, Pw):
 
 
 def site_cycle(site, out, connection="p90", trip_scale=1.0, run=None, label="base", node=True,
-               form_h=0.0):
+               form_h=0.0, fresh="p10"):
     """Verdicts through the drilling cycle for the wall element one stand above
     the end of a bit run at the target: drilling (circulating pressure, the
     wall as the bit passes it), the connection (static, the wall at the end of
@@ -854,7 +854,13 @@ def site_cycle(site, out, connection="p90", trip_scale=1.0, run=None, label="bas
     immediate, and the rock at the depth the breakout reaches has not yet been
     cooled then, so the fluid must hold the wall at formation temperature.
     form_h: a time [h] the breakout is assumed to take to form, during which
-    circulation cools that rock (the sensitivity; no data support one)."""
+    circulation cools that rock (the sensitivity; no data support one).
+
+    The connection is also checked on the rock the bit has just drilled: it
+    is circulated against only from the last new hole until the pumps stop
+    (fresh: FORGE's 10th percentile, "p10", or its median), then sits through
+    the connection at static pressure. The drilling fluid must hold the wall
+    in every state and stay below the fracture limit while circulating."""
     import drilling_cycle as dc
     t = dc.forge_timings()
     z = out["z"]
@@ -880,6 +886,16 @@ def site_cycle(site, out, connection="p90", trip_scale=1.0, run=None, label="bas
                            r_max=r_max, growth=1.2)
     T_ref = lambda field: float(np.interp(a + d_ref, res.r, field))
     T_conn, T_trip, T_end = T_ref(res.fields[1]), T_ref(res.fields[4]), T_ref(res.fields[3])
+    # the connection on freshly drilled rock at the bottom of the hole
+    fresh_min = t.fresh_circ_p10_min if fresh == "p10" else t.fresh_circ_median_min
+    conn_h = (t.connection_median_min if connection == "median" else t.connection_p90_min) / 60.0
+    cap_f, hs_f = _static_node(T_rock, z, a, bc["r_string"])
+    st_f = [wall_thermal.State("circulating", fresh_min * 60, T_fluid=bc["Tu"], h=bc["h"]),
+            wall_thermal.State("static", conn_h * 3600, h=hs_f, C=cap_f if node else 0.0,
+                               T_node0=bc["Tu"])]
+    r_f = wall_thermal.run(st_f, T_rock, a, site.k_rock, C.RHO_ROCK * C.CP_ROCK, n=150, r_max=r_max,
+                           growth=1.2)
+    T_fresh = T_ref(r_f.fields[-1])
     if form_h > 0:
         r0 = wall_thermal.run([wall_thermal.State("circulating", form_h * 3600, T_fluid=bc["Tu"], h=bc["h"])],
                               T_rock, a, site.k_rock, C.RHO_ROCK * C.CP_ROCK, n=150, r_max=r_max,
@@ -892,7 +908,9 @@ def site_cycle(site, out, connection="p90", trip_scale=1.0, run=None, label="bas
     ref_d, cases_d = stability_inputs(site, z, T_rock, T_wall=T_drill, Pw_add=ecd * sg)
     ref_c, cases_c = stability_inputs(site, z, T_rock, T_wall=T_conn)
     ref_t, cases_t = stability_inputs(site, z, T_rock, T_wall=T_trip)
-    states_out = dict(drilling=(ref_d, T_drill), connection=(ref_c, T_conn), trip=(ref_t, T_trip))
+    ref_f, cases_f = stability_inputs(site, z, T_rock, T_wall=T_fresh)
+    states_out = {"drilling": (ref_d, T_drill), "connection": (ref_c, T_conn),
+                  "connection, fresh rock": (ref_f, T_fresh), "trip": (ref_t, T_trip)}
 
     # Each stress and strength case is followed through the cycle on its own:
     # its drilling fluid weight (the lightest static weight that holds the wall
@@ -904,13 +922,19 @@ def site_cycle(site, out, connection="p90", trip_scale=1.0, run=None, label="bas
     water = site.rho_fluid_grad / C.MUD_SG_GRAD
     need = lambda w: w["SG_lo"] if w["verdict"] != "GO" else 0.0
     per_case = []
-    for cd, cc, ct in zip(cases_d, cases_c, cases_t):
-        vs = [cd["window"]["verdict"], cc["window"]["verdict"], ct["window"]["verdict"]]
+    for cd, cc, cf, ct in zip(cases_d, cases_c, cases_f, cases_t):
+        drill = max(water, need(cd["window"]) - ecd, need(cc["window"]), need(cf["window"]))
+        # the drilling fluid, set by whichever state needs most, must not
+        # fracture the rock while circulating
+        drill_hi = cd["window"]["SG_hi"] - ecd
+        v_d = cd["window"]["verdict"] if drill <= drill_hi + 1e-9 else "NO-GO"
+        vs = [v_d, cc["window"]["verdict"], cf["window"]["verdict"], ct["window"]["verdict"]]
         v = "GO" if all(x == "GO" for x in vs) else ("CONDITIONAL" if all(x != "NO-GO" for x in vs)
                                                        else "NO-GO")
         per_case.append(dict(label=ct["label"], profile=ct["profile"], UCS=ct["UCS"], verdict=v,
-                             states=dict(zip(("drilling", "connection", "trip"), vs)),
-                             drill_SG=max(water, need(cd["window"]) - ecd, need(cc["window"])),
+                             states=dict(zip(("drilling", "connection", "connection, fresh rock",
+                                              "trip"), vs)),
+                             drill_SG=drill, drill_SG_hi=drill_hi,
                              trip_SG=max(water, need(ct["window"])), trip_SG_hi=ct["window"]["SG_hi"]))
     gov = max(per_case, key=lambda c: (VERDICT_ORDER.index(c["verdict"]), c["trip_SG"]))
     w_drill_SG = gov["drill_SG"]
@@ -948,6 +972,28 @@ def site_cycle(site, out, connection="p90", trip_scale=1.0, run=None, label="bas
             lo, hi = (mid, hi) if width_ok(after_pause(mid), P) else (lo, mid)
         return 0.5 * (lo + hi)
 
+    # The heuristic (the wall check at the temperature of the rock at the
+    # uncooled breakout's depth) against the full stress field in the first
+    # minutes after exposure, when the contracting skin pushes hoop stress into
+    # the rock behind it: the failed depth at the Shmin azimuth, at the
+    # drilling fluid with the circulating friction, for the deciding case.
+    Pw_circ = Pw_drill + ecd * sg
+    skin = []
+    for minutes in (0.0, 1.0, 2.0, 5.0, 10.0):
+        if minutes == 0.0:
+            field = np.full_like(res.r, T_rock)
+        else:
+            rr = wall_thermal.run([wall_thermal.State("circulating", minutes * 60, T_fluid=bc["Tu"],
+                                                      h=bc["h"])], T_rock, a, site.k_rock,
+                                  C.RHO_ROCK * C.CP_ROCK, n=150, r_max=r_max, growth=1.2)
+            field = rr.fields[-1]
+        b = m5.breakout_behind_wall(p_g.SHmax(z), p_g.Shmin(z), Pw_circ, float(p_g.Pp(z)), a, res.r,
+                                    field, T_rock, ucs_g, thermo, d_theta=1.0)
+        skin.append(dict(minutes=minutes, depth=b["depth"], width_wall=b["width_wall"],
+                         T_ref=T_ref(field)))
+    depth_unc = m5.uncooled_depth(p_g.SHmax(z), p_g.Shmin(z), Pw_circ, float(p_g.Pp(z)), a, T_rock,
+                                  ucs_g, thermo)
+
     safe = safe_pause_at(w_drill_SG)
     trip_h = hist[-1].hours
     order = [c["verdict"] for c in per_case]
@@ -955,7 +1001,7 @@ def site_cycle(site, out, connection="p90", trip_scale=1.0, run=None, label="bas
     if len(set(order)) > 1:
         site_v += f" [{min(order, key=VERDICT_ORDER.index)}..{worst_verdict(order)}]"
     verdicts = {k: worst_verdict([c["states"][k] for c in per_case])
-                for k in ("drilling", "connection", "trip")}
+                for k in ("drilling", "connection", "connection, fresh rock", "trip")}
     return dict(label=label, z=z, T_rock=T_rock, rop_m_h=rop, bottoms_up_h=bc["bu_h"],
                 T_fluid=bc["Tu"], h=bc["h"], depth_ref=d_ref, ecd_SG=ecd,
                 T_ref={**{k: v[1] for k, v in states_out.items()}, "end of drilling": T_end},
@@ -964,9 +1010,10 @@ def site_cycle(site, out, connection="p90", trip_scale=1.0, run=None, label="bas
                 per_case=per_case, deciding_case=gov["label"],
                 verdicts=verdicts,
                 drill_SG=w_drill_SG, safe_pause_h=safe, trip_h=trip_h,
-                trip_SG=gov["trip_SG"], trip_SG_hi=gov["trip_SG_hi"],
+                trip_SG=gov["trip_SG"], trip_SG_hi=gov["trip_SG_hi"], drill_SG_hi=gov["drill_SG_hi"],
+                fresh_circ_min=fresh_min,
                 trip_window_open=bool(gov["trip_SG"] <= gov["trip_SG_hi"]),
-                site_verdict=site_v, history=hist, result=res, r_ref=a + d_ref, a=a,
+                site_verdict=site_v, history=hist, skin=skin, skin_depth_uncooled=depth_unc, result=res, r_ref=a + d_ref, a=a,
                 safe_pause_at=safe_pause_at, after_pause=after_pause, width_ok=width_ok)
 
 
@@ -1020,6 +1067,8 @@ def _evaluate_v13(site, thermal=True):
         "double trip time": site_cycle(site, out, trip_scale=2.0, label="double trip time"),
         "no fluid node": site_cycle(site, out, label="no fluid node", node=False),
         "breakouts form over 1 h": site_cycle(site, out, label="breakouts form over 1 h", form_h=1.0),
+        "median circulation before a connection": site_cycle(
+            site, out, label="median circulation before a connection", fresh="median"),
     }
     dual = out["circ"]["dual_wall"]
     run_dual = circulate(site, z, geotherm, wg.DUAL_WALL, dual["m_dot"], exposure)

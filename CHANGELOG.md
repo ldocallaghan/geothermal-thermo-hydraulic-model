@@ -1,5 +1,37 @@
 # Changelog
 
+## v1.3.2: the margins on the window (October 2026)
+
+Additions from a review of v1.3.1. No verdict changes.
+
+- **Shmin margin.** For each site, Shmin is reduced in every stress case, with
+  SHmax held and with SHmax scaled with it, until the window over the cycle
+  closes. The frictional cap on SHmax below the data couples the two: at the
+  friction coefficient of 0.8 the worst cases at Soultz and United Downs lie
+  within a few MPa of the cap, so a lower Shmin pulls SHmax down and the
+  window stays open (none within 20% at Soultz; 19% at United Downs, in a
+  stress state needing friction 1.55). With the cap at 1.0, SHmax can stay on
+  its trend, and the window closes for a fall of 3.1% at Soultz and 2.2% at
+  United Downs (friction at least 0.87 and 0.84), or 6.6% and 4.6% with SHmax
+  scaled. The review's estimate of about 2% assumed SHmax held without the
+  cap. Both sets are reported, with the friction each closure needs. The
+  response is not monotonic, because at large reductions the cap binds even
+  at 1.0, so the reductions are scanned and the first closure refined.
+- **Flow ceiling.** For each site, the highest flow from the one used at which
+  the verdict over the cycle holds: 70 kg/s at Soultz and 60 kg/s at United
+  Downs, both within three 14-P-220 pumps; the pump limit elsewhere. The
+  circulating table no longer gives a flow for GO, which over the cycle read
+  as a target past the ceiling.
+- **Drilling-state label.** When a connection sets a fluid heavier than water,
+  the drilling state of that case is CONDITIONAL. The site verdict is
+  unaffected.
+- **README.** The opening states the margin and points to the trip fluid up
+  the open hole (Fig. 8); the cycle table gives the flow range; Section 5
+  discusses the Shmin margin.
+- **The FORGE trip test.** The reviewer's environment runs Python 3.11
+  against 3.14 in the lock file, which accounts for the difference in the
+  no-node fit factor.
+
 ## v1.3.1: the wall is held by fluid weight (October 2026)
 
 Corrections from a review of v1.3. No base verdict changes; the README is

@@ -23,9 +23,11 @@ A history is a list of State; run() returns the wall temperature through time
 and the field at the end of each state.
 
 Checks (tests/test_wall_thermal.py): the wall flux against the constant-
-temperature cylinder (Jaeger 1956; Carslaw and Jaeger 1959), the late
-recovery after a constant-rate period against the line source (Bullard 1947),
-grid convergence and energy conservation.
+temperature cylinder (Carslaw and Jaeger 1959), the recovery after a period
+of constant heat flow against the cylinder solution, with the line source
+(Bullard 1947) for comparison, grid convergence and energy conservation.
+Jaeger (1956) gives the cylinder containing a perfect conductor, the limit of
+the static fluid node.
 """
 from dataclasses import dataclass, field
 
@@ -98,9 +100,11 @@ class Result:
     stored: float = 0.0             # J/m change in the rock's stored heat
     vol: np.ndarray = None
     ends: list = field(default_factory=list)     # (t, T_wall, T_node) at the end of each state
+    T_probe: np.ndarray = None      # temperature at probe_r through time, if asked
 
 
-def run(history, T_rock, a, k, rhocp, n=200, r_max=None, T0=None, dt0=1.0, growth=1.08):
+def run(history, T_rock, a, k, rhocp, n=200, r_max=None, T0=None, dt0=1.0, growth=1.08,
+        probe_r=None):
     """Conduct heat through the history of states. T_rock: far-field and
     initial temperature (or T0, an initial field on the grid)."""
     alpha = k / rhocp
@@ -112,6 +116,7 @@ def run(history, T_rock, a, k, rhocp, n=200, r_max=None, T0=None, dt0=1.0, growt
     G = 2 * np.pi * k / np.log(r[1:] / r[:-1])
     cap = rhocp * vol
     ts, Tw, Tn, qw = [0.0], [T[0]], [np.nan], [0.0]
+    Tp = [float(np.interp(probe_r, r, T))] if probe_r is not None else None
     fields, ends, t = [], [], 0.0
     e_in = e_far = 0.0
     T_fluid_last = None
@@ -175,6 +180,8 @@ def run(history, T_rock, a, k, rhocp, n=200, r_max=None, T0=None, dt0=1.0, growt
             T = T_new
             t += dt
             ts.append(t); Tw.append(T[0]); qw.append(q_in)
+            if Tp is not None:
+                Tp.append(float(np.interp(probe_r, r, T)))
             Tn.append(T_node if T_node is not None else np.nan)
         if s.kind == "circulating":
             T_fluid_last = s.T_fluid
@@ -182,7 +189,7 @@ def run(history, T_rock, a, k, rhocp, n=200, r_max=None, T0=None, dt0=1.0, growt
         ends.append((t, float(T[0]), float(T_node) if T_node is not None else np.nan))
     stored = float(np.sum(cap[:-1] * (T[:-1] - T_start[:-1])))
     return Result(np.array(ts), np.array(Tw), np.array(Tn), np.array(qw), r, fields,
-                  e_in, e_far, stored, vol, ends)
+                  e_in, e_far, stored, vol, ends, None if Tp is None else np.array(Tp))
 
 
 def _solve_bordered(A, rhs, n):

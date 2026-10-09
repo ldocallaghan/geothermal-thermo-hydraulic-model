@@ -4,9 +4,9 @@ title: "Quenchwell: models of circulating temperature and borehole stability for
 authors:
   - family-names: "O'Callaghan"
     given-names: "Liam"
-version: "1.2"
+version: "1.3"
 license: MIT
-date-released: "2026-10-08"
+date-released: "2026-10-09"
 repository-code: "https://github.com/ldocallaghan/geothermal-thermo-hydraulic-model"
 # doi: "10.5281/zenodo.XXXXXXX"   # to be added once the repository is archived on Zenodo
 keywords:

@@ -1,5 +1,104 @@
 # Changelog
 
+## v1.3: the wall through the drilling cycle (October 2026)
+
+The verdicts now follow the borehole wall through a bit run and the trip that
+ends it, with the rock behind the wall resolved in temperature and stress.
+
+### Wall temperature through the cycle
+
+- **Transient wall model** (`wall_thermal.py`). Implicit finite volumes for
+  radial conduction on a log-spaced grid. While circulating, the wall exchanges
+  heat with the annulus at Model 1's temperature and film coefficient. With
+  the pumps off, the fluid in the hole is one well-mixed volume coupled to the
+  wall by the laminar film (Nu 4.36); the case with no fluid is a sensitivity.
+  The solver is checked against the constant-temperature cylinder (Carslaw and
+  Jaeger, 1959) to within 1.2% and the recovery after constant heat flow to
+  within 2%, by numerical Laplace inversion (Abate and Valkó, 2004), and for
+  grid convergence and energy conservation. The line source (Bullard, 1947)
+  differs from the cylinder by 6 to 13% over the times of interest and is
+  reported for comparison only.
+- **Cycle timings from FORGE 16B** (`drilling_cycle.py`), from the Pason
+  1-minute record and the daily reports: trips at 1,694 ft/h out and 1,833 ft/h
+  in, 3.9 h of routine surface time, connections of 2.0 min (median) and
+  5.0 min (90th percentile), 94 ft stands. The first trip in the record began
+  on 21 May.
+- **Check against FORGE 16B's trips** (`validate_forge_pauses.py`). The return
+  temperature over the first bottoms-up after each of the five trips is
+  compared with a plug-flow column of the modelled fluid temperatures, scaled
+  by one factor fitted on four trips and used to predict the fifth in turn:
+  0.55, with a misfit of 13 °F against anomalies of −10 to +38 °F (16 °F with
+  no fluid in the hole). The comparison was first planned at the bottom of the
+  hole alone, which the returns cannot resolve, and on the pauses with the bit
+  on bottom, most of which were surveys or reduced-flow circulation; both were
+  dropped. Five trips through a plug-flow column are weak evidence.
+
+### Failure behind the wall
+
+- **Stresses in the rock** (`model5_convergence_confinement.py`): the Kirsch
+  field with wellbore pressure (Jaeger et al., 2007) and the plane-strain
+  thermal stresses of the temperature field (Timoshenko and Goodier, 1970),
+  with Mohr-Coulomb at the local temperature.
+- **Width judged at the wall, with the temperature of the rock behind it.**
+  In elastic Mohr-Coulomb the failed region reaches wider just behind the wall
+  than at the wall, so the extent of failure in the rock is not a breakout
+  width. The width is judged at the wall, with the temperature of the rock at
+  the depth the uncooled breakout reaches (about 3 cm at Soultz). This replaces
+  the planned measure, the extent of failure at any radius.
+- **Recalibration.** UD-1's weak-zone strength becomes 119 to 147 MPa (from
+  118 to 147), with the intact bound unchanged. Soultz widths at 5 km rise by
+  up to 3°, with every window still open. Newberry's volcanics are matched at
+  25 to 40 K of cooling; the granodiorite is still not reproduced.
+
+### Verdicts over the cycle
+
+- **Drilling, connection and trip.** Each case of stress and strength is
+  checked while drilling (circulating pressure), after a 90th-percentile
+  connection and at the end of a trip (static pressure). Drilling is judged as
+  the bit exposes the rock: elastic failure is immediate, and the rock at the
+  breakout's depth is then still at formation temperature. The drilling fluid
+  is the lightest static weight that holds the wall while drilling and through
+  a connection; the safe pause is how long the wall holds at that weight with
+  the pumps off; the trip fluid is what the wall needs at the end of the trip.
+  A one-hour allowance for breakouts to form is a sensitivity.
+- **Sensitivities:** half and double trip time, no fluid in the hole, the
+  dual-wall pipe, the highest flow within the pump limit, and the trip
+  verdict up the open hole.
+- **Rig capacity.** The flow for GO is compared with three pumps of the rating
+  of NOV's 14-P-220 triplex pump (1,980 hydraulic hp, up to 1,215 gal/min); all
+  three sites' flows are within it.
+
+### Verdicts, v1.2.2 → v1.3 (target 400 °C)
+
+| Site | v1.2.2, while circulating | v1.3, over the cycle | Drilling fluid | Trip fluid (limit) |
+|---|---|---|---|---|
+| Upper Rhine / Soultz | CONDITIONAL, 1.07 SG | CONDITIONAL | 1.31 SG | 1.30 SG (1.37) |
+| United Downs | CONDITIONAL, 1.07 SG | CONDITIONAL | 1.25 SG | 1.27 SG (1.32) |
+| Larderello | GO | GO | water | water (1.33) |
+| Pannonian Basin | CONDITIONAL, 1.06 SG | CONDITIONAL | 1.42 SG | 1.39 SG (2.50) |
+| Newberry | GO | GO | water | water (1.36) |
+
+No verdict changes, but the weights do. The drilling fluid rises because the
+wall is judged as the bit exposes it, before circulation has cooled the rock
+the breakout grows into, so it is close to the uncooled weight; with a
+one-hour allowance it would be 1.14 SG at Soultz and 1.12 SG at United Downs.
+At Soultz that weight holds the hole through a 44-hour trip; at United Downs
+it holds for 23 hours, and the fluid must be raised to 1.27 SG for a 52-hour
+trip. The v1.2.2 table, while circulating, is kept unchanged as a column of
+the site table.
+
+### Other
+
+- New figures show the trip check (Fig. 3), the failure margin around the hole
+  at Soultz (Fig. 6) and the wall at Soultz through a bit run and a trip
+  (Fig. 8). The Soultz dashboard shows the fluid weights through the cycle.
+- README: the reheating check, the stresses behind the wall, the cycle table,
+  and limitations for thermo-poroelastic effects (Ghassemi et al., 2009), surge
+  and swab, bit life, the single source of cycle timings and the time
+  breakouts take to form.
+- The v1.2.2 site table is pinned with the circulation model of v1.2; the
+  v1.3 table is pinned alongside it.
+
 ## v1.2.2: the verdicts hold while circulating (October 2026)
 
 Corrections from a review of v1.2.1. No verdict changes.

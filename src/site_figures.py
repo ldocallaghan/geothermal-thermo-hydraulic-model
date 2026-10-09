@@ -51,22 +51,24 @@ ax[1].legend(fontsize=7, loc="lower left"); ax[1].grid(alpha=0.3)
 
 # panel 3: scorecard
 ax[2].axis("off")
-b = o["breakout"]; d = o["drill"]
+b = o["breakout"]; d = o["drill"]; cy = o["cycle"]
 rows = [
     ("SITE", SOULTZ.name.split("/")[1].split("(")[0].strip(), "k"),
     ("Target", f"{o['T_rock']:.0f} C @ {o['z']/1000:.1f} km", "k"),
     ("", "", "k"),
     ("Tool survival", f"OK ({o['m1']['T_bottom_delivered']:.0f} C bit)", "g"),
     ("Heat while drilling", f"{o['MW_prod']:.1f} MW_th at {c['m_dot']:.0f} kg/s", "k"),
-    ("Commercial pipe", f"{c['commercial']['pipe']}: {c['commercial']['bhct']:.0f} C wall", "k"),
+    ("Pipe and flow", f"{c['pipe'].name}, {c['m_dot']:.0f} kg/s: {c['bhct']:.0f} C wall", "k"),
     ("Drillability", f"{d['regime']}, {d['ROP']*3600:.1f} m/hr, {o['rop_gain']:.1f}x", "g"),
     ("Creep closure", f"controlled ({o['creep_hot']/max(o['creep_cold'],1e-30):.0e}x)", "g"),
     ("Isotropic stab.", f"{o['grc']['reg_c']}, {o['grc']['u_cold']*1000:.1f} mm", "g"),
     ("Breakout (width)", f"{min(c['window']['width_hydro'] for c in o['stress_cases']):.0f}-"
      f"{max(c['window']['width_hydro'] for c in o['stress_cases']):.0f} deg; {stab}", "orange"),
     ("Wall cooling", f"{o['T_wall']:.0f} C wall, {o['dsigma_T']/1e6:+.0f} MPa hoop", "k"),
+    ("Drilling fluid", f"{cy['drill_SG']:.2f} SG; safe pause " + (f"{60 * cy['safe_pause_h']:.0f} min" if cy['safe_pause_h'] < 1 else f"{cy['safe_pause_h']:.0f} h"), "k"),
+    ("Trip", f"{cy['trip_h']:.0f} h; {cy['trip_SG']:.2f} SG (limit {cy['trip_SG_hi']:.2f})", "k"),
     ("", "", "k"),
-    ("VERDICT", verdict, "orange"),
+    ("VERDICT", f"{cy['site_verdict']} over the drilling cycle", "orange"),
     ("Data tier", f"{s.tier}; target {o['stress']['beyond_data']/1000:.1f} km below data", "k"),
     ("Strength", "lab UCS 100-130 MPa, not in-situ", "k"),
 ]
@@ -74,7 +76,7 @@ y = 0.95
 for k, v, c in rows:
     ax[2].text(0.02, y, k, fontsize=9, fontweight="bold" if k in ("SITE","VERDICT") else "normal")
     ax[2].text(0.45, y, v, fontsize=9, color={"g":"green","orange":"darkorange","k":"black"}[c])
-    y -= 0.075
+    y -= 0.065
 ax[2].set_title("Scorecard", fontsize=10)
 
 fig.suptitle("Site evaluation dashboard: Upper Rhine Graben / Soultz-sous-Forets", fontsize=12)

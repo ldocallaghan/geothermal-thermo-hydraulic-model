@@ -75,3 +75,34 @@ def test_site_table_v13_is_unchanged(evaluated):
         for k in ("drill_SG", "trip_SG", "trip_SG_hi"):
             assert now[site][k] == pytest.approx(row[k], abs=0.01), (site, k)
         assert now[site]["trip_h"] == pytest.approx(row["trip_h"], abs=0.1)
+        assert now[site]["flow_ceiling"] == row["flow_ceiling"], site
+        for tag, d in row["shmin_margin"].items():
+            for k, v in d.items():
+                if v is None:
+                    assert now[site]["shmin_margin"][tag][k] is None, (site, tag, k)
+                else:
+                    assert now[site]["shmin_margin"][tag][k] == pytest.approx(v, abs=0.002), (site, tag, k)
+
+
+def test_drilling_is_conditional_when_a_connection_sets_the_fluid(soultz):
+    water = se.SOULTZ.rho_fluid_grad / se.C.MUD_SG_GRAD
+    for c in soultz["cycle"]["per_case"]:
+        if c["drill_SG"] > water + 1e-9:
+            assert c["states"]["drilling"] != "GO", c["label"]
+
+
+def test_a_scaled_site_scales_only_the_horizontal_stresses():
+    z = 8000.0
+    for SHmax_too in (False, True):
+        s = se.scaled_site(se.SOULTZ, 0.9, SHmax_too)
+        for p, q in zip(se.SOULTZ.stress_cases, s.stress_cases):
+            assert q.Shmin(z) == pytest.approx(0.9 * p.Shmin(z))
+            assert q.SHmax(z) == pytest.approx((0.9 if SHmax_too else 1.0) * p.SHmax(z))
+            assert q.Sv(z) == p.Sv(z) and q.Pp(z) == p.Pp(z)
+
+
+def test_friction_needed_inverts_the_frictional_cap():
+    import model5_convergence_confinement as m5
+    R = m5.frictional_cap(0.8)
+    Pp, S3 = 100e6, 150e6
+    assert se.friction_needed(250e6, S3, Pp + R * (S3 - Pp), Pp) == pytest.approx(0.8)

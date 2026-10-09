@@ -431,6 +431,22 @@ def print_cycle(title, sites, results):
         print(f"    {'staged circulation':<40}no change at the bottom: staging cools only the hole above the bit")
         print(f"    {'double bit run':<40}no change at the bottom: the element one stand up is the same")
     print()
+    pct = lambda x: "already NO-GO" if x is None else ("none within 20%" if x == float("inf") else f"{100 * x:.1f}%")
+    print("Margins over the cycle: the flow range (from the flow used to the highest flow at which the")
+    print("verdict holds), and the fall in Shmin that closes the window, with SHmax held or scaled with")
+    print("it, with the frictional cap on SHmax at the site's friction coefficient and at 1.0; mu: the")
+    print("friction the deciding case's stresses need at the first closure with SHmax held")
+    for s_, o in zip(sites, results):
+        short = s_.name.split("(")[0].strip()[:25]
+        fc, sm = o["flow_ceiling"], o["shmin_margin"]
+        mu = lambda d: "" if d["friction_needed"] is None else f" (mu {d['friction_needed']:.2f})"
+        print(f"  {short:<26}flow {o['circ']['m_dot']:.0f} to {fc['m_dot']:.0f} kg/s, ceiling set by {fc['by']}"
+              f" ({fc['gpm']:.0f} gpm, {'within' if fc['within_rig'] else 'beyond'} rig capacity)")
+        for tag, name in (("site", f"cap at mu {s_.mu:.2f}"), ("mu_hi", "cap at mu 1.00")):
+            d = sm[tag]
+            print(f"  {'':<26}Shmin fall, {name}: SHmax held {pct(d['SHmax_held'])}{mu(d)}, "
+                  f"scaled {pct(d['SHmax_scaled'])}")
+    print()
     print("Failed depth at the Shmin azimuth from the full stress field, minutes after the bit exposes")
     print("the rock, at the drilling fluid with its circulating friction (deciding case), against the")
     print("uncooled depth whose temperature the width check uses")
@@ -476,7 +492,10 @@ def golden_rows_v13(results):
             sensitivities={k: dict(site_verdict=v["site_verdict"], trip_SG=v["trip_SG"],
                                          drill_SG=v["drill_SG"])
                            for k, v in o["cycle_sensitivity"].items()},
-            trip_profile=[(r["height"], r["verdict"], r["SG_needed"]) for r in o["trip_profile"]])
+            trip_profile=[(r["height"], r["verdict"], r["SG_needed"]) for r in o["trip_profile"]],
+            flow_ceiling=dict(m_dot=o["flow_ceiling"]["m_dot"], by=o["flow_ceiling"]["by"]),
+            shmin_margin={k: {kk: (None if vv is None else (-1.0 if vv == float("inf") else vv))
+                              for kk, vv in d.items()} for k, d in o["shmin_margin"].items()})
     return rows
 
 

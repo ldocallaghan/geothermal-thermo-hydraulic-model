@@ -18,7 +18,7 @@ the best-characterised deep-geothermal site in Europe (GPK-1..4 wells to
 granite to 200 C at 5 km (Genter et al.; MDPI Geosciences 2020). Stress and
 rock strength: Valley & Evans (2007); see data/sites/stress_sources.md.
 """
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 import numpy as np
 import geo_constants as C
 import model1_coupled as m1
@@ -843,7 +843,7 @@ def _ref_depth(site, z, T_rock, Pw):
 
 
 def site_cycle(site, out, connection="p90", trip_scale=1.0, run=None, label="base", node=True,
-               form_h=0.0, fresh="p10"):
+               form_h=0.0, fresh="p10", verdict_only=False):
     """Verdicts through the drilling cycle for the wall element one stand above
     the end of a bit run at the target: drilling (circulating pressure, the
     wall as the bit passes it), the connection (static, the wall at the end of
@@ -860,7 +860,10 @@ def site_cycle(site, out, connection="p90", trip_scale=1.0, run=None, label="bas
     is circulated against only from the last new hole until the pumps stop
     (fresh: FORGE's 10th percentile, "p10", or its median), then sits through
     the connection at static pressure. The drilling fluid must hold the wall
-    in every state and stay below the fracture limit while circulating."""
+    in every state and stay below the fracture limit while circulating.
+
+    verdict_only: return the site verdict and the deciding case's drilling
+    fluid without the safe pause and the full-field check (for searches)."""
     import drilling_cycle as dc
     t = dc.forge_timings()
     z = out["z"]
@@ -933,6 +936,10 @@ def site_cycle(site, out, connection="p90", trip_scale=1.0, run=None, label="bas
         # fracture the rock while circulating
         drill_hi = cd["window"]["SG_hi"] - ecd
         v_d = cd["window"]["verdict"] if drill <= drill_hi + 1e-9 else "NO-GO"
+        # a connection that sets a fluid heavier than water makes drilling
+        # conditional on that fluid, whatever the circulating window alone says
+        if v_d == "GO" and drill > water + 1e-9:
+            v_d = "CONDITIONAL"
         vs = [v_d, cc["window"]["verdict"], cf["window"]["verdict"], ct["window"]["verdict"]]
         v = "GO" if all(x == "GO" for x in vs) else ("CONDITIONAL" if all(x != "NO-GO" for x in vs)
                                                        else "NO-GO")
@@ -942,6 +949,10 @@ def site_cycle(site, out, connection="p90", trip_scale=1.0, run=None, label="bas
                              drill_SG=drill, drill_SG_hi=drill_hi,
                              trip_SG=max(water, need(ct["window"])), trip_SG_hi=ct["window"]["SG_hi"]))
     gov = max(per_case, key=lambda c: (VERDICT_ORDER.index(c["verdict"]), c["trip_SG"]))
+    if verdict_only:
+        return dict(site_verdict=worst_verdict([c["verdict"] for c in per_case]),
+                    drill_SG=gov["drill_SG"], drill_SG_hi=gov["drill_SG_hi"],
+                    deciding_case=gov["label"])
     w_drill_SG = gov["drill_SG"]
     Pw_drill = w_drill_SG * sg
     thermo = -thermal_hoop_stress(T_rock, T_rock - 1.0)
@@ -1059,6 +1070,76 @@ def trip_profile(site, out, heights=(0.0, 100.0, 250.0, 500.0, 1000.0, 2000.0, 3
     return rows
 
 
+def scaled_site(site, f, SHmax_too=False):
+    """The site with Shmin, and SHmax if SHmax_too, multiplied by f in every
+    stress case."""
+    cases = tuple(replace(p, Shmin_grad=p.Shmin_grad * f, Shmin_int=p.Shmin_int * f,
+                          SHmax_grad=p.SHmax_grad * (f if SHmax_too else 1.0),
+                          SHmax_int=p.SHmax_int * (f if SHmax_too else 1.0))
+                  for p in site.stress_cases)
+    return replace(site, stress_cases=cases)
+
+
+def shmin_margin(site, out, SHmax_too=False, hi=0.2, step=0.005, tol=0.0005):
+    """The fractional reduction in Shmin (with SHmax held, or scaled with it)
+    that closes the window over the drilling cycle: the smallest reduction at
+    which the site's verdict is NO-GO. None if it is NO-GO already, inf if no
+    reduction up to hi closes it. Below the data the frictional cap on SHmax
+    falls with Shmin and can pull SHmax down, so the verdict need not worsen
+    steadily: the reductions are scanned upwards and the first closure
+    refined."""
+    v = lambda x: site_cycle(scaled_site(site, 1.0 - x, SHmax_too), out,
+                             verdict_only=True)["site_verdict"] == "NO-GO"
+    if v(0.0):
+        return None
+    lo = 0.0
+    for k in range(1, int(round(hi / step)) + 1):
+        x = k * step
+        if v(x):
+            hi_ = x
+            while hi_ - lo > tol:
+                mid = 0.5 * (lo + hi_)
+                lo, hi_ = (lo, mid) if v(mid) else (mid, hi_)
+            return hi_
+        lo = x
+    return float("inf")
+
+
+def with_friction(site, mu):
+    """The site with every stress case's frictional cap at mu."""
+    return replace(site, mu=mu, stress_cases=tuple(replace(p, mu=None) for p in site.stress_cases))
+
+
+def friction_needed(Sv, Shmin, SHmax, Pp):
+    """The friction coefficient at which a stress state is at frictional
+    equilibrium: the inverse of (S1 - Pp)/(S3 - Pp) = (sqrt(1 + mu^2) + mu)^2."""
+    q = np.sqrt((max(Sv, SHmax) - Pp) / (min(Sv, Shmin) - Pp))
+    return float((q * q - 1.0) / (2.0 * q))
+
+
+def shmin_margins(site, out, mu_hi=1.0):
+    """The fall in Shmin that closes the window over the cycle, with SHmax held
+    and with it scaled, with the frictional cap at the site's friction
+    coefficient and at mu_hi (the top of Byerlee's range), and the friction
+    the deciding case's stresses need at the first closure with SHmax held."""
+    z = out["z"]
+    res = {}
+    for tag, st in (("site", site), ("mu_hi", with_friction(site, mu_hi))):
+        held = shmin_margin(st, out)
+        mu_at = None
+        if held not in (None, float("inf")):
+            # the deciding case's stresses as the check uses them, after the cap
+            s2 = scaled_site(st, 1.0 - held)
+            label = site_cycle(s2, out, verdict_only=True)["deciding_case"]
+            _, cases = stability_inputs(s2, z, out["T_rock"], T_wall=out["T_rock"])
+            c = next(c for c in cases if c["label"] == label)
+            mu_at = friction_needed(c["Sv"], c["Shmin"], c["SHmax"], c["Pp"])
+        res[tag] = dict(SHmax_held=held, SHmax_scaled=shmin_margin(st, out, SHmax_too=True),
+                        friction_needed=mu_at)
+    res["mu_hi"]["mu"] = mu_hi
+    return res
+
+
 def _evaluate_v13(site, thermal=True):
     """The v1.2 evaluation, with the verdict through the drilling cycle."""
     out = _evaluate_v12(site, thermal)
@@ -1078,13 +1159,31 @@ def _evaluate_v13(site, thermal=True):
     dual = out["circ"]["dual_wall"]
     run_dual = circulate(site, z, geotherm, wg.DUAL_WALL, dual["m_dot"], exposure)
     sens["dual-wall pipe"] = site_cycle(site, out, run=run_dual, label="dual-wall pipe")
-    # the highest flow within the pump limit on the base pipe
+    # the highest flow within the pump limit on the base pipe, and the flow
+    # ceiling: the highest flow, from the one used upwards, at which the
+    # verdict over the cycle holds
     best = None
+    base_v = out["cycle"]["site_verdict"].split()[0]
+    ceiling = dict(m_dot=out["circ"]["m_dot"], by="pump limit", run=out["m1"])
+    holding = True
     for md in (f for f in SITE_FLOWS if f > out["circ"]["m_dot"]):
         r = circulate(site, z, geotherm, out["circ"]["pipe"], md, exposure)
         if r["hyd"]["over_pump_limit"]:
             break
         best = r
+        if holding:
+            v = site_cycle(site, out, run=r, verdict_only=True)["site_verdict"]
+            if VERDICT_ORDER.index(v) > VERDICT_ORDER.index(base_v):
+                holding = False
+                ceiling["by"] = "the window over the cycle"
+            else:
+                ceiling.update(m_dot=md, run=r)
+    r_c = ceiling.pop("run")
+    gpm_c = flow_gpm(r_c)
+    ceiling.update(gpm=gpm_c, spp=float(r_c["hyd"]["spp"]),
+                   within_rig=gpm_c <= rig_capacity_gpm(float(r_c["hyd"]["spp"])))
+    out["flow_ceiling"] = ceiling
+    out["shmin_margin"] = shmin_margins(site, out)
     if best is not None:
         sens[f"highest flow, {best['m_dot']:.0f} kg/s"] = site_cycle(
             site, out, run=best, label=f"highest flow, {best['m_dot']:.0f} kg/s")

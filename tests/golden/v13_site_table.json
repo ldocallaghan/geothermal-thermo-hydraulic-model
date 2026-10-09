@@ -108,7 +108,24 @@
     "GO",
     1.019367991845056
    ]
-  ]
+  ],
+  "flow_ceiling": {
+   "m_dot": 70,
+   "by": "the window over the cycle"
+  },
+  "shmin_margin": {
+   "site": {
+    "SHmax_held": -1.0,
+    "SHmax_scaled": -1.0,
+    "friction_needed": null
+   },
+   "mu_hi": {
+    "SHmax_held": 0.030625,
+    "SHmax_scaled": 0.065625,
+    "friction_needed": 0.8674195104204112,
+    "mu": 1.0
+   }
+  }
  },
  "Larderello (Italy)": {
   "verdicts": {
@@ -194,7 +211,24 @@
     "GO",
     1.019367991845056
    ]
-  ]
+  ],
+  "flow_ceiling": {
+   "m_dot": 100,
+   "by": "pump limit"
+  },
+  "shmin_margin": {
+   "site": {
+    "SHmax_held": -1.0,
+    "SHmax_scaled": -1.0,
+    "friction_needed": null
+   },
+   "mu_hi": {
+    "SHmax_held": -1.0,
+    "SHmax_scaled": -1.0,
+    "friction_needed": null,
+    "mu": 1.0
+   }
+  }
  },
  "United Downs / Carnmenellis (UK)": {
   "verdicts": {
@@ -305,7 +339,24 @@
     "CONDITIONAL",
     1.0578779788051207
    ]
-  ]
+  ],
+  "flow_ceiling": {
+   "m_dot": 60,
+   "by": "the window over the cycle"
+  },
+  "shmin_margin": {
+   "site": {
+    "SHmax_held": 0.1946875,
+    "SHmax_scaled": 0.1946875,
+    "friction_needed": 1.547504438858727
+   },
+   "mu_hi": {
+    "SHmax_held": 0.021875,
+    "SHmax_scaled": 0.04625,
+    "friction_needed": 0.8384307545895157,
+    "mu": 1.0
+   }
+  }
  },
  "Pannonian Basin (Hungary)": {
   "verdicts": {
@@ -411,7 +462,24 @@
     "GO",
     1.019367991845056
    ]
-  ]
+  ],
+  "flow_ceiling": {
+   "m_dot": 100,
+   "by": "pump limit"
+  },
+  "shmin_margin": {
+   "site": {
+    "SHmax_held": 0.12875,
+    "SHmax_scaled": -1.0,
+    "friction_needed": 1.301197156771003
+   },
+   "mu_hi": {
+    "SHmax_held": 0.12875,
+    "SHmax_scaled": -1.0,
+    "friction_needed": 1.301197156771003,
+    "mu": 1.0
+   }
+  }
  },
  "Newberry / NWG 55-29 (USA)": {
   "verdicts": {
@@ -497,6 +565,23 @@
     "GO",
     1.0193679918450562
    ]
-  ]
+  ],
+  "flow_ceiling": {
+   "m_dot": 100,
+   "by": "pump limit"
+  },
+  "shmin_margin": {
+   "site": {
+    "SHmax_held": 0.15218749999999998,
+    "SHmax_scaled": 0.15218749999999998,
+    "friction_needed": 1.0922540625876878
+   },
+   "mu_hi": {
+    "SHmax_held": 0.15218749999999998,
+    "SHmax_scaled": 0.15218749999999998,
+    "friction_needed": 1.0922540625876878,
+    "mu": 1.0
+   }
+  }
  }
 }

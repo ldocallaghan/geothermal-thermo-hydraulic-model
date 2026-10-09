@@ -1,5 +1,58 @@
 # Changelog
 
+## v1.3.1: the wall is held by fluid weight (October 2026)
+
+Corrections from a review of v1.3. No base verdict changes; the README is
+reframed around the v1.3 result.
+
+- **Connection on freshly drilled rock.** The rock the bit has just drilled is
+  circulated against only until the pumps stop, then sits through the
+  connection at static pressure. From the 10-second Pason record over the
+  whole well (303 connections), that circulation is 20 s at the 10th
+  percentile and 1 min at the median; the base case uses the 10th percentile,
+  the median is a sensitivity. The connection durations now come from the same
+  record: 2.8 min at the median and 6.3 min at the 90th percentile, against
+  2.0 and 5.0 min from the 1-minute record over the trial week. The review
+  found United Downs without a window here; that comparison added the
+  circulating friction to the requirement and also took it off the limit. With
+  it counted once, United Downs needs 1.26 SG against 1.29.
+- **Drilling fluid against the limit while circulating.** When a connection
+  sets the drilling fluid, the fluid is now also checked against the fracture
+  limit less the circulating friction. At the highest flow within the pump
+  limit, both well-characterised sites become NO-GO in their worst case, so a
+  higher flow narrows the window over the cycle.
+- **The one-hour formation allowance** now applies to the fresh-rock
+  connection as well as to drilling, since both fall within that hour.
+- **Full stress field in the first minutes.** The site output reports the
+  failed depth from the full stress field after 0 to 10 minutes of cooling
+  against the uncooled depth: the cooled skin pushes it from 1.9 to 2.1 cm at
+  Soultz after a minute, and below the uncooled depth within 5 minutes.
+- **When breakouts form.** Moore et al. (2011) imaged breakouts at the bit
+  minutes after drilling, widening over 30 minutes to 3 days; Wenning et al.
+  (2017) logged breakout growth over more than a year in crystalline rock in
+  the COSC-1 borehole. The README cites both: the one-hour allowance is a
+  sensitivity the data do not support, and later growth is unmodelled.
+- **README.** Section 5 leads with the verdicts over the cycle; the
+  assessment while circulating is kept for comparison. The opening, Section 1
+  and Section 3.2 say that the wall is held by fluid weight and that cooling
+  serves the tools and slows creep. The comparison with FORGE 16B's trips is
+  described as too coarse to confirm or reject the reheating model. The narrow
+  windows are stated. Fig. 8 adds the trip fluid needed up the open hole.
+- **The FORGE trip test.** The review reported a no-node fit factor of 0.391
+  against 0.357 pinned, with numpy 2.4.4 and scipy 1.17.1. Those versions
+  reproduce the pinned values exactly here, so the difference has another
+  cause, and the tolerance is unchanged.
+
+### Verdicts, v1.3 → v1.3.1 (target 400 °C)
+
+| Site | Verdict | Drilling fluid (limit) | Trip fluid (limit) |
+|---|---|---|---|
+| Upper Rhine / Soultz | CONDITIONAL, unchanged | 1.31 SG (1.34), unchanged | 1.30 SG (1.37) |
+| United Downs | CONDITIONAL, unchanged | 1.25 → 1.26 SG (1.29) | 1.27 SG (1.32) |
+| Larderello | GO | water | water |
+| Pannonian Basin | CONDITIONAL, unchanged | 1.42 SG (2.48) | 1.39 SG (2.50) |
+| Newberry | GO | water | water |
+
 ## v1.3: the wall through the drilling cycle (October 2026)
 
 The verdicts now follow the borehole wall through a bit run and the trip that

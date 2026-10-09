@@ -4,7 +4,7 @@ title: "Quenchwell: models of circulating temperature and borehole stability for
 authors:
   - family-names: "O'Callaghan"
     given-names: "Liam"
-version: "1.3"
+version: "1.3.1"
 license: MIT
 date-released: "2026-10-09"
 repository-code: "https://github.com/ldocallaghan/geothermal-thermo-hydraulic-model"

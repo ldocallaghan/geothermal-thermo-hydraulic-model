@@ -52,7 +52,11 @@ def main():
                    for T in res.T_probe]) - np.where(circ, c["ecd_SG"], 0.0)
     hi = (p.Shmin(z) - C.MUD_MARGIN_SG * sg) / sg - np.where(circ, c["ecd_SG"], 0.0)
 
-    fig, ax = plt.subplots(3, 1, figsize=(10, 9), sharex=True)
+    fig = plt.figure(figsize=(13, 9))
+    gs = fig.add_gridspec(3, 2, width_ratios=(3, 1))
+    ax = [fig.add_subplot(gs[0, 0])]
+    ax += [fig.add_subplot(gs[i, 0], sharex=ax[0]) for i in (1, 2)]
+    axp = fig.add_subplot(gs[:, 1])
     ax[0].plot(t_h, res.T_wall, "tab:blue", label="wall")
     ax[0].plot(t_h, res.T_probe, "tab:red", label=f"rock {100 * (c['r_ref'] - c['a']):.1f} cm behind the wall")
     ax[0].axhline(T_rock, color="k", ls=":", lw=1, label="formation")
@@ -81,6 +85,18 @@ def main():
             if holds else f"safe pause {c['safe_pause_h']:.1f} h")
     ax[0].text(t_trip + 1, ax[0].get_ylim()[0] + 5, note, color="tab:orange", fontsize=8)
     ax[0].text(t_trip + 1, T_rock - 15, f"trip, {c['trip_h']:.0f} h without circulation", fontsize=8)
+    # the trip fluid needed up the open hole
+    tp = o["trip_profile"]
+    hgt = [r["height"] / 1000 for r in tp]
+    axp.plot([r["SG_needed"] for r in tp], hgt, "o-", color="tab:green", label="needed at the end of the trip")
+    axp.plot([r["SG_hi"] for r in tp], hgt, "--", color="tab:red", label="fracture limit, pumps off")
+    axp.set_xlabel("fluid weight [SG]")
+    axp.set_ylabel("height above the bit [km]")
+    axp.set_title("The trip, up the open hole", fontsize=9)
+    axp.legend(fontsize=8, loc="upper right")
+    axp.grid(alpha=0.3)
+    for a in ax[:2]:
+        plt.setp(a.get_xticklabels(), visible=False)
     fig.suptitle(f"Soultz at {z / 1000:.1f} km: the wall one stand above the end of a bit run "
                  f"({c['deciding_case']})", fontsize=10)
     fig.tight_layout()

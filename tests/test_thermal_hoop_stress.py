@@ -82,9 +82,9 @@ def test_v10_adapter_ignores_the_thermal_term(site):
 # --------------------------------------------- full runs (Model 1, slow)
 @pytest.mark.slow
 @pytest.mark.parametrize("site", SITES, ids=lambda s: s.name.split()[0])
-def test_evaluate_uses_model1_wall_and_reports_the_sensitivity(site):
+def test_evaluate_uses_model1_wall_and_reports_the_sensitivity(site, evaluated):
     from comparative_sites import classify, classify_no_thermal
-    o = se.evaluate(site)
+    o = evaluated(site, circulation="v1.2")
     assert o["thermal"] is True
     assert o["T_wall"] == pytest.approx(o["m1"]["T_bottom_delivered"])
     assert o["dsigma_T"] == pytest.approx(se.thermal_hoop_stress(o["T_rock"], o["T_wall"]))
@@ -96,25 +96,25 @@ def test_evaluate_uses_model1_wall_and_reports_the_sensitivity(site):
     assert classify_no_thermal(o) is not None
     # thermal=False removes only the thermal stress; the strength still sees
     # the cooled wall, so it is not the uncooled sensitivity
-    off = se.evaluate(site, thermal=False)
+    off = evaluated(site, thermal=False, circulation="v1.2")
     assert off["dsigma_T"] == 0.0 and off["T_wall"] < off["T_rock"]
 
 
 @pytest.mark.slow
-def test_v10_evaluate_has_no_sensitivity_line():
+def test_v10_evaluate_has_no_sensitivity_line(evaluated):
     from comparative_sites import classify_no_thermal
-    o = se.evaluate(CORNWALL, v10=True)
+    o = evaluated(CORNWALL, v10=True)
     assert o["thermal"] is False and o["no_thermal"] is None
     assert classify_no_thermal(o) is None
 
 
 @pytest.mark.slow
 @pytest.mark.parametrize("v10", [False, True])
-def test_creep_closure_uses_the_same_wall_temperature(v10):
+def test_creep_closure_uses_the_same_wall_temperature(v10, evaluated):
     """Model 4's cooled creep rate takes the wall temperature the stability
     checks use: Model 1's in v1.1, v1.0's 200 C under the adapter."""
     import model4_hole_stability as m4
-    o = se.evaluate(CORNWALL, v10=v10)
+    o = evaluated(CORNWALL, v10=True) if v10 else evaluated(CORNWALL, circulation="v1.2")
     T_wall = 200.0 if v10 else o["m1"]["T_bottom_delivered"]
     assert o["T_wall"] == pytest.approx(T_wall)
     expect = m4.closure_rate(o["z"], o["T_rock"], T_wall, 7 * 86400, cooled=True) * se.YEAR * 100
@@ -122,11 +122,11 @@ def test_creep_closure_uses_the_same_wall_temperature(v10):
 
 
 @pytest.mark.slow
-def test_sensitivities_cover_uncooled_and_the_calibrated_breakout_limit():
+def test_sensitivities_cover_uncooled_and_the_calibrated_breakout_limit(evaluated):
     """The uncooled wall alone, UD-1's 63 deg limit alone, and the two
     together; at United Downs the combination closes the window (NO-GO)."""
     from comparative_sites import classify_sensitivity
-    o = se.evaluate(CORNWALL)
+    o = evaluated(CORNWALL, circulation="v1.2")
     w63 = f"W_max {C.BREAKOUT_W_MAX_SITE_DEG:.0f}"
     assert set(o["sensitivity"]) == {"no wall cooling", w63, f"no wall cooling, {w63}"}
     both = o["sensitivity"][f"no wall cooling, {w63}"]["stress"]

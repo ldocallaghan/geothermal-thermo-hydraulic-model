@@ -14,8 +14,8 @@ pytestmark = pytest.mark.slow
 
 
 @pytest.fixture(scope="module")
-def results():
-    return [se.evaluate(s, circulation="v1.2") for s in SITES]
+def results(evaluated):
+    return [evaluated(s, circulation="v1.2") for s in SITES]
 
 
 def test_site_table_is_unchanged(results):

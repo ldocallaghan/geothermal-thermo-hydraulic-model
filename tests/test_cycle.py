@@ -13,8 +13,8 @@ pytestmark = pytest.mark.slow
 
 
 @pytest.fixture(scope="module")
-def soultz():
-    return se.evaluate(se.SOULTZ)
+def soultz(evaluated):
+    return evaluated(se.SOULTZ)
 
 
 def test_safe_pause_rises_with_the_fluid_weight(soultz):
@@ -64,10 +64,10 @@ def test_the_safe_pause_is_bracketed(soultz):
         assert not c["width_ok"](c["after_pause"](1.02 * h), c["drill_SG"] * se.C.MUD_SG_GRAD * c["z"])
 
 
-def test_site_table_v13_is_unchanged():
+def test_site_table_v13_is_unchanged(evaluated):
     with open(os.path.join(GOLDEN, "v13_site_table.json")) as fh:
         pinned = json.load(fh)
-    now = golden_rows_v13([se.evaluate(s) for s in SITES])
+    now = golden_rows_v13([evaluated(s) for s in SITES])
     assert now.keys() == pinned.keys()
     for site, row in pinned.items():
         assert now[site]["verdicts"] == row["verdicts"], site

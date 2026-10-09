@@ -62,11 +62,11 @@ def test_breakout_uses_the_ucs_it_is_given():
 # ------------------------------------------------- full site runs (slow)
 @pytest.mark.slow
 @pytest.mark.parametrize("site", SITES, ids=lambda s: s.name.split()[0])
-def test_every_site_run_passes_its_own_ucs(site):
+def test_every_site_run_passes_its_own_ucs(site, evaluated):
     """Each site's own strength cases (four calibrated ones at United Downs,
     three lab values at Soultz, one elsewhere); the row's case carries its UCS
     through."""
-    o = se.evaluate(site)
+    o = evaluated(site, circulation="v1.2")
     assert o["UCS"] in [u for _, u in site.strength_cases]
     assert o["UCS"] == o["stress"]["UCS"]
     assert {c["UCS"] for c in o["stress_cases"]} == {u for _, u in site.strength_cases}
@@ -82,9 +82,9 @@ def test_every_site_run_passes_its_own_ucs(site):
 
 
 @pytest.mark.slow
-def test_cornwall_run_uses_the_ud1_calibration_and_the_v10_adapter_does_not():
+def test_cornwall_run_uses_the_ud1_calibration_and_the_v10_adapter_does_not(evaluated):
     """United Downs runs on its four calibrated strengths in place of v1.0's
     unsourced 180 MPa; the v1.0 adapter keeps the global 200 MPa."""
-    o = se.evaluate(CORNWALL)
+    o = evaluated(CORNWALL, circulation="v1.2")
     assert {c["UCS"] for c in o["stress_cases"]} == {203e6, 172e6, 147e6, 118e6}
-    assert se.evaluate(CORNWALL, v10=True)["UCS"] == C.UCS == 200.0 * MPa
+    assert evaluated(CORNWALL, v10=True)["UCS"] == C.UCS == 200.0 * MPa

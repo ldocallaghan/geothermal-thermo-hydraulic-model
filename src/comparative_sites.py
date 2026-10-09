@@ -410,18 +410,20 @@ def print_cycle(title, sites, results):
               f"{c['drill_SG']:9.2f}{fmt_pause(c['safe_pause_h']):>11}{c['trip_h']:7.0f}"
               f"{c['trip_SG']:8.2f}{c['trip_SG_hi']:7.2f}  {c['site_verdict']:<15}{classify(o)[2]}")
     print("-" * len(hdr))
-    print("  drill SG: the static fluid weight that holds the wall while drilling and through a")
-    print("  connection; safe pause: how long from the end of drilling the hole holds at that weight")
-    print("  with no circulation; trip h: the bottom of the hole without circulation for a trip, from")
-    print("  FORGE 16B's tripping speeds and routine surface time scaled to depth; trip SG: the static")
-    print("  fluid the hole needs for the trip, against the fracture limit (Shmin less 0.05 SG).")
+    print("  drill SG: the static fluid weight that holds the wall as the bit exposes it (with the")
+    print("  circulating friction) and through a connection; safe pause: how long from the end of")
+    print("  drilling the hole holds at that weight with no circulation; trip h: the bottom of the")
+    print("  hole without circulation for a trip, from FORGE 16B's tripping speeds and routine surface")
+    print("  time scaled to depth; trip SG: the static fluid the hole needs for the trip, against the")
+    print("  fracture limit (Shmin less 0.05 SG).")
     print()
-    print("Cycle sensitivities (over the cycle; safe pause; trip SG)")
+    print("Cycle sensitivities (over the cycle; drill SG; safe pause; trip SG)")
     for s, o in zip(sites, results):
         short = s.name.split("(")[0].strip()[:25]
         print(f"  {short}")
         for k, c in o["cycle_sensitivity"].items():
-            print(f"    {k:<28}{c['site_verdict']:<13}{fmt_pause(c['safe_pause_h']):>10}{c['trip_SG']:8.2f}")
+            print(f"    {k:<28}{c['site_verdict']:<13}{c['drill_SG']:6.2f}{fmt_pause(c['safe_pause_h']):>10}"
+                  f"{c['trip_SG']:8.2f}")
         print(f"    {'staged circulation':<28}no change at the bottom: staging cools only the hole above the bit")
         print(f"    {'double bit run':<28}no change at the bottom: the element one stand up is the same")
     print()
@@ -457,7 +459,8 @@ def golden_rows_v13(results):
             safe_pause_h=None if c["safe_pause_h"] == float("inf") else c["safe_pause_h"],
             trip_h=c["trip_h"], trip_SG=c["trip_SG"], trip_SG_hi=c["trip_SG_hi"],
             T_ref=c["T_ref"],
-            sensitivities={k: dict(site_verdict=v["site_verdict"], trip_SG=v["trip_SG"])
+            sensitivities={k: dict(site_verdict=v["site_verdict"], trip_SG=v["trip_SG"],
+                                         drill_SG=v["drill_SG"])
                            for k, v in o["cycle_sensitivity"].items()},
             trip_profile=[(r["height"], r["verdict"], r["SG_needed"]) for r in o["trip_profile"]])
     return rows

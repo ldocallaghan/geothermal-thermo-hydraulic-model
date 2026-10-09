@@ -38,10 +38,22 @@ def test_an_uncooled_state_gives_the_no_wall_cooling_verdict(soultz):
     assert ref["window"]["SG_lo"] == pytest.approx(nwc["SG_lo"], abs=0.01)
 
 
-def test_the_trip_needs_more_than_drilling(soultz):
+def test_drilling_is_judged_on_uncooled_rock(soultz):
+    """As the bit exposes the rock, the depth the breakout reaches is still at
+    formation temperature, so the drilling state is the uncooled wall at
+    circulating pressure."""
     c = soultz["cycle"]
-    assert c["T_ref"]["trip"] > c["T_ref"]["drilling"]
-    assert c["trip_SG"] >= c["drill_SG"] - 1e-6
+    assert c["T_ref"]["drilling"] == soultz["T_rock"]
+    assert c["T_ref"]["trip"] > c["T_ref"]["end of drilling"]
+    nwc = soultz["sensitivity"]["no wall cooling"]["stress"]["window"]
+    assert c["drill_SG"] >= nwc["SG_lo"] - c["ecd_SG"] - 0.01
+
+
+def test_time_to_form_lightens_the_drilling_fluid(soultz):
+    c = soultz["cycle"]
+    s = soultz["cycle_sensitivity"]["breakouts form over 1 h"]
+    assert s["T_ref"]["drilling"] < c["T_ref"]["drilling"]
+    assert s["drill_SG"] <= c["drill_SG"] + 1e-9
 
 
 def test_the_safe_pause_is_bracketed(soultz):

@@ -6,36 +6,47 @@
    "trip": "CONDITIONAL"
   },
   "site_verdict": "CONDITIONAL",
-  "drill_SG": 1.1387498319603502,
-  "safe_pause_h": 0.3944549560546875,
+  "drill_SG": 1.3076195819803826,
+  "safe_pause_h": 47.28749084472656,
   "trip_h": 43.805945595885035,
   "trip_SG": 1.3009631312549932,
   "trip_SG_hi": 1.3662736860156048,
   "T_ref": {
-   "drilling": 226.3341048922957,
+   "drilling": 399.5,
    "connection": 241.92301235332258,
-   "trip": 374.70867753639254
+   "trip": 374.70867753639254,
+   "end of drilling": 226.3341048922957
   },
   "sensitivities": {
    "half trip time": {
     "site_verdict": "CONDITIONAL",
-    "trip_SG": 1.277941683338928
+    "trip_SG": 1.277941683338928,
+    "drill_SG": 1.3076195819803826
    },
    "double trip time": {
     "site_verdict": "CONDITIONAL",
-    "trip_SG": 1.3151825695938557
+    "trip_SG": 1.3151825695938557,
+    "drill_SG": 1.3076195819803826
    },
    "no fluid node": {
     "site_verdict": "CONDITIONAL",
-    "trip_SG": 1.3087240549576322
+    "trip_SG": 1.3087240549576322,
+    "drill_SG": 1.3076195819803826
+   },
+   "breakouts form over 1 h": {
+    "site_verdict": "CONDITIONAL",
+    "trip_SG": 1.3009631312549932,
+    "drill_SG": 1.1430760027189362
    },
    "dual-wall pipe": {
     "site_verdict": "CONDITIONAL",
-    "trip_SG": 1.2820240579809907
+    "trip_SG": 1.2820240579809907,
+    "drill_SG": 1.3161780264893546
    },
    "highest flow, 90 kg/s": {
     "site_verdict": "CONDITIONAL",
-    "trip_SG": 1.2922824471719458
+    "trip_SG": 1.2922824471719458,
+    "drill_SG": 1.2281682451715545
    }
   },
   "trip_profile": [
@@ -104,30 +115,41 @@
   "trip_SG": 1.019367991845056,
   "trip_SG_hi": 1.3344943714370232,
   "T_ref": {
-   "drilling": 76.96072323594099,
+   "drilling": 400.08,
    "connection": 129.75733783426924,
-   "trip": 328.6940913582951
+   "trip": 328.6940913582951,
+   "end of drilling": 76.96072323594099
   },
   "sensitivities": {
    "half trip time": {
     "site_verdict": "GO",
-    "trip_SG": 1.019367991845056
+    "trip_SG": 1.019367991845056,
+    "drill_SG": 1.019367991845056
    },
    "double trip time": {
     "site_verdict": "GO",
-    "trip_SG": 1.019367991845056
+    "trip_SG": 1.019367991845056,
+    "drill_SG": 1.019367991845056
    },
    "no fluid node": {
     "site_verdict": "GO",
-    "trip_SG": 1.019367991845056
+    "trip_SG": 1.019367991845056,
+    "drill_SG": 1.019367991845056
+   },
+   "breakouts form over 1 h": {
+    "site_verdict": "GO",
+    "trip_SG": 1.019367991845056,
+    "drill_SG": 1.019367991845056
    },
    "dual-wall pipe": {
     "site_verdict": "GO",
-    "trip_SG": 1.019367991845056
+    "trip_SG": 1.019367991845056,
+    "drill_SG": 1.019367991845056
    },
    "highest flow, 100 kg/s": {
     "site_verdict": "GO",
-    "trip_SG": 1.019367991845056
+    "trip_SG": 1.019367991845056,
+    "drill_SG": 1.019367991845056
    }
   },
   "trip_profile": [
@@ -165,36 +187,47 @@
    "trip": "CONDITIONAL"
   },
   "site_verdict": "CONDITIONAL",
-  "drill_SG": 1.1211193549587901,
-  "safe_pause_h": 0.3181915283203125,
+  "drill_SG": 1.2527480266564337,
+  "safe_pause_h": 22.607620239257812,
   "trip_h": 51.84431580279911,
   "trip_SG": 1.2666232164379472,
   "trip_SG_hi": 1.3203703703703702,
   "T_ref": {
-   "drilling": 225.48021736897533,
+   "drilling": 400.0,
    "connection": 240.76946707962725,
-   "trip": 380.1545800083409
+   "trip": 380.1545800083409,
+   "end of drilling": 225.48021736897533
   },
   "sensitivities": {
    "half trip time": {
     "site_verdict": "CONDITIONAL",
-    "trip_SG": 1.2497872328607176
+    "trip_SG": 1.2497872328607176,
+    "drill_SG": 1.2527480266564337
    },
    "double trip time": {
     "site_verdict": "CONDITIONAL",
-    "trip_SG": 1.2764677950376282
+    "trip_SG": 1.2764677950376282,
+    "drill_SG": 1.2527480266564337
    },
    "no fluid node": {
     "site_verdict": "CONDITIONAL",
-    "trip_SG": 1.271421361868342
+    "trip_SG": 1.271421361868342,
+    "drill_SG": 1.2527480266564337
+   },
+   "breakouts form over 1 h": {
+    "site_verdict": "CONDITIONAL",
+    "trip_SG": 1.2666232164379472,
+    "drill_SG": 1.1211193549587901
    },
    "dual-wall pipe": {
     "site_verdict": "CONDITIONAL",
-    "trip_SG": 1.2526278818556495
+    "trip_SG": 1.2526278818556495,
+    "drill_SG": 1.2727503503201096
    },
    "highest flow, 90 kg/s": {
     "site_verdict": "CONDITIONAL",
-    "trip_SG": 1.26212084507957
+    "trip_SG": 1.26212084507957,
+    "drill_SG": 1.1876185192743793
    }
   },
   "trip_profile": [
@@ -257,36 +290,47 @@
    "trip": "CONDITIONAL"
   },
   "site_verdict": "CONDITIONAL",
-  "drill_SG": 1.1921516963493612,
-  "safe_pause_h": 0.2842254638671875,
+  "drill_SG": 1.4161005952817203,
+  "safe_pause_h": 77.06739807128906,
   "trip_h": 40.131718366208155,
   "trip_SG": 1.3945891145113878,
   "trip_SG_hi": 2.5,
   "T_ref": {
-   "drilling": 218.7530969996987,
+   "drilling": 399.99,
    "connection": 234.43413883107894,
-   "trip": 372.49904653820505
+   "trip": 372.49904653820505,
+   "end of drilling": 218.7530969996987
   },
   "sensitivities": {
    "half trip time": {
     "site_verdict": "CONDITIONAL",
-    "trip_SG": 1.3649034803682136
+    "trip_SG": 1.3649034803682136,
+    "drill_SG": 1.4161005952817203
    },
    "double trip time": {
     "site_verdict": "CONDITIONAL",
-    "trip_SG": 1.4134298150154538
+    "trip_SG": 1.4134298150154538,
+    "drill_SG": 1.4161005952817203
    },
    "no fluid node": {
     "site_verdict": "CONDITIONAL",
-    "trip_SG": 1.4056092631657087
+    "trip_SG": 1.4056092631657087,
+    "drill_SG": 1.4161005952817203
+   },
+   "breakouts form over 1 h": {
+    "site_verdict": "CONDITIONAL",
+    "trip_SG": 1.3945891145113878,
+    "drill_SG": 1.1933428877610115
    },
    "dual-wall pipe": {
     "site_verdict": "CONDITIONAL",
-    "trip_SG": 1.3689893990198057
+    "trip_SG": 1.3689893990198057,
+    "drill_SG": 1.4195832140713471
    },
    "highest flow, 100 kg/s": {
     "site_verdict": "CONDITIONAL",
-    "trip_SG": 1.3805907828455508
+    "trip_SG": 1.3805907828455508,
+    "drill_SG": 1.3082583744050096
    }
   },
   "trip_profile": [
@@ -350,30 +394,41 @@
   "trip_SG": 1.019367991845056,
   "trip_SG_hi": 1.3581093532249562,
   "T_ref": {
-   "drilling": 110.64151399894837,
+   "drilling": 400.0,
    "connection": 144.8487814196655,
-   "trip": 315.9651380041228
+   "trip": 315.9651380041228,
+   "end of drilling": 110.64151399894837
   },
   "sensitivities": {
    "half trip time": {
     "site_verdict": "GO",
-    "trip_SG": 1.019367991845056
+    "trip_SG": 1.019367991845056,
+    "drill_SG": 1.019367991845056
    },
    "double trip time": {
     "site_verdict": "GO",
-    "trip_SG": 1.019367991845056
+    "trip_SG": 1.019367991845056,
+    "drill_SG": 1.019367991845056
    },
    "no fluid node": {
     "site_verdict": "GO",
-    "trip_SG": 1.019367991845056
+    "trip_SG": 1.019367991845056,
+    "drill_SG": 1.019367991845056
+   },
+   "breakouts form over 1 h": {
+    "site_verdict": "GO",
+    "trip_SG": 1.019367991845056,
+    "drill_SG": 1.019367991845056
    },
    "dual-wall pipe": {
     "site_verdict": "GO",
-    "trip_SG": 1.019367991845056
+    "trip_SG": 1.019367991845056,
+    "drill_SG": 1.019367991845056
    },
    "highest flow, 100 kg/s": {
     "site_verdict": "GO",
-    "trip_SG": 1.019367991845056
+    "trip_SG": 1.019367991845056,
+    "drill_SG": 1.019367991845056
    }
   },
   "trip_profile": [

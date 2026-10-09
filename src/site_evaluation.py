@@ -842,12 +842,19 @@ def _ref_depth(site, z, T_rock, Pw):
     return d
 
 
-def site_cycle(site, out, connection="p90", trip_scale=1.0, run=None, label="base", node=True):
+def site_cycle(site, out, connection="p90", trip_scale=1.0, run=None, label="base", node=True,
+               form_h=0.0):
     """Verdicts through the drilling cycle for the wall element one stand above
-    the end of a bit run at the target: drilling (circulating pressure and
-    temperature), the connection (static, the wall at the end of the 90th
-    percentile connection) and the trip (static, the wall at the end of the
-    trip), with the safe pause and the trip fluid weight."""
+    the end of a bit run at the target: drilling (circulating pressure, the
+    wall as the bit passes it), the connection (static, the wall at the end of
+    the 90th percentile connection) and the trip (static, the wall at the end
+    of the trip), with the safe pause and the trip fluid weight.
+
+    Drilling is judged when the bit exposes the rock. Elastic failure is
+    immediate, and the rock at the depth the breakout reaches has not yet been
+    cooled then, so the fluid must hold the wall at formation temperature.
+    form_h: a time [h] the breakout is assumed to take to form, during which
+    circulation cools that rock (the sensitivity; no data support one)."""
     import drilling_cycle as dc
     t = dc.forge_timings()
     z = out["z"]
@@ -872,7 +879,14 @@ def site_cycle(site, out, connection="p90", trip_scale=1.0, run=None, label="bas
     res = wall_thermal.run(states, T_rock, a, site.k_rock, C.RHO_ROCK * C.CP_ROCK, n=150,
                            r_max=r_max, growth=1.2)
     T_ref = lambda field: float(np.interp(a + d_ref, res.r, field))
-    T_drill, T_conn, T_trip = T_ref(res.fields[3]), T_ref(res.fields[1]), T_ref(res.fields[4])
+    T_conn, T_trip, T_end = T_ref(res.fields[1]), T_ref(res.fields[4]), T_ref(res.fields[3])
+    if form_h > 0:
+        r0 = wall_thermal.run([wall_thermal.State("circulating", form_h * 3600, T_fluid=bc["Tu"], h=bc["h"])],
+                              T_rock, a, site.k_rock, C.RHO_ROCK * C.CP_ROCK, n=150, r_max=r_max,
+                              growth=1.2)
+        T_drill = T_ref(r0.fields[-1])
+    else:
+        T_drill = T_rock
     ecd = ecd_sg(run, z)
     sg = C.MUD_SG_GRAD * z
     ref_d, cases_d = stability_inputs(site, z, T_rock, T_wall=T_drill, Pw_add=ecd * sg)
@@ -944,7 +958,7 @@ def site_cycle(site, out, connection="p90", trip_scale=1.0, run=None, label="bas
                 for k in ("drilling", "connection", "trip")}
     return dict(label=label, z=z, T_rock=T_rock, rop_m_h=rop, bottoms_up_h=bc["bu_h"],
                 T_fluid=bc["Tu"], h=bc["h"], depth_ref=d_ref, ecd_SG=ecd,
-                T_ref={k: v[1] for k, v in states_out.items()},
+                T_ref={**{k: v[1] for k, v in states_out.items()}, "end of drilling": T_end},
                 states={k: v[0] for k, v in states_out.items()},
                 cases={"drilling": cases_d, "connection": cases_c, "trip": cases_t},
                 per_case=per_case, deciding_case=gov["label"],
@@ -1005,6 +1019,7 @@ def _evaluate_v13(site, thermal=True):
         "half trip time": site_cycle(site, out, trip_scale=0.5, label="half trip time"),
         "double trip time": site_cycle(site, out, trip_scale=2.0, label="double trip time"),
         "no fluid node": site_cycle(site, out, label="no fluid node", node=False),
+        "breakouts form over 1 h": site_cycle(site, out, label="breakouts form over 1 h", form_h=1.0),
     }
     dual = out["circ"]["dual_wall"]
     run_dual = circulate(site, z, geotherm, wg.DUAL_WALL, dual["m_dot"], exposure)

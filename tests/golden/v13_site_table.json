@@ -39,7 +39,7 @@
    "breakouts form over 1 h": {
     "site_verdict": "CONDITIONAL",
     "trip_SG": 1.3009340200062454,
-    "drill_SG": 1.307122898879603
+    "drill_SG": 1.1690984240844073
    },
    "median circulation before a connection": {
     "site_verdict": "CONDITIONAL",
@@ -236,7 +236,7 @@
    "breakouts form over 1 h": {
     "site_verdict": "CONDITIONAL",
     "trip_SG": 1.266601947164581,
-    "drill_SG": 1.2625242792293914
+    "drill_SG": 1.142053699382949
    },
    "median circulation before a connection": {
     "site_verdict": "CONDITIONAL",
@@ -347,7 +347,7 @@
    "breakouts form over 1 h": {
     "site_verdict": "CONDITIONAL",
     "trip_SG": 1.394552057492569,
-    "drill_SG": 1.3911969939855653
+    "drill_SG": 1.2143624453321802
    },
    "median circulation before a connection": {
     "site_verdict": "CONDITIONAL",

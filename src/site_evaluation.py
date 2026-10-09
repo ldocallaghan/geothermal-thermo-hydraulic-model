@@ -893,6 +893,11 @@ def site_cycle(site, out, connection="p90", trip_scale=1.0, run=None, label="bas
     st_f = [wall_thermal.State("circulating", fresh_min * 60, T_fluid=bc["Tu"], h=bc["h"]),
             wall_thermal.State("static", conn_h * 3600, h=hs_f, C=cap_f if node else 0.0,
                                T_node0=bc["Tu"])]
+    # with time allowed for breakouts to form, the fresh rock is judged when
+    # they would form, circulated against again after the connection
+    rest = form_h * 3600 - (fresh_min * 60 + conn_h * 3600)
+    if rest > 0:
+        st_f.append(wall_thermal.State("circulating", rest, T_fluid=bc["Tu"], h=bc["h"]))
     r_f = wall_thermal.run(st_f, T_rock, a, site.k_rock, C.RHO_ROCK * C.CP_ROCK, n=150, r_max=r_max,
                            growth=1.2)
     T_fresh = T_ref(r_f.fields[-1])

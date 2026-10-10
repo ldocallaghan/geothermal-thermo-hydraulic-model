@@ -630,6 +630,49 @@ def golden_rows_v13(results):
     return rows
 
 
+def golden_rows_v133(results):
+    """The v1.3.3 site table as pinned: the status, the cycle, its
+    sensitivities and trip profile, the common windows and binding depths,
+    the margins and flow interval, the tools and coating, and the passes."""
+    inf = lambda x: None if x is None else (-1.0 if x == float("inf") else float(x))
+    rows = {}
+    for o in results:
+        c, b, tl = o["cycle"], o["cycle"]["budget"], o["tools"]
+        win = lambda w: dict(open=w["open"], lo=inf(w["lo"]), hi=inf(w["hi"]), note=w.get("note"),
+                             lo_by=dict(w["lo_by"], md=float(w["lo_by"]["md"])),
+                             hi_by=dict(w["hi_by"], md=float(w["hi_by"]["md"])))
+        sched = lambda x: None if x is None else {k: float(v) if isinstance(v, (int, float)) else v
+                                                  for k, v in x.items()}
+        rows[o["site"].name] = dict(
+            status=o["status"], verdicts=c["verdicts"], site_verdict=c["site_verdict"],
+            deciding_case=c["deciding_case"],
+            drill_SG=c["drill_SG"], drill_SG_hi=c["drill_SG_hi"], trip_SG=c["trip_SG"],
+            trip_SG_start=b["trip_SG_start"], trip_SG_hi=c["trip_SG_hi"],
+            safe_pause_h=inf(c["safe_pause_h"]), trip_h=c["trip_h"], T_ref=c["T_ref"],
+            fluid_SG=None if o["fluid"] is None else o["fluid"].sg,
+            fluid_passes=len(o["fluid_passes"]), rop_m_h=o["drill"]["ROP"] * 3600,
+            flow=o["circ"]["m_dot"], bit_C=o["circ"]["bhct"], ecd_SG=c["ecd_SG"],
+            sensitivities={k: dict(site_verdict=v["site_verdict"], drill_SG=v["drill_SG"],
+                                   trip_SG=v["trip_SG"], safe_pause_h=inf(v["safe_pause_h"]))
+                           for k, v in o["cycle_sensitivity"].items()},
+            trip_profile=[(r["height"], r["verdict"], r["SG_needed"]) for r in o["trip_profile"]],
+            windows=dict(drilling_fluid=win(o["windows"]["drilling_fluid"]),
+                         trip_fluid=win(o["windows"]["trip_fluid"])),
+            flow_ceiling=dict(m_dot=o["flow_ceiling"]["m_dot"], by=o["flow_ceiling"]["by"]),
+            shmin_margin={k: {kk: inf(vv) if kk != "mu" else vv for kk, vv in d.items()}
+                          for k, d in o["shmin_margin"].items()},
+            tools=dict(tool=tl["tool"], bit=tl["drilling"]["T"], connection=tl["connection"]["peak"],
+                       running_in=tl["trip_in"]["staged"]["peak"],
+                       running_in_unstaged=tl["trip_in"]["unstaged"]["peak"],
+                       connection_schedule=sched(tl["connection"]["schedule"]),
+                       running_in_schedule=sched(tl["trip_in"]["schedule"]),
+                       coating=tl["coating"]["status"],
+                       coating_max=max(tl["coating"]["circulating_max"],
+                                       tl["coating"]["connection"]["max"],
+                                       tl["coating"]["trip_in"]["max"])))
+    return rows
+
+
 def print_basis(site):
     """Each input's data basis and source."""
     for k in ("stress", "strength", "pore pressure", "temperature", "well check"):
@@ -642,12 +685,12 @@ if __name__ == "__main__":
     results = [evaluate(s) for s in SITES]
     olds = [evaluate(s, circulation="v1.1") for s in SITES]
     if "--write-golden" in sys.argv:
+        # the v1.3.3 table; the v1.2 and v1.3 tables stay pinned as their
+        # releases left them, the regression against which v1.3.3 is checked
         import json, os
         gold = os.path.join(os.path.dirname(__file__), "..", "tests", "golden")
-        with open(os.path.join(gold, "v12_site_table.json"), "w") as fh:
-            json.dump(golden_rows(results), fh, indent=1)
-        with open(os.path.join(gold, "v13_site_table.json"), "w") as fh:
-            json.dump(golden_rows_v13(results), fh, indent=1)
+        with open(os.path.join(gold, "v133_site_table.json"), "w") as fh:
+            json.dump(golden_rows_v133(results), fh, indent=1, default=float)
     tiers = {t: [(s, o) for s, o in zip(SITES, results) if s.tier == t]
              for t in ("evidence-based", "speculative")}
     tiers_old = {t: [o for s, o in zip(SITES, olds) if s.tier == t]

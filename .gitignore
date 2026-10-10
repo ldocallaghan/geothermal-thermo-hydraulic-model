@@ -10,7 +10,8 @@ __pycache__/
 .claude/
 
 # Local working notes, not part of the project
-docs/
+docs/spec-*.md
+docs/review-*.md
 
 # Regenerated on first run (one-time IAPWS-95 build, ~2.5 min)
 water_table.npz

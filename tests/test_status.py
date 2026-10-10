@@ -75,3 +75,18 @@ def test_a_forced_solver_failure_in_an_evaluation_is_indeterminate(evaluated):
     o["m1"] = dict(o["m1"], success=False)
     s = se.site_status(se.component_statuses(o))
     assert s["label"] == "INDETERMINATE"
+
+
+def test_the_prescription_down_the_hole_is_a_condition():
+    """A site GO at the bottom whose common window down the hole needs a fluid
+    heavier than water is CONDITIONAL on that fluid; an empty common window
+    is a condition too, not a NO-GO."""
+    pres = dict(drilling_fluid=dict(open=True, fluid=1036.0, note=None, heavier_than_water=True),
+                trip_fluid=dict(open=False, fluid=None, note="none: the scenarios need different fluids",
+                                heavier_than_water=False))
+    c = components()
+    c["prescription"] = pres
+    s = se.site_status(c)
+    assert s["label"] == "CONDITIONAL"
+    assert s["reasons"] == ["a drilling fluid of 1.036 SG at surface",
+                            "trip fluid: none: the scenarios need different fluids"]

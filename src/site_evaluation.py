@@ -18,6 +18,8 @@ the best-characterised deep-geothermal site in Europe (GPK-1..4 wells to
 granite to 200 C at 5 km (Genter et al.; MDPI Geosciences 2020). Stress and
 rock strength: Valley & Evans (2007); see data/sites/stress_sources.md.
 """
+import os
+import sys
 from dataclasses import dataclass, field, replace
 import numpy as np
 import geo_constants as C
@@ -47,6 +49,17 @@ def urg_geotherm(z):
         default=200.0 + 0.035 * np.clip(z - 5000.0, 0, None))
 
 
+def layered_geotherm(points, gradient_below):
+    """A geotherm from measured (depth [m], temperature [C]) points, linear
+    between them, and extended below the deepest at gradient_below [C/m]."""
+    zs, Ts = (np.array(x, dtype=float) for x in zip(*sorted(points)))
+
+    def geotherm(z):
+        z = np.asarray(z, dtype=float)
+        return np.where(z <= zs[-1], np.interp(z, zs, Ts), Ts[-1] + gradient_below * (z - zs[-1]))
+    return geotherm
+
+
 # ------------------------------------------------------------ stress profiles
 @dataclass(frozen=True)
 class StressProfile:
@@ -70,6 +83,9 @@ class StressProfile:
     # the friction coefficient the case was derived with, if it has its own;
     # its admissibility and cap are then checked at that value
     mu: float = None
+    # the faulting regime the case's data imply, if stated: "normal",
+    # "strike-slip" or "reverse"; validate_site checks the stresses keep its order
+    regime: str = None
 
     @classmethod
     def from_ratios(cls, Sv_grad, K0_min, SHmax_over_Sv, label="v1.0 ratios",
@@ -216,6 +232,92 @@ class SiteProfile:
 BASES = ("calibrated", "measured", "measured range", "measured (lab)", "log-derived",
          "checked", "regime bounds", "extrapolated", "regional", "assumed",
          "not reproduced", "unsourced", "none")
+
+
+# Plausible ranges of the inputs, in SI units: a value outside one is most
+# often a unit slip (kPa for Pa, km for m), so validate_site rejects it
+INPUT_RANGES = dict(
+    target_depth=(500.0, 20000.0, "m"), target_T=(50.0, 600.0, "C"),
+    k_rock=(0.5, 7.0, "W/m/K"), E_rock=(5e9, 150e9, "Pa"), UCS=(10e6, 500e6, "Pa"),
+    T_inj=(0.0, 100.0, "C"), mu=(0.2, 1.5, "-"), rho_fluid_grad=(8e3, 20e3, "Pa/m"),
+    Sv_grad=(15e3, 35e3, "Pa/m"))
+REGIME_ORDER = {"normal": ("Sv", "SHmax", "Shmin"), "strike-slip": ("SHmax", "Sv", "Shmin"),
+                "reverse": ("SHmax", "Shmin", "Sv")}
+
+
+def validate_site(site):
+    """Check a site's inputs before an evaluation. Raises ValueError listing
+    every problem found; returns warnings (inputs without a stated source).
+
+      * every scalar input within INPUT_RANGES, and every strength case's UCS;
+      * temperature rising with depth down the open hole, from the casing
+        shoe to the target, and reaching target_T there within 5 C (a fall
+        above the shoe, such as a cold aquifer, is a warning);
+      * in every stress case, at the target and at each 500 m above it to
+        the casing shoe (the open hole, where the stresses are used): the
+        stresses positive, SHmax at least Shmin, Shmin above the pore
+        pressure, and the order of the stated regime;
+      * every data-basis entry with a basis from BASES and a source."""
+    errs, warns = [], []
+    for k, (lo, hi, unit) in INPUT_RANGES.items():
+        v = getattr(site, k)
+        if not lo <= v <= hi:
+            errs.append(f"{k} = {v:g} {unit} is outside {lo:g} to {hi:g} {unit}")
+    for lab, ucs in site.strength_cases:
+        lo, hi, unit = INPUT_RANGES["UCS"]
+        if not lo <= ucs <= hi:
+            errs.append(f"strength case {lab!r}: UCS {ucs:g} {unit} is outside {lo:g} to {hi:g} {unit}")
+    z = site.target()
+    shoe = min(wg.WU_SHOES[-1], 0.5 * z)       # as site_well sets it
+    zz = np.arange(0.0, z + 1.0, 100.0)
+    T = np.array([float(site.temperature()(x)) for x in zz])
+    falls = zz[1:][np.diff(T) <= 0]
+    if np.any(falls >= shoe):
+        errs.append(f"temperature does not rise with depth at {falls[falls >= shoe][0]:.0f} m "
+                    "in the open hole")
+    elif len(falls):
+        warns.append(f"temperature falls with depth above the casing shoe, at {falls[0]:.0f} m")
+    if abs(T[-1] - site.target_T) > 5.0:
+        errs.append(f"the geotherm gives {T[-1]:.0f} C at the target depth {z:.0f} m, "
+                    f"against target_T {site.target_T:.0f} C")
+    for p in site.stress_cases:
+        for d in np.append(np.arange(z, shoe, -500.0), shoe):
+            S = dict(Sv=p.Sv(d), Shmin=p.Shmin(d), SHmax=p.SHmax(d))
+            Pp = float(p.Pp(d))
+            where = f"stress case {p.label!r} at {d:.0f} m"
+            if min(S.values()) <= 0:
+                errs.append(f"{where}: a stress is not positive"); break
+            if S["SHmax"] < S["Shmin"]:
+                errs.append(f"{where}: SHmax {S['SHmax'] / 1e6:.1f} MPa is below Shmin "
+                            f"{S['Shmin'] / 1e6:.1f} MPa"); break
+            if Pp >= S["Shmin"]:
+                errs.append(f"{where}: pore pressure {Pp / 1e6:.1f} MPa is not below Shmin "
+                            f"{S['Shmin'] / 1e6:.1f} MPa"); break
+            if p.regime is not None:
+                if p.regime not in REGIME_ORDER:
+                    errs.append(f"stress case {p.label!r}: regime {p.regime!r} is not one of "
+                                + ", ".join(REGIME_ORDER)); break
+                a, b, c = (S[k] for k in REGIME_ORDER[p.regime])
+                if not a >= b >= c:
+                    errs.append(f"{where}: the stresses are not in the {p.regime} order "
+                                + " >= ".join(REGIME_ORDER[p.regime])); break
+        if not p.source:
+            warns.append(f"stress case {p.label!r} has no source")
+    for k, v in site.data_basis.items():
+        basis, src = v
+        if basis not in BASES:
+            errs.append(f"data basis {k!r}: {basis!r} is not one of " + ", ".join(BASES))
+        if not src:
+            errs.append(f"data basis {k!r} has no source")
+    for k in ("stress", "strength", "pore pressure", "temperature", "well check"):
+        if k not in site.data_basis:
+            warns.append(f"no data basis for {k}: the site is speculative")
+    for k in ("conductivity", "stiffness"):
+        if k not in site.data_basis:
+            warns.append(f"no source stated for the rock's {k}")
+    if errs:
+        raise ValueError(f"{site.name}: " + "; ".join(errs))
+    return warns
 
 
 SOULTZ = SiteProfile(
@@ -1768,7 +1870,11 @@ def component_statuses(out):
                    within_rig=gpm <= rig_capacity_gpm(float(hyd["spp"])), gpm=gpm),
         admissibility=dict(inadmissible=[c["label"] for c in cases
                                          if not c["admissible"]["admissible"]]),
-        stability=dict(verdict=cycle["site_verdict"], states=cycle["verdicts"]))
+        stability=dict(verdict=cycle["site_verdict"], states=cycle["verdicts"]),
+        prescription={k: dict(open=w["open"], fluid=w["fluid"], note=w.get("note"),
+                              heavier_than_water=bool(w["open"] and w["fluid"] >
+                                                      fluids.water().rho_surface + 1.0))
+                      for k, w in out["windows"].items() if k in ("drilling_fluid", "trip_fluid")})
 
 
 def site_status(components, windows=None, tools=None):
@@ -1779,8 +1885,11 @@ def site_status(components, windows=None, tools=None):
                       coating is above its rating while all else holds;
       NO-GO           with the failing parts: stability in some state, the
                       tool, or the pump limit;
-      CONDITIONAL     with the conditions: the drilling and trip fluids, the
-                      schedule the tool needs, the rig, hole cleaning;
+      CONDITIONAL     with the conditions: the drilling and trip fluids the
+                      common windows down the hole prescribe, where heavier
+                      than water, or the note that no one fluid suits every
+                      case (a statement about the scenarios, not a NO-GO);
+                      the schedule the tool needs, the rig, hole cleaning;
       GO              none of these."""
     c = components
     if not c["solver"]["ok"]:
@@ -1803,8 +1912,19 @@ def site_status(components, windows=None, tools=None):
                     reasons=[f"the {c['coating']['pipe']} coating is above its rating "
                              "and its qualification is not known"])
     conds = []
-    if st["verdict"].split()[0] == "CONDITIONAL":
-        conds.append("a fluid heavier than water")
+    pres = c.get("prescription")
+    if pres is None:
+        if st["verdict"].split()[0] == "CONDITIONAL":
+            conds.append("a fluid heavier than water")
+    else:
+        for k, name in (("drilling_fluid", "drilling fluid"), ("trip_fluid", "trip fluid")):
+            p = pres[k]
+            if not p["open"]:
+                conds.append(f"{name}: {p['note']}")
+            elif p["heavier_than_water"]:
+                conds.append(f"a {name} of {p['fluid'] / 1000:.3f} SG at surface")
+        if st["verdict"].split()[0] == "CONDITIONAL" and not any("fluid" in x for x in conds):
+            conds.append("a fluid heavier than water")
     if c["tool"]["detail"] != "PASS":
         conds.append("the circulation schedule the tool needs")
     if not c["pumps"]["within_rig"]:
@@ -2071,78 +2191,243 @@ def _evaluate_v13(site, thermal=True, budget=False):
     return out
 
 
+def _fmt_h(h):
+    if h is None or h == float("inf"):
+        return "> 7 d"
+    return f"{h * 60:.0f} min" if h < 1 else f"{h:.1f} h"
+
+
+def _sg(rho):
+    return "water" if rho is None else ("none" if rho == float("inf") else f"{rho / 1000:.3f}")
+
+
 def report(o):
+    """The evaluation, printed from the result."""
     s = o["site"]
     print("=" * 80)
-    print(f"SITE EVALUATION:  {s.name}")
+    print(f"SITE EVALUATION:  {s.name}   [{s.tier}]")
     print("=" * 80)
-    print(f"  Target: {o['T_rock']:.0f} C rock at {o['z']/1000:.1f} km "
-          f"(layered geotherm; supercritical-class)")
-    print(f"  In-situ stress: Sv={o['Sv']/1e6:.0f}  SHmax={o['SHmax']/1e6:.0f}  "
-          f"Shmin={o['Shmin']/1e6:.0f} MPa  | K0={o['K0']:.2f}  anisotropy={o['anisotropy']:.2f}")
-    print(f"  Stress basis: {s.stress_basis} ({o['stress']['profile'].source}); "
-          f"pore pressure {o['Pp']/1e6:.0f} MPa")
-    a = o["stress"]["admissible"]
-    print(f"  Admissibility at mu {a['mu']}: effective S1/S3 {a['ratio']:.2f} vs cap "
-          f"{a['cap']:.2f} -> {'admissible' if a['admissible'] else 'INADMISSIBLE'}")
-    print(f"  Fluid pressure (hydrostatic): {o['P_fluid']/1e6:.0f} MPa")
+    print(f"  Target: {o['T_rock']:.0f} C rock at {o['z'] / 1000:.1f} km; "
+          f"evaluation {o.get('circulation', 'v1.1')}")
+    for k, (basis, src) in s.data_basis.items():
+        print(f"    {k:<14}{basis:<16}{src}")
+    print(f"  Stresses at the target (deciding case of the circulating check): Sv {o['Sv'] / 1e6:.0f}, "
+          f"SHmax {o['SHmax'] / 1e6:.0f}, Shmin {o['Shmin'] / 1e6:.0f}, Pp {o['Pp'] / 1e6:.0f} MPa")
+    if "circ" in o:
+        c = o["circ"]
+        unit = "kg/s" if o.get("fluid") is None else "L/s"
+        f = o.get("fluid")
+        fluid = ("water" if f is None else
+                 f"barite mud {f.sg:.3f} SG at surface, yield point "
+                 f"{f.yield_point / fluids.LBF_100FT2:.0f} lbf/100 ft2")
+        print("-" * 80)
+        print("  Operating programme")
+        print(f"    pipe {c['pipe'].name}; flow {c['m_dot']:.0f} {unit} ({c.get('mass_flow', c['m_dot']):.1f} kg/s); "
+              f"fluid {fluid}")
+        if "fluid_passes" in o:
+            n = len(o["fluid_passes"])
+            print(f"    fluid iteration: {n} pass{'' if n == 1 else 'es'}, "
+                  f"{'converged' if o['fluid_converged'] else 'NOT converged'}")
+        print(f"    bit {c['bhct']:.1f} C; return {c.get('T_return', o['m1']['T_return_surface']):.0f} C; "
+              f"standpipe {c['hyd']['spp'] / 1e6:.1f} MPa; ECD {c['ecd_SG']:.3f} SG; "
+              f"rate of penetration {o['drill']['ROP'] * 3600:.2f} m/h")
+    if "cycle" in o:
+        cy = o["cycle"]
+        print("-" * 80)
+        print(f"  Over the cycle: {cy['site_verdict']}; deciding case {cy['deciding_case']}")
+        print("    " + ", ".join(f"{k} {v}" for k, v in cy["verdicts"].items()))
+        print(f"    drilling fluid {cy['drill_SG']:.3f} SG (limit {cy['drill_SG_hi']:.3f}); "
+              f"trip fluid {cy['trip_SG']:.3f} SG (limit {cy['trip_SG_hi']:.3f}); "
+              f"safe pause {_fmt_h(cy['safe_pause_h'])}; trip {cy['trip_h']:.0f} h")
+    if "windows" in o:
+        print("-" * 80)
+        print("  Common windows (density at surface, every case and state, down to the shoe)")
+        for k in ("drilling_fluid", "trip_fluid"):
+            w = o["windows"][k]
+            head = _sg(w["fluid"]) if w["open"] else w["note"]
+            print(f"    {k.replace('_', ' '):<15}{head}")
+            for b in ("lo", "hi"):
+                by = w[b + "_by"]
+                print(f"    {'':<15}{'lower' if b == 'lo' else 'upper'} {_sg(w[b])}: {by['state']}, "
+                      f"{by['case']}, {by['md']:.0f} m")
+    if "tools" in o:
+        tl = o["tools"]
+        co = tl["coating"]
+        print("-" * 80)
+        print(f"  Tool: {tl['tool']} (bit {tl['drilling']['T']:.0f} C, connection "
+              f"{tl['connection']['peak']:.0f} C, running in {tl['trip_in']['staged']['peak']:.0f} C)")
+        sc = tl["trip_in"]["schedule"]
+        if sc and not tl["trip_in"]["ok"]:
+            print(f"    running in: staging every {sc['spacing_m']:.0f} m for {sc['minutes']:.0f} min "
+                  f"({100 * sc['circulating_fraction']:.0f}% of the run in circulating)")
+        sc = tl["connection"]["schedule"]
+        if sc and not tl["connection"]["ok"]:
+            print(f"    connection: {sc['precirc_min']:.1f} min of circulation before it, "
+                  f"pumps off {sc['off_min']:.1f} min")
+        print(f"  Coating: {co['pipe']}, {co['status']} (peak {max(co['circulating_max'], co['connection']['max'], co['trip_in']['max']):.0f} C)")
+    if "flow_ceiling" in o:
+        fc, sm = o["flow_ceiling"], o["shmin_margin"]
+        pct = lambda x: ("already NO-GO" if x is None else
+                         "none within 20%" if x == float("inf") else f"{100 * x:.1f}%")
+        unit = "kg/s" if o.get("fluid") is None else "L/s"
+        print("-" * 80)
+        print("  Margins: flow " + (f"{o['circ']['m_dot']:.0f} to {fc['m_dot']:.0f} {unit}, ceiling set by "
+                                    f"{fc['by']}" if fc["m_dot"] is not None else
+                                    f"{o['circ']['m_dot']:.0f} {unit}; no ceiling, already NO-GO"))
+        for tag in ("site", "mu_hi"):
+            d = sm[tag]
+            mu = s.mu if tag == "site" else d["mu"]
+            print(f"    Shmin fall at friction {mu:.2f}: SHmax held {pct(d['SHmax_held'])}, "
+                  f"scaled {pct(d['SHmax_scaled'])}")
     print("-" * 80)
-    md, r = o["m_min"], o["m1"]
-    print(f"  [1] TOOL SURVIVAL & ENERGY (layered geotherm, vacuum tubing)")
-    print(f"      min flow to survive: {md} kg/s -> bit {r['T_bottom_delivered']:.0f} C "
-          f"(ceiling {C.BHA_SURVIVAL_TEMP:.0f}) {'OK' if r['T_bottom_delivered']<200 else 'FAIL'}")
-    print(f"      surface return {r['T_return_surface']:.0f} C | early-life {r['Q_product']/1e6:.1f} MW_th")
-    print(f"      at production flow 10 kg/s: {o['MW_prod']:.1f} MW_th, return {o['Tret_prod']:.0f} C")
-    print("-" * 80)
-    d = o["drill"]
-    print(f"  [2/3] DRILLABILITY (quench-assist; spallation uses Shmin/Sv={o['K0']:.2f})")
-    print(f"      regime: {d['regime']} | effective MSE {d['MSE_eff']/1e6:.0f} MPa | "
-          f"ROP {d['ROP']*3600:.1f} m/hr | quench gain {o['rop_gain']:.1f}x")
-    print("-" * 80)
-    print(f"  [4] CREEP CLOSURE (a screening estimate with generic properties)")
-    print(f"      hot wall: {o['creep_hot']:.2e} %/yr  ->  cooled {o['T_wall']:.0f}C: {o['creep_cold']:.2e} %/yr")
-    print(f"      cooling factor ~ {o['creep_hot']/max(o['creep_cold'],1e-30):.1e}x  (squeezing controlled)")
-    print("-" * 80)
-    g = o["grc"]; b = o["breakout"]
-    print(f"  [5] HOLE STABILITY (rock-mass UCS {o['UCS']/1e6:.0f} MPa at 25 C)")
-    print(f"      isotropic GRC (p0=Shmin): {g['reg_c']}, convergence {g['u_cold']*1000:.1f} mm, "
-          f"plastic r/a {g['rp_cold']:.2f}")
-    print(f"      ANISOTROPIC breakout: sigma_theta={b['sigma_theta']/1e6:.0f} MPa vs "
-          f"MC-limit cold {b['mc_cold']/1e6:.0f} MPa -> "
-          f"{'BREAKS OUT' if b['sigma_theta']>b['mc_cold'] else 'stable'}")
-    print(f"      mud weight to suppress breakout: {b['P_need']/1e6:.0f} MPa vs "
-          f"hydrostatic {o['P_fluid']/1e6:.0f} MPa = +{b['overbalance_MPa']:.0f} MPa "
-          f"({b['over_hydro']:.2f}x hydrostatic)")
-    w = o["stress"]["window"]
-    if w is not None:
-        print(f"      wall {o['T_wall']:.0f} C from Model 1: thermal hoop stress "
-              f"{o['dsigma_T']/1e6:+.0f} MPa{'' if o['thermal'] else ' (switched off)'}")
-        print(f"      at hydrostatic mud: {describe_width(w['width_hydro'])}, "
-              f"limit {w['W_max']:.0f} deg; mud window {w['SG_lo']:.2f}-{w['SG_hi']:.2f} SG "
-              f"-> {w['verdict']}")
+    print(f"  Creep closure, a screening estimate with generic properties: "
+          f"{o['creep_hot']:.1e} %/yr hot, {o['creep_cold']:.1e} %/yr at {o['T_wall']:.0f} C")
     print("=" * 80)
-    print("  VERDICT")
-    verdict_lines(o)
+    for line in verdict_lines(o):
+        print("  " + line)
     print("=" * 80)
 
 
 def verdict_lines(o):
-    s = o["site"]; b = o["breakout"]
-    print(f"   + Extensional graben (K0={o['K0']:.2f}): low confinement aids quench & limits")
-    print(f"     the minimum-stress; tool survival closes with active cooling.")
-    print(f"   + Cooling controls time-dependent creep by ~{o['creep_hot']/max(o['creep_cold'],1e-30):.0e}x.")
-    print(f"   - HIGH anisotropy (SHmax/Shmin={o['anisotropy']:.2f}) drives breakout, but only marginally:")
-    print(f"     +{b['overbalance_MPa']:.0f} MPa overbalance ({b['over_hydro']:.2f}x hydrostatic) suppresses it,")
-    print(f"     plus cooling margin. The binding constraint -- as in the real GPK wells, which")
-    print(f"     broke out yet were drilled to 5 km -- not a showstopper.")
-    print(f"   ~ At {o['T_rock']:.0f} C the rock is at the brittle-ductile edge; a 374 C/~10 km target")
-    print(f"     sits more safely in the brittle field.")
-    print(f"   => CONDITIONAL GO: drillable & survivable with quench+cooling; stability is mud-")
-    print(f"      weight-limited by anisotropy, not temperature. A lower-anisotropy URG segment")
-    print(f"      would score higher -- which is exactly what the tool is for.")
+    """The status and the constraints that bind it, from the result."""
+    if "status" not in o:
+        w = o["stress"]["window"]
+        return [f"verdict while circulating: {w['verdict']}"] if w else []
+    st = o["status"]
+    lines = [f"STATUS: {st['label']}"] + [f"  - {r}" for r in st["reasons"]]
+    cy, w = o["cycle"], o["windows"]
+    for st_name, v in cy["verdicts"].items():
+        if v == "NO-GO":
+            lines.append(f"  {st_name}: no fluid holds the wall below the fracture limit "
+                         f"in the deciding case")
+    for k in ("drilling_fluid", "trip_fluid"):
+        x = w[k]
+        if x["open"]:
+            lines.append(f"  {k.replace('_', ' ')}: {_sg(x['fluid'])} SG at surface, bound below by the "
+                         f"{x['lo_by']['state']} at {x['lo_by']['md']:.0f} m and above by the "
+                         f"{x['hi_by']['state']} at {x['hi_by']['md']:.0f} m")
+        else:
+            lines.append(f"  {k.replace('_', ' ')}: {x['note']}")
+    return lines
+
+
+def _jsonable(x):
+    if isinstance(x, dict):
+        return {str(k): _jsonable(v) for k, v in x.items()}
+    if isinstance(x, (list, tuple)):
+        return [_jsonable(v) for v in x]
+    if isinstance(x, (np.floating, float)):
+        x = float(x)
+        return "inf" if x == float("inf") else ("-inf" if x == float("-inf") else x)
+    if isinstance(x, (np.integer,)):
+        return int(x)
+    if isinstance(x, np.ndarray):
+        return _jsonable(x.tolist())
+    if isinstance(x, (np.bool_,)):
+        return bool(x)
+    if x is None or isinstance(x, (str, int, bool)):
+        return x
+    return str(x)
+
+
+def versions():
+    """The code and the environment that produced a result."""
+    import importlib.metadata as md
+    import platform
+    import subprocess
+    here = os.path.dirname(os.path.abspath(__file__))
+    git = lambda *a: subprocess.run(["git", *a], cwd=here, capture_output=True, text=True).stdout.strip()
+    pkgs = {}
+    for p in ("numpy", "scipy", "iapws", "matplotlib"):
+        try:
+            pkgs[p] = md.version(p)
+        except md.PackageNotFoundError:
+            pkgs[p] = None
+    return dict(commit=git("rev-parse", "HEAD") or None, dirty=bool(git("status", "--porcelain", "--untracked-files=no")),
+                python=platform.python_version(), packages=pkgs)
+
+
+def result_dict(o):
+    """The evaluation as plain data: inputs and their sources, the operating
+    programme, the cycle with every case, the windows, the tools, the
+    status, the margins, the sensitivities, and the versions."""
+    s = o["site"]
+    d = dict(
+        site=dict(name=s.name, tier=s.tier, target_depth_m=s.target_depth, target_T_C=s.target_T,
+                  k_rock=s.k_rock, E_rock_Pa=s.E_rock, T_inj_C=s.T_inj, mu=s.mu,
+                  data_basis={k: dict(basis=b, source=src) for k, (b, src) in s.data_basis.items()},
+                  missing=s.missing(),
+                  stress_cases=[dict(label=p.label, source=p.source, z_data_m=p.z_data,
+                                     Sv=(p.Sv_grad, p.Sv_int), Shmin=(p.Shmin_grad, p.Shmin_int),
+                                     SHmax=(p.SHmax_grad, p.SHmax_int), Pp=(p.Pp_grad, p.Pp_datum),
+                                     mu=p.mu) for p in s.stress_cases],
+                  strength_cases=[dict(label=lab, UCS_Pa=ucs) for lab, ucs in s.strength_cases]),
+        evaluation=o.get("circulation"), z_m=o["z"], T_rock_C=o["T_rock"])
+    if "circ" in o:
+        c, f = o["circ"], o.get("fluid")
+        d["programme"] = dict(
+            pipe=c["pipe"].name, flow=c["m_dot"], flow_unit="kg/s" if f is None else "L/s",
+            mass_flow_kg_s=c.get("mass_flow", c["m_dot"]),
+            fluid=None if f is None else dict(rho_surface=f.rho_surface, sg=f.sg,
+                                              yield_point_Pa=f.yield_point, pv_ratio_to_water=f.mu_ratio),
+            fluid_passes=o.get("fluid_passes"), fluid_converged=o.get("fluid_converged"),
+            rop_m_h=o["drill"]["ROP"] * 3600, rop_passes=o.get("rop_passes"),
+            bit_C=c["bhct"], return_C=c.get("T_return"), backpressure_Pa=c.get("backpressure"),
+            spp_Pa=c["hyd"]["spp"], ecd_SG=c["ecd_SG"], v_ann_min=c["hyd"]["v_ann_min"],
+            conflict=c["conflict"])
+    if "cycle" in o:
+        cy = o["cycle"]
+        d["cycle"] = dict(
+            site_verdict=cy["site_verdict"], deciding_case=cy["deciding_case"], verdicts=cy["verdicts"],
+            drill_SG=cy["drill_SG"], drill_SG_hi=cy["drill_SG_hi"], trip_SG=cy["trip_SG"],
+            trip_SG_hi=cy["trip_SG_hi"], safe_pause_h=cy["safe_pause_h"], trip_h=cy["trip_h"],
+            T_ref=cy["T_ref"], budget={k: v for k, v in cy.get("budget", {}).items()
+                                       if k not in ("pressures", "temperatures")},
+            cases=[{k: v for k, v in c.items() if k != "profile"} for c in cy["per_case"]])
+        d["sensitivities"] = {k: dict(site_verdict=v["site_verdict"], drill_SG=v["drill_SG"],
+                                      safe_pause_h=v["safe_pause_h"], trip_SG=v["trip_SG"])
+                              for k, v in o.get("cycle_sensitivity", {}).items()}
+        d["trip_profile"] = o.get("trip_profile")
+    for k in ("windows", "tools", "status", "components", "flow_ceiling", "shmin_margin"):
+        if k in o:
+            d[k] = o[k]
+    d["versions"] = versions()
+    return _jsonable(d)
+
+
+def export_result(o, path):
+    """Write result_dict(o) as JSON to path."""
+    import json
+    with open(path, "w") as fh:
+        json.dump(result_dict(o), fh, indent=1)
+
+
+def named_sites():
+    """The sites the repository defines, by a short key."""
+    import comparative_sites as cs
+    keys = ("soultz", "larderello", "united-downs", "pannonian", "newberry")
+    return dict(zip(keys, cs.SITES))
+
+
+def find_site(name):
+    sites = named_sites()
+    key = name.lower().replace(" ", "-")
+    hits = [k for k in sites if key in k or key in sites[k].name.lower()]
+    if len(hits) != 1:
+        raise SystemExit(f"--site {name!r}: choose one of " + ", ".join(sites))
+    return sites[hits[0]]
 
 
 if __name__ == "__main__":
-    import sys; sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    o = evaluate(SOULTZ)
+    import argparse
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    ap = argparse.ArgumentParser(description="Evaluate one site through the drilling cycle.")
+    ap.add_argument("--site", default="soultz", help="one of: " + ", ".join(
+        ("soultz", "larderello", "united-downs", "pannonian", "newberry")))
+    ap.add_argument("--json", help="also write the result to this JSON file")
+    a = ap.parse_args()
+    o = evaluate(find_site(a.site))
     report(o)
+    if a.json:
+        export_result(o, a.json)
+        print(f"result written to {a.json}")

@@ -11,6 +11,10 @@ on:
       python-version:
         description: "Python version for the slow suite (the lock file's by default)"
         default: "3.14.4"
+      goldens:
+        description: "Also write the v1.3.3 golden table and upload it"
+        type: boolean
+        default: false
   schedule:
     - cron: "0 3 * * 1"
 
@@ -41,3 +45,28 @@ jobs:
       - run: pip install -r requirements-lock.txt
       - run: python src/water_table.py
       - run: pytest -m "slow or not slow"
+
+  goldens:
+    # the v1.3.3 site table pinned in the CI environment, on the lock file's
+    # versions; download the artifact and commit tests/golden/v133_site_table.json
+    if: github.event_name == 'workflow_dispatch' && inputs.goldens
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      OPENBLAS_NUM_THREADS: "1"
+      OMP_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14.4"
+      - run: pip install -r requirements-lock.txt
+      - run: python src/water_table.py
+      - run: python src/comparative_sites.py --write-golden > site_table.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v133-goldens
+          path: |
+            tests/golden/v133_site_table.json
+            site_table.txt

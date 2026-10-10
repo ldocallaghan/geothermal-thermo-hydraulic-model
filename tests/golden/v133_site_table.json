@@ -1,0 +1,977 @@
+{
+ "Upper Rhine Graben / Soultz-sous-Forets (France)": {
+  "status": {
+   "label": "NO-GO",
+   "reasons": [
+    "the wall is not held: drilling, trip"
+   ]
+  },
+  "verdicts": {
+   "drilling": "NO-GO",
+   "connection": "CONDITIONAL",
+   "connection, fresh rock": "CONDITIONAL",
+   "trip": "NO-GO"
+  },
+  "site_verdict": "NO-GO [CONDITIONAL..NO-GO]",
+  "deciding_case": "SHmax upper bound (1.05 Sv), lab UCS 100",
+  "drill_SG": 1.3127972254313138,
+  "drill_SG_hi": 1.297528098691976,
+  "trip_SG": 1.3195660688981896,
+  "trip_SG_start": 1.3489739311764533,
+  "trip_SG_hi": 1.3462736860156048,
+  "safe_pause_h": 23.304885864257812,
+  "trip_h": 43.805945595885035,
+  "T_ref": {
+   "drilling": 399.5,
+   "connection": 256.18936524321015,
+   "connection, fresh rock": 385.5796343853685,
+   "trip": 375.59760961273605,
+   "end of drilling": 241.19846227051866
+  },
+  "fluid_SG": 1.3631607998179365,
+  "fluid_passes": 3,
+  "rop_m_h": 3.745624264072313,
+  "flow": 40,
+  "bit_C": 197.29452499720935,
+  "ecd_SG": 0.068745587323629,
+  "sensitivities": {
+   "half trip time": {
+    "site_verdict": "NO-GO [CONDITIONAL..NO-GO]",
+    "drill_SG": 1.3127972254313138,
+    "trip_SG": 1.2960356902601167,
+    "safe_pause_h": 23.304885864257812
+   },
+   "double trip time": {
+    "site_verdict": "NO-GO [CONDITIONAL..NO-GO]",
+    "drill_SG": 1.3127972254313138,
+    "trip_SG": 1.334247011733924,
+    "safe_pause_h": 23.304885864257812
+   },
+   "no fluid node": {
+    "site_verdict": "NO-GO [CONDITIONAL..NO-GO]",
+    "drill_SG": 1.3186132003553463,
+    "trip_SG": 1.3268295545130666,
+    "safe_pause_h": 23.215164184570312
+   },
+   "breakouts form over 1 h": {
+    "site_verdict": "NO-GO [CONDITIONAL..NO-GO]",
+    "drill_SG": 1.1799465598674024,
+    "trip_SG": 1.3195660688981896,
+    "safe_pause_h": 1.6435089111328125
+   },
+   "median circulation before a connection": {
+    "site_verdict": "NO-GO [CONDITIONAL..NO-GO]",
+    "drill_SG": 1.3036208901221964,
+    "trip_SG": 1.3195660688981896,
+    "safe_pause_h": 18.762405395507812
+   },
+   "mud plastic viscosity halved": {
+    "site_verdict": "NO-GO [CONDITIONAL..NO-GO]",
+    "drill_SG": 1.3125469139461567,
+    "trip_SG": 1.319575975087796,
+    "safe_pause_h": 23.156845092773438
+   },
+   "dual-wall pipe": {
+    "site_verdict": "NO-GO [CONDITIONAL..NO-GO]",
+    "drill_SG": 1.3174746407530644,
+    "trip_SG": 1.3032260158491502,
+    "safe_pause_h": 58.03230285644531
+   },
+   "highest flow, 50 L/s": {
+    "site_verdict": "NO-GO [CONDITIONAL..NO-GO]",
+    "drill_SG": 1.3105362078280445,
+    "trip_SG": 1.3165134357969572,
+    "safe_pause_h": 22.579421997070312
+   }
+  },
+  "trip_profile": [
+   [
+    0.0,
+    "CONDITIONAL",
+    1.3193961730968398
+   ],
+   [
+    100.0,
+    "CONDITIONAL",
+    1.292917867558865
+   ],
+   [
+    250.0,
+    "CONDITIONAL",
+    1.2730052422991387
+   ],
+   [
+    500.0,
+    "CONDITIONAL",
+    1.2543096270326013
+   ],
+   [
+    1000.0,
+    "CONDITIONAL",
+    1.2330158232632422
+   ],
+   [
+    2000.0,
+    "CONDITIONAL",
+    1.2040590271581373
+   ],
+   [
+    3000.0,
+    "CONDITIONAL",
+    1.1747979409528428
+   ],
+   [
+    4000.0,
+    "CONDITIONAL",
+    1.137045446277563
+   ],
+   [
+    5000.0,
+    "CONDITIONAL",
+    1.086321636924133
+   ],
+   [
+    6000.0,
+    "CONDITIONAL",
+    1.039367991845056
+   ]
+  ],
+  "windows": {
+   "drilling_fluid": {
+    "open": false,
+    "lo": 1362.7639185295545,
+    "hi": 1303.5091668272437,
+    "note": "none: no fluid suits the scenario SHmax upper bound (1.05 Sv), lab UCS 100",
+    "lo_by": {
+     "state": "fresh rock",
+     "case": "SHmax upper bound (1.05 Sv), lab UCS 100",
+     "md": 10699.5
+    },
+    "hi_by": {
+     "state": "drilling",
+     "case": "SHmax lower bound (0.90 Sv), lab UCS 100",
+     "md": 4000.0
+    }
+   },
+   "trip_fluid": {
+    "open": false,
+    "lo": 1397.6064844769473,
+    "hi": 1353.2037316758635,
+    "note": "none: no fluid suits the scenario SHmax upper bound (1.05 Sv), lab UCS 100",
+    "lo_by": {
+     "state": "trip",
+     "case": "SHmax upper bound (1.05 Sv), lab UCS 100",
+     "md": 10671.464624
+    },
+    "hi_by": {
+     "state": "trip",
+     "case": "SHmax lower bound (0.90 Sv), lab UCS 100",
+     "md": 4000.0
+    }
+   }
+  },
+  "flow_ceiling": {
+   "m_dot": null,
+   "by": "already NO-GO"
+  },
+  "shmin_margin": {
+   "site": {
+    "SHmax_held": null,
+    "SHmax_scaled": null,
+    "friction_needed": null
+   },
+   "mu_hi": {
+    "SHmax_held": null,
+    "SHmax_scaled": null,
+    "friction_needed": null,
+    "mu": 1.0
+   }
+  },
+  "tools": {
+   "tool": "PASS with the schedule found",
+   "bit": 197.29452499720935,
+   "connection": 197.63022656607836,
+   "running_in": 212.14967230791632,
+   "running_in_unstaged": 319.39169499468545,
+   "connection_schedule": {
+    "precirc_min": 0.33,
+    "off_min": 6.33,
+    "peak": 197.63022656607836
+   },
+   "running_in_schedule": {
+    "spacing_m": 36.21938400000005,
+    "minutes": 15.51,
+    "peak": 198.71028639585077,
+    "md": 10700.0,
+    "stages": 184.0,
+    "staging_h": 47.564,
+    "circulating_fraction": 0.7129501651726531
+   },
+   "coating": "INDETERMINATE",
+   "coating_max": 232.70198495326045
+  }
+ },
+ "Larderello (Italy)": {
+  "status": {
+   "label": "CONDITIONAL",
+   "reasons": [
+    "a drilling fluid of 1.036 SG at surface",
+    "a trip fluid of 1.088 SG at surface"
+   ]
+  },
+  "verdicts": {
+   "drilling": "GO",
+   "connection": "GO",
+   "connection, fresh rock": "GO",
+   "trip": "GO"
+  },
+  "site_verdict": "GO",
+  "deciding_case": "Shmin 0% of floor-to-Sv",
+  "drill_SG": 0.982315595400652,
+  "drill_SG_hi": 1.3163039655629392,
+  "trip_SG": 0.9463798316180585,
+  "trip_SG_start": 0.982315595400652,
+  "trip_SG_hi": 1.3144943714370232,
+  "safe_pause_h": -1.0,
+  "trip_h": 12.87685228318917,
+  "T_ref": {
+   "drilling": 400.08,
+   "connection": 135.85380806587423,
+   "connection, fresh rock": 337.9617839579204,
+   "trip": 328.5844744364109,
+   "end of drilling": 76.83222154373716
+  },
+  "fluid_SG": null,
+  "fluid_passes": 1,
+  "rop_m_h": 6.549586135468945,
+  "flow": 30,
+  "bit_C": 70.59385464339158,
+  "ecd_SG": 0.018190405874084,
+  "sensitivities": {
+   "half trip time": {
+    "site_verdict": "GO",
+    "drill_SG": 0.982315595400652,
+    "trip_SG": 0.964131321726433,
+    "safe_pause_h": -1.0
+   },
+   "double trip time": {
+    "site_verdict": "GO",
+    "drill_SG": 0.982315595400652,
+    "trip_SG": 0.9208073029049042,
+    "safe_pause_h": -1.0
+   },
+   "no fluid node": {
+    "site_verdict": "GO",
+    "drill_SG": 0.982315595400652,
+    "trip_SG": 0.8968665548797159,
+    "safe_pause_h": -1.0
+   },
+   "breakouts form over 1 h": {
+    "site_verdict": "GO",
+    "drill_SG": 0.982315595400652,
+    "trip_SG": 0.9463798316180585,
+    "safe_pause_h": -1.0
+   },
+   "median circulation before a connection": {
+    "site_verdict": "GO",
+    "drill_SG": 0.982315595400652,
+    "trip_SG": 0.9463798316180585,
+    "safe_pause_h": -1.0
+   },
+   "dual-wall pipe": {
+    "site_verdict": "GO",
+    "drill_SG": 0.9888836910483749,
+    "trip_SG": 0.9532288647180294,
+    "safe_pause_h": -1.0
+   },
+   "highest flow, 100 kg/s": {
+    "site_verdict": "GO",
+    "drill_SG": 0.9911944659978162,
+    "trip_SG": 0.9546226418157053,
+    "safe_pause_h": -1.0
+   }
+  },
+  "trip_profile": [
+   [
+    0.0,
+    "GO",
+    0.9477351310267181
+   ],
+   [
+    100.0,
+    "GO",
+    0.9527534344149968
+   ],
+   [
+    250.0,
+    "GO",
+    0.959758874095993
+   ],
+   [
+    500.0,
+    "GO",
+    0.9658714951639787
+   ],
+   [
+    1000.0,
+    "GO",
+    0.9774658777688496
+   ]
+  ],
+  "windows": {
+   "drilling_fluid": {
+    "open": true,
+    "lo": 1035.7976394840186,
+    "hi": 1330.160001010063,
+    "note": null,
+    "lo_by": {
+     "state": "fresh rock",
+     "case": "Shmin 0% of floor-to-Sv",
+     "md": 1471.4646240000002
+    },
+    "hi_by": {
+     "state": "drilling",
+     "case": "Shmin 0% of floor-to-Sv",
+     "md": 2399.5
+    }
+   },
+   "trip_fluid": {
+    "open": true,
+    "lo": 1088.3574599352644,
+    "hi": 1328.4146180749651,
+    "note": null,
+    "lo_by": {
+     "state": "trip",
+     "case": "Shmin 0% of floor-to-Sv",
+     "md": 2371.464624
+    },
+    "hi_by": {
+     "state": "trip",
+     "case": "Shmin 0% of floor-to-Sv",
+     "md": 2371.464624
+    }
+   }
+  },
+  "flow_ceiling": {
+   "m_dot": 100,
+   "by": "pump limit"
+  },
+  "shmin_margin": {
+   "site": {
+    "SHmax_held": -1.0,
+    "SHmax_scaled": -1.0,
+    "friction_needed": null
+   },
+   "mu_hi": {
+    "SHmax_held": -1.0,
+    "SHmax_scaled": -1.0,
+    "friction_needed": null,
+    "mu": 1.0
+   }
+  },
+  "tools": {
+   "tool": "PASS",
+   "bit": 70.59385464339158,
+   "connection": 70.67206738058644,
+   "running_in": 71.87766176063005,
+   "running_in_unstaged": 85.60879582677777,
+   "connection_schedule": {
+    "precirc_min": 0.33,
+    "off_min": 6.33,
+    "peak": 70.67206738058644
+   },
+   "running_in_schedule": {
+    "spacing_m": 144.8775360000002,
+    "minutes": 15.51,
+    "peak": 71.87766176063005,
+    "md": 2359.0202880000015,
+    "stages": 8.0,
+    "staging_h": 2.068,
+    "circulating_fraction": 0.3249833230999471
+   },
+   "coating": "within rating",
+   "coating_max": 86.52272018732779
+  }
+ },
+ "United Downs / Carnmenellis (UK)": {
+  "status": {
+   "label": "NO-GO",
+   "reasons": [
+    "the wall is not held: drilling, trip",
+    "tool: 206 C at the bit while drilling"
+   ]
+  },
+  "verdicts": {
+   "drilling": "NO-GO",
+   "connection": "CONDITIONAL",
+   "connection, fresh rock": "CONDITIONAL",
+   "trip": "NO-GO"
+  },
+  "site_verdict": "NO-GO [CONDITIONAL..NO-GO]",
+  "deciding_case": "Reinecker et al. (2021), weak zones, 40 K",
+  "drill_SG": 1.2666240398804323,
+  "drill_SG_hi": 1.222255435046973,
+  "trip_SG": 1.2842480140838097,
+  "trip_SG_start": 1.3134730632830727,
+  "trip_SG_hi": 1.3003703703703702,
+  "safe_pause_h": 19.199478149414062,
+  "trip_h": 51.84431580279911,
+  "T_ref": {
+   "drilling": 400.0,
+   "connection": 258.3037640853617,
+   "connection, fresh rock": 382.974824618904,
+   "trip": 381.022097370884,
+   "end of drilling": 244.14715819966386
+  },
+  "fluid_SG": 1.3169769673427307,
+  "fluid_passes": 3,
+  "rop_m_h": 3.6397620047825217,
+  "flow": 50,
+  "bit_C": 205.59280548723348,
+  "ecd_SG": 0.09811493532339728,
+  "sensitivities": {
+   "half trip time": {
+    "site_verdict": "NO-GO [CONDITIONAL..NO-GO]",
+    "drill_SG": 1.2666240398804323,
+    "trip_SG": 1.266032610193186,
+    "safe_pause_h": 19.199478149414062
+   },
+   "double trip time": {
+    "site_verdict": "NO-GO [CONDITIONAL..NO-GO]",
+    "drill_SG": 1.2666240398804323,
+    "trip_SG": 1.2950943414066467,
+    "safe_pause_h": 19.199478149414062
+   },
+   "no fluid node": {
+    "site_verdict": "NO-GO [CONDITIONAL..NO-GO]",
+    "drill_SG": 1.2736578960496792,
+    "trip_SG": 1.289034618058359,
+    "safe_pause_h": 20.012741088867188
+   },
+   "breakouts form over 1 h": {
+    "site_verdict": "NO-GO [CONDITIONAL..NO-GO]",
+    "drill_SG": 1.1442325284670882,
+    "trip_SG": 1.2842480140838097,
+    "safe_pause_h": 1.2263031005859375
+   },
+   "median circulation before a connection": {
+    "site_verdict": "NO-GO [CONDITIONAL..NO-GO]",
+    "drill_SG": 1.2570604768378957,
+    "trip_SG": 1.2842480140838097,
+    "safe_pause_h": 15.112014770507812
+   },
+   "mud plastic viscosity halved": {
+    "site_verdict": "NO-GO [CONDITIONAL..NO-GO]",
+    "drill_SG": 1.2628364095370423,
+    "trip_SG": 1.2826600424135017,
+    "safe_pause_h": 17.621658325195312
+   },
+   "dual-wall pipe": {
+    "site_verdict": "NO-GO [CONDITIONAL..NO-GO]",
+    "drill_SG": 1.2635998052360164,
+    "trip_SG": 1.2639433988120095,
+    "safe_pause_h": 36.65034484863281
+   }
+  },
+  "trip_profile": [
+   [
+    0.0,
+    "CONDITIONAL",
+    1.284086473425352
+   ],
+   [
+    100.0,
+    "CONDITIONAL",
+    1.2627853009323287
+   ],
+   [
+    250.0,
+    "CONDITIONAL",
+    1.2461579364777633
+   ],
+   [
+    500.0,
+    "CONDITIONAL",
+    1.230272486617756
+   ],
+   [
+    1000.0,
+    "CONDITIONAL",
+    1.2123234143617216
+   ],
+   [
+    2000.0,
+    "CONDITIONAL",
+    1.1893133540743572
+   ],
+   [
+    3000.0,
+    "CONDITIONAL",
+    1.1687133919959873
+   ],
+   [
+    4000.0,
+    "CONDITIONAL",
+    1.1455947495116106
+   ],
+   [
+    5000.0,
+    "CONDITIONAL",
+    1.117142496817289
+   ],
+   [
+    6000.0,
+    "CONDITIONAL",
+    1.0802584420083219
+   ]
+  ],
+  "windows": {
+   "drilling_fluid": {
+    "open": false,
+    "lo": 1316.8452776671188,
+    "hi": 1274.1947710834743,
+    "note": "none: no fluid suits the scenario Reinecker et al. (2021), weak zones, 40 K",
+    "lo_by": {
+     "state": "fresh rock",
+     "case": "Reinecker et al. (2021), weak zones, 40 K",
+     "md": 12856.642857142857
+    },
+    "hi_by": {
+     "state": "drilling",
+     "case": "Reinecker et al. (2021), intact, 0 K",
+     "md": 12856.642857142857
+    }
+   },
+   "trip_fluid": {
+    "open": false,
+    "lo": 1361.8952551878942,
+    "hi": 1349.7830077805672,
+    "note": "none: no fluid suits the scenario Reinecker et al. (2021), weak zones, 40 K",
+    "lo_by": {
+     "state": "trip",
+     "case": "Reinecker et al. (2021), weak zones, 40 K",
+     "md": 12828.607481142857
+    },
+    "hi_by": {
+     "state": "trip",
+     "case": "Reinecker et al. (2021), intact, 0 K",
+     "md": 12828.607481142857
+    }
+   }
+  },
+  "flow_ceiling": {
+   "m_dot": null,
+   "by": "already NO-GO"
+  },
+  "shmin_margin": {
+   "site": {
+    "SHmax_held": null,
+    "SHmax_scaled": null,
+    "friction_needed": null
+   },
+   "mu_hi": {
+    "SHmax_held": null,
+    "SHmax_scaled": null,
+    "friction_needed": null,
+    "mu": 1.0
+   }
+  },
+  "tools": {
+   "tool": "FAIL: 206 C at the bit while drilling",
+   "bit": 205.59280548723348,
+   "connection": 205.96441725816186,
+   "running_in": 221.0508354929846,
+   "running_in_unstaged": 331.7527853737594,
+   "connection_schedule": null,
+   "running_in_schedule": null,
+   "coating": "INDETERMINATE",
+   "coating_max": 286.54330767284955
+  }
+ },
+ "Pannonian Basin (Hungary)": {
+  "status": {
+   "label": "INDETERMINATE",
+   "reasons": [
+    "the TK-Drakon coated coating is above its rating and its qualification is not known"
+   ]
+  },
+  "verdicts": {
+   "drilling": "CONDITIONAL",
+   "connection": "CONDITIONAL",
+   "connection, fresh rock": "CONDITIONAL",
+   "trip": "CONDITIONAL"
+  },
+  "site_verdict": "CONDITIONAL",
+  "deciding_case": "Shmin 100% of floor-to-Sv",
+  "drill_SG": 1.3972260232818519,
+  "drill_SG_hi": 2.4276649184222108,
+  "trip_SG": 1.4142607646873877,
+  "trip_SG_start": 1.446531404018213,
+  "trip_SG_hi": 2.48,
+  "safe_pause_h": 17.487716674804688,
+  "trip_h": 40.131718366208155,
+  "T_ref": {
+   "drilling": 399.99,
+   "connection": 237.01938354773876,
+   "connection, fresh rock": 374.2974520372062,
+   "trip": 372.2751077597033,
+   "end of drilling": 220.82080097111688
+  },
+  "fluid_SG": 1.4426249307261303,
+  "fluid_passes": 3,
+  "rop_m_h": 3.8917981426436845,
+  "flow": 40,
+  "bit_C": 185.00202099652154,
+  "ecd_SG": 0.07233508157778912,
+  "sensitivities": {
+   "half trip time": {
+    "site_verdict": "CONDITIONAL",
+    "drill_SG": 1.3972260232818519,
+    "trip_SG": 1.384579551920523,
+    "safe_pause_h": 17.487716674804688
+   },
+   "double trip time": {
+    "site_verdict": "CONDITIONAL",
+    "drill_SG": 1.3972260232818519,
+    "trip_SG": 1.4330398386455423,
+    "safe_pause_h": 17.487716674804688
+   },
+   "no fluid node": {
+    "site_verdict": "CONDITIONAL",
+    "drill_SG": 1.4119567526388075,
+    "trip_SG": 1.4242941848410382,
+    "safe_pause_h": 19.721145629882812
+   },
+   "breakouts form over 1 h": {
+    "site_verdict": "CONDITIONAL",
+    "drill_SG": 1.2251529612057148,
+    "trip_SG": 1.4142607646873877,
+    "safe_pause_h": 0.9097137451171875
+   },
+   "median circulation before a connection": {
+    "site_verdict": "CONDITIONAL",
+    "drill_SG": 1.38232274404423,
+    "trip_SG": 1.4142607646873877,
+    "safe_pause_h": 13.379104614257812
+   },
+   "mud plastic viscosity halved": {
+    "site_verdict": "CONDITIONAL",
+    "drill_SG": 1.3968134762170248,
+    "trip_SG": 1.4142634259269233,
+    "safe_pause_h": 17.355056762695312
+   },
+   "dual-wall pipe": {
+    "site_verdict": "CONDITIONAL",
+    "drill_SG": 1.409381105610134,
+    "trip_SG": 1.3974642306075382,
+    "safe_pause_h": 41.62092590332031
+   },
+   "highest flow, 50 L/s": {
+    "site_verdict": "CONDITIONAL",
+    "drill_SG": 1.393045056935509,
+    "trip_SG": 1.410671737060051,
+    "safe_pause_h": 17.114089965820312
+   }
+  },
+  "trip_profile": [
+   [
+    0.0,
+    "CONDITIONAL",
+    1.4137171120020497
+   ],
+   [
+    100.0,
+    "CONDITIONAL",
+    1.3798916477663568
+   ],
+   [
+    250.0,
+    "CONDITIONAL",
+    1.3536944065082808
+   ],
+   [
+    500.0,
+    "CONDITIONAL",
+    1.3274288210446055
+   ],
+   [
+    1000.0,
+    "CONDITIONAL",
+    1.2933352455411085
+   ],
+   [
+    2000.0,
+    "CONDITIONAL",
+    1.2368062355916
+   ],
+   [
+    3000.0,
+    "CONDITIONAL",
+    1.172713238967252
+   ],
+   [
+    4000.0,
+    "CONDITIONAL",
+    1.0884225468112652
+   ],
+   [
+    5000.0,
+    "CONDITIONAL",
+    1.039367991845056
+   ]
+  ],
+  "windows": {
+   "drilling_fluid": {
+    "open": false,
+    "lo": 1441.5261270718756,
+    "hi": 1284.8907942497449,
+    "note": "none: the scenarios need different fluids",
+    "lo_by": {
+     "state": "fresh rock",
+     "case": "Shmin 100% of floor-to-Sv",
+     "md": 9713.5
+    },
+    "hi_by": {
+     "state": "drilling",
+     "case": "Shmin 0% of floor-to-Sv",
+     "md": 4000.0
+    }
+   },
+   "trip_fluid": {
+    "open": false,
+    "lo": 1489.2022228796334,
+    "hi": 1337.6585217946736,
+    "note": "none: the scenarios need different fluids",
+    "lo_by": {
+     "state": "trip",
+     "case": "Shmin 100% of floor-to-Sv",
+     "md": 9685.464624
+    },
+    "hi_by": {
+     "state": "trip",
+     "case": "Shmin 0% of floor-to-Sv",
+     "md": 4000.0
+    }
+   }
+  },
+  "flow_ceiling": {
+   "m_dot": 50,
+   "by": "pump limit"
+  },
+  "shmin_margin": {
+   "site": {
+    "SHmax_held": 0.09468750000000001,
+    "SHmax_scaled": 0.164375,
+    "friction_needed": 1.1171631678242246
+   },
+   "mu_hi": {
+    "SHmax_held": 0.09468750000000001,
+    "SHmax_scaled": 0.164375,
+    "friction_needed": 1.1171631678242246,
+    "mu": 1.0
+   }
+  },
+  "tools": {
+   "tool": "PASS",
+   "bit": 185.00202099652154,
+   "connection": 185.36501115575655,
+   "running_in": 199.95899762580095,
+   "running_in_unstaged": 312.71692990154753,
+   "connection_schedule": {
+    "precirc_min": 0.33,
+    "off_min": 6.33,
+    "peak": 185.36501115575655
+   },
+   "running_in_schedule": {
+    "spacing_m": 144.8775360000002,
+    "minutes": 15.51,
+    "peak": 199.95899762580095,
+    "md": 9650.223903999999,
+    "stages": 39.0,
+    "staging_h": 10.0815,
+    "circulating_fraction": 0.3670385046217119
+   },
+   "coating": "INDETERMINATE",
+   "coating_max": 263.41838441518996
+  }
+ },
+ "Newberry / NWG 55-29 (USA)": {
+  "status": {
+   "label": "GO",
+   "reasons": []
+  },
+  "verdicts": {
+   "drilling": "GO",
+   "connection": "GO",
+   "connection, fresh rock": "GO",
+   "trip": "GO"
+  },
+  "site_verdict": "GO",
+  "deciding_case": "Davatzes & Hickman (2011), mu 0.55, log-derived granodiorite p10",
+  "drill_SG": 0.9768013947482579,
+  "drill_SG_hi": 1.3413479890517495,
+  "trip_SG": 0.9392997862553858,
+  "trip_SG_start": 0.9768013947482579,
+  "trip_SG_hi": 1.3381093532249562,
+  "safe_pause_h": 73.58106994628906,
+  "trip_h": 17.458607852696083,
+  "T_ref": {
+   "drilling": 400.0,
+   "connection": 149.83771553109335,
+   "connection, fresh rock": 331.8067525326253,
+   "trip": 314.8047694999737,
+   "end of drilling": 114.34867769786717
+  },
+  "fluid_SG": null,
+  "fluid_passes": 1,
+  "rop_m_h": 6.070360778255386,
+  "flow": 30,
+  "bit_C": 88.95606708297177,
+  "ecd_SG": 0.0167613641732067,
+  "sensitivities": {
+   "half trip time": {
+    "site_verdict": "GO",
+    "drill_SG": 0.9768013947482579,
+    "trip_SG": 0.9565010137696313,
+    "safe_pause_h": 73.58106994628906
+   },
+   "double trip time": {
+    "site_verdict": "GO",
+    "drill_SG": 0.9768013947482579,
+    "trip_SG": 0.9173988489795164,
+    "safe_pause_h": 73.58106994628906
+   },
+   "no fluid node": {
+    "site_verdict": "GO",
+    "drill_SG": 0.9768013947482579,
+    "trip_SG": 0.9143421076114635,
+    "safe_pause_h": 57.23057556152344
+   },
+   "breakouts form over 1 h": {
+    "site_verdict": "GO",
+    "drill_SG": 0.9768013947482579,
+    "trip_SG": 0.9392997862553858,
+    "safe_pause_h": 73.58106994628906
+   },
+   "median circulation before a connection": {
+    "site_verdict": "GO",
+    "drill_SG": 0.9768013947482579,
+    "trip_SG": 0.9392997862553858,
+    "safe_pause_h": 73.58106994628906
+   },
+   "dual-wall pipe": {
+    "site_verdict": "GO",
+    "drill_SG": 0.9891398281499121,
+    "trip_SG": 0.9515301325523836,
+    "safe_pause_h": 89.48295593261719
+   },
+   "highest flow, 100 kg/s": {
+    "site_verdict": "GO",
+    "drill_SG": 0.9916112185547699,
+    "trip_SG": 0.9534492229867622,
+    "safe_pause_h": 87.98204040527344
+   }
+  },
+  "trip_profile": [
+   [
+    0.0,
+    "GO",
+    0.9401833009510766
+   ],
+   [
+    100.0,
+    "GO",
+    0.9433931830354902
+   ],
+   [
+    250.0,
+    "GO",
+    0.9477960500948391
+   ],
+   [
+    500.0,
+    "GO",
+    0.9530901843626649
+   ],
+   [
+    1000.0,
+    "GO",
+    0.9628128038879001
+   ]
+  ],
+  "windows": {
+   "drilling_fluid": {
+    "open": 1.0,
+    "lo": 998.2012723757273,
+    "hi": 1233.030180540731,
+    "note": null,
+    "lo_by": {
+     "state": "drilling",
+     "case": "Davatzes & Hickman (2011), mu 0.55, log-derived granodiorite p10",
+     "md": null
+    },
+    "hi_by": {
+     "state": "drilling",
+     "case": "Davatzes & Hickman (2011), mu 0.7, log-derived granodiorite p10",
+     "md": 3629.04044732043
+    }
+   },
+   "trip_fluid": {
+    "open": 1.0,
+    "lo": 998.2012723757273,
+    "hi": 1230.1769197190367,
+    "note": null,
+    "lo_by": {
+     "state": "trip",
+     "case": "Davatzes & Hickman (2011), mu 0.55, log-derived granodiorite p10",
+     "md": null
+    },
+    "hi_by": {
+     "state": "trip",
+     "case": "Davatzes & Hickman (2011), mu 0.7, log-derived granodiorite p10",
+     "md": 3601.00507132043
+    }
+   }
+  },
+  "flow_ceiling": {
+   "m_dot": 100,
+   "by": "pump limit"
+  },
+  "shmin_margin": {
+   "site": {
+    "SHmax_held": 0.1828125,
+    "SHmax_scaled": 0.1828125,
+    "friction_needed": 1.2256209641138371
+   },
+   "mu_hi": {
+    "SHmax_held": 0.1828125,
+    "SHmax_scaled": 0.1828125,
+    "friction_needed": 1.2256209641138371,
+    "mu": 1.0
+   }
+  },
+  "tools": {
+   "tool": "PASS",
+   "bit": 88.95606708297177,
+   "connection": 89.0741583093748,
+   "running_in": 94.4017309481488,
+   "running_in_unstaged": 173.8408626528023,
+   "connection_schedule": {
+    "precirc_min": 0.33,
+    "off_min": 6.33,
+    "peak": 89.0741583093748
+   },
+   "running_in_schedule": {
+    "spacing_m": 144.8775360000002,
+    "minutes": 15.51,
+    "peak": 94.4017309481488,
+    "md": 3553.300655660217,
+    "stages": 12.0,
+    "staging_h": 3.102,
+    "circulating_fraction": 0.32319316561936157
+   },
+   "coating": "within rating",
+   "coating_max": 139.36799840422512
+  }
+ }
+}

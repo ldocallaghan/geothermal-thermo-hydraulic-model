@@ -21,6 +21,7 @@ are written up in data/sites/stress_sources.md.
 import sys
 
 import numpy as np
+import fluids
 import geo_constants as C
 import model1_coupled as m1
 import site_evaluation as se
@@ -419,7 +420,11 @@ def print_cycle(title, sites, results):
     print("  long from the end of drilling the hole holds at that weight with no circulation; trip h:")
     print("  the bottom of the hole without circulation for a trip, from FORGE 16B's tripping speeds")
     print("  and routine surface time scaled to depth; trip SG: the static fluid the hole needs for")
-    print("  the trip, against the fracture limit (Shmin less 0.05 SG).")
+    print("  the trip, against the fracture limit (Shmin less 0.05 SG). With the pressure budget the")
+    print("  SGs are equivalent static densities at the target, the trip SG includes the swab")
+    print("  allowance and its limit the surge allowance, and the safe pause lets the column heat.")
+    if any(o.get("budget") for o in results):
+        print_budget(sites, results)
     print()
     print("Cycle sensitivities (over the cycle; drill SG; safe pause; trip SG)")
     for s, o in zip(sites, results):
@@ -440,8 +445,12 @@ def print_cycle(title, sites, results):
         short = s_.name.split("(")[0].strip()[:25]
         fc, sm = o["flow_ceiling"], o["shmin_margin"]
         mu = lambda d: "" if d["friction_needed"] is None else f" (mu {d['friction_needed']:.2f})"
-        print(f"  {short:<26}flow {o['circ']['m_dot']:.0f} to {fc['m_dot']:.0f} kg/s, ceiling set by {fc['by']}"
-              f" ({fc['gpm']:.0f} gpm, {'within' if fc['within_rig'] else 'beyond'} rig capacity)")
+        unit = "kg/s" if o.get("fluid") is None else "L/s"
+        if fc["m_dot"] is None:
+            print(f"  {short:<26}flow {o['circ']['m_dot']:.0f} {unit}; no flow ceiling: already NO-GO")
+        else:
+            print(f"  {short:<26}flow {o['circ']['m_dot']:.0f} to {fc['m_dot']:.0f} {unit}, ceiling set by"
+                  f" {fc['by']} ({fc['gpm']:.0f} gpm, {'within' if fc['within_rig'] else 'beyond'} rig capacity)")
         for tag, name in (("site", f"cap at mu {s_.mu:.2f}"), ("mu_hi", "cap at mu 1.00")):
             d = sm[tag]
             print(f"  {'':<26}Shmin fall, {name}: SHmax held {pct(d['SHmax_held'])}{mu(d)}, "
@@ -462,6 +471,38 @@ def print_cycle(title, sites, results):
         cells = "  ".join(f"{r['height']:.0f} m {r['SG_needed']:.2f}" for r in o["trip_profile"])
         print(f"  {short:<26}{cells}")
     print()
+
+
+def print_budget(sites, results):
+    """The pressure budget: the drilling fluid each site converged on, the
+    water column in each state, and what the trip fluid loses as the column
+    heats through the trip."""
+    print()
+    print("Pressure budget: SGs are equivalent static densities at the target; the fluid is a")
+    print("barite-weighted water-based mud, given by its density at surface (20 C)")
+    hdr = (f"  {'Site':<26}{'fluid':>8}{'passes':>7}{'ECD':>7}{'water':>7}{'at trip':>8}"
+           f"{'trip SG':>8}{'at start':>9}{'trip fluid':>11}{'lost':>9}{'return':>8}")
+    print(hdr)
+    for s, o in zip(sites, results):
+        c, b = o["cycle"], o["cycle"]["budget"]
+        short = s.name.split("(")[0].strip()[:25]
+        fluid = "water" if o["fluid"] is None else f"{o['fluid'].sg:.3f}"
+        trip_f = "water" if b["trip_rho_surface"] is None else f"{b['trip_rho_surface'] / 1000:.3f}"
+        conv = "" if o["fluid_converged"] else "*"
+        print(f"  {short:<26}{fluid:>8}{len(o['fluid_passes']):>6}{conv:1}{c['ecd_SG']:7.3f}"
+              f"{b['water_SG']:7.3f}{b['water_SG_trip']:8.3f}{c['trip_SG']:8.3f}{b['trip_SG_start']:9.3f}"
+              f"{trip_f:>11}{b['trip_dP_heating'] / 1e6:6.1f} MPa{o['circ']['T_return']:6.0f} C")
+    print("  fluid: the drilling fluid's surface weight, iterated with the circulation it sets to")
+    print(f"  within 0.002 (passes; * not converged). water / at trip: water's column at the")
+    print("  circulating temperatures and at the end of the trip. trip SG / at start: the trip fluid")
+    print("  at the end of the trip (with the 0.02 swab allowance) and at its start, against the")
+    print("  fracture limit less the 0.02 surge allowance; lost: the bottomhole pressure the trip")
+    print("  fluid loses as the column heats. return: the surface return; at 100 C the annulus")
+    print("  would need backpressure.")
+    hot = [s.name.split("(")[0].strip() for s, o in zip(sites, results) if o["circ"].get("mud_too_hot")]
+    if hot:
+        print(f"  flag: the circulating bottomhole temperature exceeds the {fluids.MUD_T_LIMIT:.0f} C at which")
+        print("  conventional water-based muds start to break down: " + ", ".join(hot))
 
 
 def golden_rows(results):

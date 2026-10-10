@@ -42,17 +42,22 @@ from well_geometry import WellGeometry
 
 P_SURF = 1.0e5  # Pa, atmospheric at wellhead
 P_OP = 5.0e6    # Pa, loop operating pressure for the surface heat-product calc
-                # (keeps the hot return liquid; a pumped loop is pressurized)
+                # (keeps the hot return liquid; a pumped loop is pressurized).
+                # Used only for that calculation; the drilling loop is open.
+P_LIQUID = 5.0e6  # Pa, floor on the pressure at which the friction heating's
+                  # liquid properties are taken (_friction_gradient)
 
 def P_of_z(z, P_surface=P_SURF):
     return P_surface + C.HYDROSTATIC_GRAD * z
 
 
 def fluid_props(T_C, P_Pa, fluid=None):
-    """rho, cp, mu, k of the circulating fluid: IAPWS-95 water, or constant
-    values from a dict with those keys (a drilling mud, say)."""
+    """rho, cp, mu, k of the circulating fluid: IAPWS-95 water, constant
+    values from a dict with those keys, or an object with props(T, P)."""
     if fluid is None:
         return wt.props(T_C, P_Pa)
+    if hasattr(fluid, "props"):
+        return fluid.props(T_C, P_Pa)
     shape = np.broadcast(np.asarray(T_C), np.asarray(P_Pa)).shape
     return tuple(np.full(shape, float(fluid[q])) for q in ("rho", "cp", "mu", "k"))
 
@@ -290,8 +295,9 @@ def solve(m_dot=2.0, T_inj=40.0, G=C.GEOTHERM_GRADIENT, T_surf=C.SURFACE_TEMP,
     # return stays liquid (evaluating cp at 1 atm would wrongly treat >100 C
     # return as steam, cp~2000, halving the result). Use the loop operating
     # pressure P_OP and the mean temperature of the product stream.
-    cp_prod = float(wt.cp(np.array([0.5 * (Tu[0] + Td[0])]), np.array([P_OP]))[0]) \
-        if fluid is None else float(fluid["cp"])
+    T_prod = np.array([0.5 * (Tu[0] + Td[0])])
+    cp_prod = float(wt.cp(T_prod, np.array([P_OP]))[0]) if fluid is None else \
+        float(np.ravel(fluid_props(T_prod, np.array([P_OP]), fluid)[1])[0])
     Q_product = m_dot * cp_prod * (Tu[0] - Td[0])
 
     Trock_arr = np.array([Trock(zi) for zi in zz]) if geotherm is not None else Trock(zz)
@@ -333,10 +339,10 @@ def nozzle_dp(m_dot, rho, tfa=BIT_TFA_DEFAULT, cd=NOZZLE_CD):
 def _friction_gradient(m_dot, T, P, area, Dh, fluid=None):
     """Friction pressure gradient divided by density, |dp/dz| / rho [J/kg/m]:
     the heat dissipated per unit mass of fluid per metre. The circulating
-    fluid is liquid, so its properties are taken at no less than the loop
-    pressure P_OP: otherwise a solver iterate above 100 C near the surface
-    picks up steam's density and viscosity, and the friction heat runs away."""
-    rho, _, mu, _ = fluid_props(np.clip(T, 1, 480), np.maximum(P, P_OP), fluid)
+    fluid is liquid, so its properties are taken at no less than P_LIQUID:
+    otherwise a solver iterate above 100 C near the surface picks up steam's
+    density and viscosity, and the friction heat runs away."""
+    rho, _, mu, _ = fluid_props(np.clip(T, 1, 480), np.maximum(P, P_LIQUID), fluid)
     v = m_dot / (rho * area)
     f = friction_factor(rho * v * Dh / mu)
     return f * v ** 2 / (2 * Dh)
@@ -385,13 +391,18 @@ def hydraulics(m_dot, geometry, result=None, T_avg=80.0, tfa=BIT_TFA_DEFAULT,
         rho_a, _, mu_a, _ = fluid_props(T_a, P, fluid)
         rho_bit = float(rho_b[-1])
 
-    def loss(rho, mu, area, Dh):
+    tau_y = getattr(fluid, "yield_point", 0.0)
+
+    def loss(rho, mu, area, Dh, annulus):
         v = m_dot / (rho * area)
+        if tau_y > 0.0:     # a Bingham plastic (fluids.Mud)
+            import fluids
+            return fluids.bingham_gradient(rho, mu, tau_y, v, Dh, annulus)[0] * (bot - top), v
         f = friction_factor(rho * v * Dh / mu, friction)
         return f * ((bot - top) / Dh) * 0.5 * rho * v ** 2, v
 
-    dp_bore, _ = loss(rho_b, mu_b, g["A_bore"], g["Dh_bore"])
-    dp_ann, v_ann = loss(rho_a, mu_a, g["A_ann"], g["Dh_ann"])
+    dp_bore, _ = loss(rho_b, mu_b, g["A_bore"], g["Dh_bore"], False)
+    dp_ann, v_ann = loss(rho_a, mu_a, g["A_ann"], g["Dh_ann"], True)
     dp_bit = nozzle_dp(m_dot, rho_bit, tfa) if bit else 0.0
     dp_buoy = float(np.sum((rho_a - rho_b) * G_GRAV * dtvd))
     spp = float(dp_bore.sum() + dp_ann.sum()) + dp_bit + dp_buoy

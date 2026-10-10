@@ -32,7 +32,9 @@ def test_zero_pause_is_the_drilling_field_at_static_pressure(soultz):
 def test_an_uncooled_state_gives_the_no_wall_cooling_verdict(soultz):
     """The trip state with the wall back at rock temperature is the "no wall
     cooling" sensitivity."""
-    ref, _ = se.stability_inputs(se.SOULTZ, soultz["z"], soultz["T_rock"], T_wall=soultz["T_rock"])
+    ref, _ = se.stability_inputs(se.SOULTZ, soultz["z"], soultz["T_rock"], T_wall=soultz["T_rock"],
+                                 Pw=soultz["P_fluid"], P_surface=soultz["circ"]["backpressure"],
+                                 ecd_SG=soultz["circ"]["ecd_SG"])
     nwc = soultz["sensitivity"]["no wall cooling"]["stress"]["window"]
     assert ref["window"]["verdict"] == nwc["verdict"]
     assert ref["window"]["SG_lo"] == pytest.approx(nwc["SG_lo"], abs=0.01)
@@ -60,14 +62,31 @@ def test_the_safe_pause_is_bracketed(soultz):
     c = soultz["cycle"]
     h = c["safe_pause_h"]
     if 0 < h < se.SAFE_PAUSE_MAX_H:
-        assert c["width_ok"](c["after_pause"](0.98 * h), c["drill_SG"] * se.C.MUD_SG_GRAD * c["z"])
-        assert not c["width_ok"](c["after_pause"](1.02 * h), c["drill_SG"] * se.C.MUD_SG_GRAD * c["z"])
+        P = lambda x: c["pause_pressure"](c["drill_SG"], x)
+        assert c["width_ok"](c["after_pause"](0.98 * h), P(0.98 * h))
+        assert not c["width_ok"](c["after_pause"](1.02 * h), P(1.02 * h))
+
+
+def test_the_column_heats_through_a_pause(soultz):
+    """With the pressure budget, the fluid's pressure at the bottom falls as
+    the column heats through a pause, from its value at the end of drilling."""
+    c = soultz["cycle"]
+    P = [c["pause_pressure"](c["drill_SG"], h) for h in (0.0, 1.0, 10.0, 100.0)]
+    sg = se.C.MUD_SG_GRAD * c["z"]
+    assert P[0] == pytest.approx(c["drill_SG"] * sg + c["budget"]["backpressure"], rel=1e-4)
+    assert P == sorted(P, reverse=True) and P[-1] < P[0]
+
+
+def test_the_trip_profile_starts_at_the_cycle_trip_fluid(soultz):
+    """The trip profile follows the case that decides the cycle, so at one
+    stand above the bit it needs the cycle's trip fluid."""
+    assert soultz["trip_profile"][0]["SG_needed"] == pytest.approx(soultz["cycle"]["trip_SG"], abs=0.01)
 
 
 def test_site_table_v13_is_unchanged(evaluated):
     with open(os.path.join(GOLDEN, "v13_site_table.json")) as fh:
         pinned = json.load(fh)
-    now = golden_rows_v13([evaluated(s) for s in SITES])
+    now = golden_rows_v13([evaluated(s, circulation="v1.3") for s in SITES])
     assert now.keys() == pinned.keys()
     for site, row in pinned.items():
         assert now[site]["verdicts"] == row["verdicts"], site

@@ -111,6 +111,21 @@ def evaluate(G, K0, m_dot, pipe=wg.LEGACY_VACUUM, T_inj=40.0, P_mech=8000.0,
                 bvp_ok=r["success"], D=info.get("D", 0.0))
 
 
+def evaluate_at(T_cold, L, target_rock_T, K0, P_mech=8000.0, quench=True):
+    """The face model for a given coolant temperature at the face [C], from
+    a circulation solved elsewhere (the site's Model 1 run), in place of
+    evaluate's own scalar-gradient Model 1. The face heat load is returned
+    but not fed back into that circulation."""
+    if quench:
+        MSE_eff, regime, info = effective_mse(L, target_rock_T, T_cold, K0)
+    else:
+        MSE_eff, regime, info = C.MSE, "mech", dict(D=0.0)
+    ROP = rop_from_power(P_mech, MSE_eff)
+    return dict(K0=K0, L=L, T_cold=T_cold, MSE_eff=MSE_eff, regime=regime, ROP=ROP,
+                Q_face=face_load(P_mech, ROP, target_rock_T, T_cold, regime),
+                survive=T_cold < CEILING, D=info.get("D", 0.0))
+
+
 # ------------------------------------------------- optimise design for a site
 def optimise_site(G, K0, P_mech=8000.0, T_inj=40.0,
                   m_dot_grid=(2, 4, 7, 10, 14, 20), pipe=wg.LEGACY_VACUUM):

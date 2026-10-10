@@ -167,6 +167,10 @@ class SiteProfile:
     # friction coefficient for frictional admissibility and the cap: the
     # United Downs value unless the site's stresses were derived with another
     mu: float = C.FRICTION_MU
+    # coupled: the evaluation's own coupling (evaluate's circulation="v1.3.3"):
+    # the site's E_rock in the thermal stress, Model 3 on the site's
+    # circulation, the rate of penetration and exposure iterated together
+    coupled: bool = False
 
     def __post_init__(self):
         if not self.strength_cases:
@@ -256,15 +260,18 @@ SOULTZ = SiteProfile(
 )
 
 
-def thermal_hoop_stress(T_rock, T_wall):
+def thermal_hoop_stress(T_rock, T_wall, site=None):
     """Thermal hoop stress [Pa] at a wall cooled from T_rock to T_wall.
 
     dsigma_T = -E alpha / (1 - nu) * (T_rock - T_wall): the fully constrained
     thermoelastic stress Model 2 applies at the cutting face, with E and alpha
     from Model 2 at the rock temperature, as Model 2 evaluates them. Negative
-    (less compressive) when the wall is cooled.
+    (less compressive) when the wall is cooled. For a coupled site, E is the
+    site's own E_rock scaled by Model 2's temperature factor.
     """
     E, al = m2.E_of_T(T_rock), m2.alpha_of_T(T_rock)
+    if site is not None and site.coupled:
+        E *= site.E_rock / C.E_ROCK
     return -E * al / (1.0 - C.NU_ROCK) * (T_rock - T_wall)
 
 
@@ -304,7 +311,7 @@ def stability_inputs(site, z, T_rock, v10=False, mu=None, UCS=None,
     P_mud = Pw + Pw_add
     if T_wall is None:
         T_wall = min(T_rock, T_WALL_CAP)
-    dsigma_T = thermal_hoop_stress(T_rock, T_wall) if thermal and not v10 else 0.0
+    dsigma_T = thermal_hoop_stress(T_rock, T_wall, site) if thermal and not v10 else 0.0
     if v10:
         Sv, Shmin, SHmax, _ = stresses_v10(site, z)
         profiles = [(site.stress_cases[0], Sv, Shmin, SHmax, C.HYDROSTATIC_GRAD * z)]
@@ -696,14 +703,19 @@ def choose_circulation(site, z, geotherm, exposure=None, pipes=SITE_PIPES, film_
                          "within the pump limit")
 
 
-def evaluate(site: SiteProfile, v10=False, thermal=True, circulation="v1.3.3"):
+def evaluate(site: SiteProfile, v10=False, thermal=True, circulation="v1.3.3", coupled=None):
     """Run Models 1-5 for one site.
 
     circulation="v1.3.3" is "v1.3" with every pressure on the wall from one
     budget (pressure.py): an open annulus at atmospheric pressure, and the
     fluid column at its temperature in each state of the cycle, with a surge
-    and swab allowance through trips. circulation="v1.3" adds the verdict through the drilling cycle (site_cycle)
-    to circulation="v1.2", the circulation model as validated: the site well and
+    and swab allowance through trips; a barite mud iterated with the
+    circulation it sets; the tool and coating gates; the common windows and
+    the status. It is also coupled (coupled=None takes it from circulation):
+    Model 3 runs on the site's circulation, the rate of penetration and the
+    exposure are iterated to a fixed point, and the thermal stress takes the
+    site's E_rock. circulation="v1.3" adds the verdict through the drilling
+    cycle (site_cycle) to circulation="v1.2", the circulation model as validated: the site well and
     string, a named pipe type, friction heating, the wall's exposure from Model
     3's rate of penetration, and the flow rule above. circulation="v1.1" keeps
     the earlier single-pipe model (a 0.02 W/m K wall, a year's exposure, the
@@ -718,6 +730,12 @@ def evaluate(site: SiteProfile, v10=False, thermal=True, circulation="v1.3.3"):
     thermal stress nor cold-strength gain), the site-calibrated breakout
     limit, and the two together.
     """
+    # coupled: on by default with the pressure budget; on with "v1.3" alone
+    # shows what the coupling moves in the v1.3.2 table
+    if coupled is None:
+        coupled = circulation == "v1.3.3"
+    if coupled and not v10:
+        site = replace(site, coupled=True)
     z = site.target(v10)
     geotherm = site.temperature(v10)
     T_rock = float(geotherm(z))
@@ -837,14 +855,30 @@ def _evaluate_v12(site, thermal=True, budget=False, fluid=None, rop=None, light=
     # pass 1, rock exposed for a year: pipe and flow, then Model 3's rate of
     # penetration for them; pass 2, the wall's exposure from that rate
     P_wh = _wellhead(budget)
+    face = lambda r, quench=True: m3.evaluate_at(float(r["T_bottom_delivered"]), z, T_rock, K0,
+                                                 quench=quench)
+    rop_passes = []
     if rop is None:
         first = choose_circulation(site, z, geotherm, P_surface=P_wh, fluid=fluid,
                                    retry=not budget)
-        rop = m3.evaluate(G_deep, K0, first["m_dot"], pipe=first["pipe"],
-                          target_rock_T=T_rock, quench=True)["ROP"]
+        rop = (face(first["run"]) if site.coupled else
+               m3.evaluate(G_deep, K0, first["m_dot"], pipe=first["pipe"],
+                           target_rock_T=T_rock, quench=True))["ROP"]
+        if site.coupled:
+            # the rate of penetration and the exposure it sets, to a fixed point
+            for _ in range(ROP_MAX_PASSES):
+                exposure = m1.exposure_from_rop(z, rop * 3600.0, 0.0)
+                circ = choose_circulation(site, z, geotherm, exposure, P_surface=P_wh,
+                                          fluid=fluid, retry=not budget)
+                new = face(circ["run"])["ROP"]
+                rop_passes.append(dict(rop_m_h=rop * 3600, next_m_h=new * 3600))
+                if abs(new - rop) <= ROP_TOL * rop:
+                    break
+                rop = new
     exposure = m1.exposure_from_rop(z, rop * 3600.0, 0.0)
-    circ = choose_circulation(site, z, geotherm, exposure, P_surface=P_wh, fluid=fluid,
-                              retry=not budget)
+    if not rop_passes:
+        circ = choose_circulation(site, z, geotherm, exposure, P_surface=P_wh, fluid=fluid,
+                                  retry=not budget)
     run = circ["run"]
     T_wall = float(run["T_bottom_delivered"])
     ecd = ecd_sg(run, z)
@@ -870,10 +904,16 @@ def _evaluate_v12(site, thermal=True, budget=False, fluid=None, rop=None, light=
                                    failed=t.get("failed", []))
                               for t in circ["tried"]])
 
-    drill = m3.evaluate(G_deep, K0, circ["m_dot"], pipe=circ["pipe"],
-                        target_rock_T=T_rock, quench=True)
-    drill_nq = m3.evaluate(G_deep, K0, circ["m_dot"], pipe=circ["pipe"],
-                           target_rock_T=T_rock, quench=False)
+    if site.coupled:
+        # Model 3 on the site's own circulation: the coolant at the face is
+        # the fluid delivered to the bit
+        drill, drill_nq = face(run), face(run, quench=False)
+    else:
+        drill = m3.evaluate(G_deep, K0, circ["m_dot"], pipe=circ["pipe"],
+                            target_rock_T=T_rock, quench=True)
+        drill_nq = m3.evaluate(G_deep, K0, circ["m_dot"], pipe=circ["pipe"],
+                               target_rock_T=T_rock, quench=False)
+    out["rop_passes"] = rop_passes
     out["drill"] = drill
     out["rop_gain"] = drill["ROP"] / drill_nq["ROP"] if drill_nq["ROP"] > 0 else np.nan
     # heat returned while drilling, early life, single loop
@@ -1033,11 +1073,11 @@ def pause_temperatures(site, out, run, node=True):
     return cache[node]
 
 
-def _ref_depth(site, z, T_rock, Pw):
+def _ref_depth(site, z, T_rock, Pw, thermal=True):
     """The deepest reach of the uncooled breakout across the site's stress and
     strength cases [m beyond the wall]: the depth whose temperature the wall
     check uses (model5.breakout_with_skin)."""
-    thermo = -thermal_hoop_stress(T_rock, T_rock - 1.0)
+    thermo = -thermal_hoop_stress(T_rock, T_rock - 1.0, site) if thermal else 0.0
     d = 0.0
     for p in site.stress_cases:
         for _, ucs in site.strength_cases:
@@ -1047,7 +1087,7 @@ def _ref_depth(site, z, T_rock, Pw):
 
 
 def site_cycle(site, out, connection="p90", trip_scale=1.0, run=None, label="base", node=True,
-               form_h=0.0, fresh="p10", verdict_only=False):
+               form_h=0.0, fresh="p10", verdict_only=False, thermal=None):
     """Verdicts through the drilling cycle for the wall element one stand above
     the end of a bit run at the target: drilling (circulating pressure, the
     wall as the bit passes it), the connection (static, the wall at the end of
@@ -1076,8 +1116,10 @@ def site_cycle(site, out, connection="p90", trip_scale=1.0, run=None, label="bas
     constant gradient in every state.
 
     verdict_only: return the site verdict and the deciding case's drilling
-    fluid without the safe pause and the full-field check (for searches)."""
+    fluid without the safe pause and the full-field check (for searches).
+    thermal: the thermal hoop stress on or off, the evaluation's by default."""
     import drilling_cycle as dc
+    thermal = out.get("thermal", True) if thermal is None else thermal
     t = dc.forge_timings()
     z = out["z"]
     T_rock = out["T_rock"]
@@ -1103,7 +1145,7 @@ def site_cycle(site, out, connection="p90", trip_scale=1.0, run=None, label="bas
         p_t = p_c
     allow = p_t["allowance"] / sg
     Pw = p_c["P_static"]
-    d_ref = _ref_depth(site, z, T_rock, Pw)
+    d_ref = _ref_depth(site, z, T_rock, Pw, thermal)
     states = []
     for st in hist:
         if st.kind == "circulating":
@@ -1141,13 +1183,15 @@ def site_cycle(site, out, connection="p90", trip_scale=1.0, run=None, label="bas
     else:
         T_drill = T_rock
     ecd = p_d["friction"] / sg
-    ref_d, cases_d = stability_inputs(site, z, T_rock, T_wall=T_drill, Pw=p_d["P_lo"],
+    ref_d, cases_d = stability_inputs(site, z, T_rock, T_wall=T_drill, Pw=p_d["P_lo"], thermal=thermal,
                                       P_surface=bp)
-    ref_c, cases_c = stability_inputs(site, z, T_rock, T_wall=T_conn, Pw=Pw, P_surface=bp)
+    ref_c, cases_c = stability_inputs(site, z, T_rock, T_wall=T_conn, Pw=Pw, P_surface=bp,
+                                      thermal=thermal)
     # through the trip, swab on the lower bound and surge on the upper
-    ref_t, cases_t = stability_inputs(site, z, T_rock, T_wall=T_trip, Pw=p_t["P_lo"],
+    ref_t, cases_t = stability_inputs(site, z, T_rock, T_wall=T_trip, Pw=p_t["P_lo"], thermal=thermal,
                                       ecd_SG=allow, P_surface=bp)
-    ref_f, cases_f = stability_inputs(site, z, T_rock, T_wall=T_fresh, Pw=Pw, P_surface=bp)
+    ref_f, cases_f = stability_inputs(site, z, T_rock, T_wall=T_fresh, Pw=Pw, P_surface=bp,
+                                      thermal=thermal)
     states_out = {"drilling": (ref_d, T_drill), "connection": (ref_c, T_conn),
                   "connection, fresh rock": (ref_f, T_fresh), "trip": (ref_t, T_trip)}
 
@@ -1205,7 +1249,7 @@ def site_cycle(site, out, connection="p90", trip_scale=1.0, run=None, label="bas
                     deciding_case=gov["label"])
     w_drill_SG = gov["drill_SG"]
     Pw_drill = w_drill_SG * sg + bp
-    thermo = -thermal_hoop_stress(T_rock, T_rock - 1.0)
+    thermo = -thermal_hoop_stress(T_rock, T_rock - 1.0, site) if thermal else 0.0
     p_g, ucs_g = gov["profile"], gov["UCS"]
 
     def width_ok(T_r, Pw_drill=Pw_drill):
@@ -1359,6 +1403,7 @@ def common_windows(site, out, cycle=None, run=None, node=True):
     run = run or out["m1"]
     g = run["geometry"]
     z, geotherm = out["z"], site.temperature()
+    thermal = out.get("thermal", True)
     fluid_w = fluids.water()
     bp = run.get("backpressure", 0.0)
     temps_c = pr.circulating_temperatures(run)
@@ -1424,7 +1469,7 @@ def common_windows(site, out, cycle=None, run=None, node=True):
         sg_d = C.MUD_SG_GRAD * d
         Pw_c = float(np.interp(g.survey.tvd(d), tvd_c, P_c[0]))
         Pw_t = float(np.interp(g.survey.tvd(d), tvd_t, P_t[0]))
-        d_ref = _ref_depth(site, d, T_r, Pw_c)
+        d_ref = _ref_depth(site, d, T_r, Pw_c, thermal)
         r_max = wall_thermal.r_max_for(a, site.k_rock / rhocp_rock, (z - d) / rop * 3600 + 30 * 86400)
         cap_s, hs_s = _static_node(T_r, d, a, bc["r_string"], run.get("fluid"))
         cap_o, hs_o = _static_node(T_r, d, a, 0.0, run.get("fluid"))
@@ -1443,9 +1488,10 @@ def common_windows(site, out, cycle=None, run=None, node=True):
                 wall_thermal.State("static", trip_h * 3600, h=hs_o, C=cap_o if node else 0.0)]
         r_t = wall_thermal.run(hist, T_r, a, site.k_rock, rhocp_rock, n=120, r_max=r_max, growth=1.2)
         T_t = float(np.interp(a + d_ref, r_t.r, r_t.fields[-1]))
-        _, cases_f = stability_inputs(site, d, T_r, T_wall=T_f, Pw=Pw_c, P_surface=bp)
+        _, cases_f = stability_inputs(site, d, T_r, T_wall=T_f, Pw=Pw_c, P_surface=bp,
+                                      thermal=thermal)
         _, cases_t = stability_inputs(site, d, T_r, T_wall=T_t, Pw=Pw_t - allow * sg_d,
-                                      ecd_SG=allow, P_surface=bp)
+                                      ecd_SG=allow, P_surface=bp, thermal=thermal)
         fric = pr.annulus_friction(run, d)
         for cf, ct in zip(cases_f, cases_t):
             wf, wt_ = cf["window"], ct["window"]
@@ -1808,9 +1854,10 @@ def trip_profile(site, out, heights=(0.0, 100.0, 250.0, 500.0, 1000.0, 2000.0, 3
             kw = dict(Pw=p["P_lo"], ecd_SG=p["allowance"] / (C.MUD_SG_GRAD * z), P_surface=bp)
         else:
             kw = dict(Pw=pr.bottomhole_pressure("trip", z, grad=site.rho_fluid_grad)["P_static"])
-        d_ref = _ref_depth(site, z, T_rock, kw["Pw"])
+        thermal = out.get("thermal", True)
+        d_ref = _ref_depth(site, z, T_rock, kw["Pw"], thermal)
         T_ref = float(np.interp(bc["r_wall"] + d_ref, res.r, res.fields[-1]))
-        ref, cases = stability_inputs(site, z, T_rock, T_wall=T_ref, **kw)
+        ref, cases = stability_inputs(site, z, T_rock, T_wall=T_ref, thermal=thermal, **kw)
         if budget:
             # the case that decides the cycle, as the cycle's trip fluid is
             # that case's; the water column at the end of the trip at least
@@ -1897,7 +1944,9 @@ def shmin_margins(site, out, mu_hi=1.0):
 
 
 FLUID_TOL_SG = 0.002          # convergence of the drilling fluid's surface weight
-FLUID_MAX_PASSES = 8
+FLUID_MAX_PASSES = 10
+ROP_TOL = 0.02                # convergence of the rate of penetration (coupled sites)
+ROP_MAX_PASSES = 10
 
 
 def drilling_fluid(site, thermal=True, rheology=None):
@@ -1907,7 +1956,9 @@ def drilling_fluid(site, thermal=True, rheology=None):
     (site_cycle) and rebuilds the mud at that weight, until the surface
     weight changes by less than FLUID_TOL_SG. Water while water suffices.
     rheology: (plastic viscosity at fluids.PV_REF_T [Pa s], yield point [Pa])
-    for the mud, its defaults if None.
+    for the mud, its defaults if None. For a coupled site the rate of
+    penetration is iterated in the same passes, from Model 3 on each pass's
+    circulation, until it also changes by less than ROP_TOL.
 
     Returns the fluid (None for water), the passes, whether it converged,
     and Model 3's rate of penetration from the first pass."""
@@ -1915,18 +1966,21 @@ def drilling_fluid(site, thermal=True, rheology=None):
     fluid, rop, passes = None, None, []
     for _ in range(FLUID_MAX_PASSES):
         o = _evaluate_v12(site, thermal, True, fluid, rop=rop, light=True)
-        rop = o["circ"]["rop"]
+        rop_used = o["circ"]["rop"]
+        rop = o["drill"]["ROP"] if site.coupled else rop_used
+        rop_ok = abs(rop - rop_used) <= ROP_TOL * rop_used
         need = site_cycle(site, o, verdict_only=True)["drill_SG"]
         temps = pr.circulating_temperatures(o["m1"])
         bp = o["m1"].get("backpressure", 0.0)
         rho = pr.surface_density_for(need, o["z"], temps, lambda r: fluids.Mud(r, pv, yp), bp)
         passes.append(dict(fluid_SG=None if fluid is None else fluid.sg, need_SG=need,
                            rho_surface=rho, ecd_SG=ecd_sg(o["m1"], o["z"]),
-                           success=bool(o["m1"]["success"])))
+                           success=bool(o["m1"]["success"]), rop_m_h=rop_used * 3600,
+                           rop_passes=len(o["rop_passes"])))
         new = None if rho is None else fluids.Mud(rho, pv, yp)
         old_rho = fluids.water().rho_surface if fluid is None else fluid.rho_surface
-        if abs((rho or old_rho) - old_rho) / 1000.0 < FLUID_TOL_SG:
-            return fluid, passes, True, rop
+        if abs((rho or old_rho) - old_rho) / 1000.0 < FLUID_TOL_SG and rop_ok:
+            return fluid, passes, True, rop_used
         fluid = new
     return fluid, passes, False, rop
 
@@ -2045,7 +2099,7 @@ def report(o):
     print(f"      regime: {d['regime']} | effective MSE {d['MSE_eff']/1e6:.0f} MPa | "
           f"ROP {d['ROP']*3600:.1f} m/hr | quench gain {o['rop_gain']:.1f}x")
     print("-" * 80)
-    print(f"  [4] CREEP CLOSURE (time-dependent)")
+    print(f"  [4] CREEP CLOSURE (a screening estimate with generic properties)")
     print(f"      hot wall: {o['creep_hot']:.2e} %/yr  ->  cooled {o['T_wall']:.0f}C: {o['creep_cold']:.2e} %/yr")
     print(f"      cooling factor ~ {o['creep_hot']/max(o['creep_cold'],1e-30):.1e}x  (squeezing controlled)")
     print("-" * 80)

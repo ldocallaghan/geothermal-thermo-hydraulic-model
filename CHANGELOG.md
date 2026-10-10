@@ -1,5 +1,34 @@
 # Changelog
 
+## v1.3.3: one consistent operating programme (in progress)
+
+- **Coupling.** Model 3 now takes the coolant temperature at the face from
+  the site's own circulation, where it used its own scalar-gradient Model 1;
+  the rate of penetration and the wall's exposure are iterated to a fixed
+  point (2%, at most ten passes; one or two at every site); the thermal
+  stress takes the site's E_rock scaled by Model 2's temperature factor, where
+  it used the generic 50 GPa; and switching the thermal stress off now
+  reaches every state of the cycle. Rerun on the v1.3.2 table with nothing
+  else changed, no verdict moves. At Soultz the coolant at the face is 184 C
+  against the 135 C Model 3's own run gave, so the rate of penetration falls
+  from 4.3 to 3.9 m/h; at the other deep sites it is 3.8 to 3.9 m/h. The rock is
+  then circulated against for longer before each trip, the reference rock
+  is 1 to 2 C cooler through connections and trips, the trip fluid is up to
+  0.005 SG lighter, and the safe pause is longer (Soultz 47 to 55 h, United
+  Downs 35 to 37 h, Pannonian 77 to 82 h). The site stiffness raises the
+  thermal stress at United Downs (60 GPa) and Soultz (55 GPa), which shows
+  only where the wall is cooled: with the one-hour formation allowance the
+  drilling fluid is 1.155 SG at Soultz (1.169) and 1.117 at United Downs
+  (1.142). At United Downs the flow ceiling rises from 60 to 70 kg/s and the
+  Shmin margin at friction 1.0 from 2.2 to 2.6% (SHmax held) and 4.6 to 5.8%
+  (scaled). Larderello does not change.
+- **The FORGE trip test.** The no-node fit factor is 0.357 on Python 3.14.4
+  with the lock file's packages, reproduced from a clean clone, and 0.391 on
+  Python 3.11, 3.12 and 3.13 with the same packages. v1.3.2 put the
+  difference down to Python 3.11 alone. The test's tolerance now covers the
+  spread, and the Pason times are read as UTC so that the pinned epochs do
+  not depend on the machine's time zone.
+
 ## v1.3.2: the margins on the window (October 2026)
 
 Additions from a review of v1.3.1. No verdict changes.

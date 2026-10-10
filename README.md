@@ -186,13 +186,14 @@ The most useful additional data would be downhole temperatures from a hot, deep 
 
 ## 7. Reproducing the results
 
-From the repository root:
+The reference results in `tests/golden/` were made with Python 3.14.4 and the package versions in `requirements-lock.txt` (numpy 2.5.3, scipy 1.18.1, matplotlib 3.11.2, iapws 1.5.5, pytest 9.1.1), the environment the continuous integration runs; `requirements.txt` gives the minimum versions. From the repository root:
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements-lock.txt
 python src/water_table.py         # one-time build of the IAPWS-95 property table (~2.5 min)
-python src/site_evaluation.py     # full evaluation of the Soultz site
+python src/site_evaluation.py --site soultz --json soultz.json   # one site, with its result as JSON
 python src/comparative_sites.py   # all five sites
+python examples/new_site.py --evaluate   # a site from the template (docs/new_site.md)
 python src/calibrate_ud1.py       # UD-1 strength calibration and Fig. 7
 python src/crosscheck_soultz.py   # Soultz cross-check
 python src/crosscheck_newberry.py # Newberry cross-check

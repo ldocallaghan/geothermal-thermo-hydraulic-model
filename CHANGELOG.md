@@ -22,12 +22,13 @@
   (1.142). At United Downs the flow ceiling rises from 60 to 70 kg/s and the
   Shmin margin at friction 1.0 from 2.2 to 2.6% (SHmax held) and 4.6 to 5.8%
   (scaled). Larderello does not change.
-- **The FORGE trip test.** The no-node fit factor is 0.357 on Python 3.14.4
-  with the lock file's packages, reproduced from a clean clone, and 0.391 on
-  Python 3.11, 3.12 and 3.13 with the same packages. v1.3.2 put the
-  difference down to Python 3.11 alone. The test's tolerance now covers the
-  spread, and the Pason times are read as UTC so that the pinned epochs do
-  not depend on the machine's time zone.
+- **The FORGE trip test.** The no-node fit factor is 0.357 on Python 3.14.4,
+  both with the lock file's packages (numpy 2.5.3, scipy 1.18.1) and from a
+  clean clone with numpy 2.4.4 and scipy 1.17.1, and the reviewers found
+  0.391 on Python 3.11, 3.12 and 3.13. v1.3.2 put the difference down to
+  Python 3.11 alone. The test's tolerance now covers the spread, and the
+  Pason times are read as UTC so that the pinned epochs do not depend on the
+  machine's time zone.
 
 ## v1.3.2: the margins on the window (October 2026)
 

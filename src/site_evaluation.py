@@ -2197,6 +2197,14 @@ def _fmt_h(h):
     return f"{h * 60:.0f} min" if h < 1 else f"{h:.1f} h"
 
 
+def describe_bound(by):
+    """Where a common window's bound binds: the state, case and depth, or,
+    for a lower bound no case raises above water, that water suffices."""
+    if by["md"] is None:
+        return "water suffices in every case and state"
+    return f"{by['state']}, {by['case']}, {by['md']:.0f} m"
+
+
 def _sg(rho):
     return "water" if rho is None else ("none" if rho == float("inf") else f"{rho / 1000:.3f}")
 
@@ -2248,8 +2256,8 @@ def report(o):
             print(f"    {k.replace('_', ' '):<15}{head}")
             for b in ("lo", "hi"):
                 by = w[b + "_by"]
-                print(f"    {'':<15}{'lower' if b == 'lo' else 'upper'} {_sg(w[b])}: {by['state']}, "
-                      f"{by['case']}, {by['md']:.0f} m")
+                print(f"    {'':<15}{'lower' if b == 'lo' else 'upper'} {_sg(w[b])}: "
+                      f"{describe_bound(by)}")
     if "tools" in o:
         tl = o["tools"]
         co = tl["coating"]
@@ -2303,9 +2311,8 @@ def verdict_lines(o):
     for k in ("drilling_fluid", "trip_fluid"):
         x = w[k]
         if x["open"]:
-            lines.append(f"  {k.replace('_', ' ')}: {_sg(x['fluid'])} SG at surface, bound below by the "
-                         f"{x['lo_by']['state']} at {x['lo_by']['md']:.0f} m and above by the "
-                         f"{x['hi_by']['state']} at {x['hi_by']['md']:.0f} m")
+            lines.append(f"  {k.replace('_', ' ')}: {_sg(x['fluid'])} SG at surface; lower bound "
+                         f"{describe_bound(x['lo_by'])}; upper bound {describe_bound(x['hi_by'])}")
         else:
             lines.append(f"  {k.replace('_', ' ')}: {x['note']}")
     return lines

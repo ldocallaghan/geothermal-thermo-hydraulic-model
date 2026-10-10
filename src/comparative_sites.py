@@ -523,8 +523,8 @@ def print_windows(sites, results):
             lo, hi = w["lo_by"], w["hi_by"]
             head = f"{f(w['fluid'])}" if w["open"] else w["note"]
             print(f"  {short:<26}{name:<15}{head}")
-            print(f"  {'':<26}{'':<15}lower {f(w['lo'])}: {lo['state']}, {lo['case']}, {lo['md']:.0f} m")
-            print(f"  {'':<26}{'':<15}upper {f(w['hi'])}: {hi['state']}, {hi['case']}, {hi['md']:.0f} m")
+            print(f"  {'':<26}{'':<15}lower {f(w['lo'])}: {se.describe_bound(lo)}")
+            print(f"  {'':<26}{'':<15}upper {f(w['hi'])}: {se.describe_bound(hi)}")
             short = ""
     print("  Each state's own window per case is in the result (windows/states). The site verdict")
     print("  above is unchanged: it is the worst case's; this is the prescription, a separate output.")
@@ -639,8 +639,8 @@ def golden_rows_v133(results):
     for o in results:
         c, b, tl = o["cycle"], o["cycle"]["budget"], o["tools"]
         win = lambda w: dict(open=w["open"], lo=inf(w["lo"]), hi=inf(w["hi"]), note=w.get("note"),
-                             lo_by=dict(w["lo_by"], md=float(w["lo_by"]["md"])),
-                             hi_by=dict(w["hi_by"], md=float(w["hi_by"]["md"])))
+                             lo_by=dict(w["lo_by"], md=inf(w["lo_by"]["md"])),
+                             hi_by=dict(w["hi_by"], md=inf(w["hi_by"]["md"])))
         sched = lambda x: None if x is None else {k: float(v) if isinstance(v, (int, float)) else v
                                                   for k, v in x.items()}
         rows[o["site"].name] = dict(

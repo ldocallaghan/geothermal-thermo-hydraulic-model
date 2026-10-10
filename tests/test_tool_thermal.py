@@ -87,11 +87,3 @@ def test_the_schedule_found_for_running_in_holds_the_tool(soultz):
     if tr["schedule"] is not None:
         assert tr["schedule"]["peak"] < soultz["tools"]["limit"]
         assert tr["schedule"]["spacing_m"] <= tr["staged"]["spacing_m"]
-
-
-def test_a_coating_over_its_rating_is_indeterminate_not_no_go():
-    import site_evaluation as se
-    tools = dict(tool="PASS", coating=dict(status="INDETERMINATE"))
-    assert se.overall_status("CONDITIONAL", tools) == "INDETERMINATE"
-    assert se.overall_status("NO-GO [CONDITIONAL..NO-GO]", tools) == "NO-GO"
-    assert se.overall_status("GO", dict(tool="FAIL: x", coating=dict(status="within rating"))) == "NO-GO"

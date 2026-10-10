@@ -1315,6 +1315,176 @@ def site_cycle(site, out, connection="p90", trip_scale=1.0, run=None, label="bas
                 pause_pressure=pause_pressure)
 
 
+# ------------------------------------------------------- common windows
+WINDOW_DZ = 100.0                 # m between the depths checked down the hole
+RHO_GRID = np.arange(1000.0, 2601.0, 50.0)   # kg/m3, surface densities tabulated
+
+
+def common_windows(site, out, cycle=None, run=None, node=True):
+    """The fluid that suits every scenario in every state, down the hole.
+
+    For each stress and strength case (scenario) and each state, the window
+    is the range of the fluid's density at surface (20 C) that holds the
+    wall and stays below the fracture limit; a fluid's equivalent density
+    varies with depth as its column's temperature does, so the bounds are
+    surface densities. The states:
+
+      drilling        the lower bound at the bottom, the wall at formation
+                      temperature at circulating pressure; the upper bound,
+                      at circulating pressure (the static column plus the
+                      annular friction above the depth), at every depth;
+      connection      at the bottom, at static pressure (site_cycle);
+      fresh rock      the connection on rock just drilled, at every depth,
+                      after FORGE's 10th-percentile circulation and its
+                      90th-percentile connection; the column has the
+                      circulating temperatures of the run at the target, an
+                      approximation for a hole that was shallower then;
+      trip            at every depth: the element there circulated since the
+                      bit passed it, with the last connection it saw (earlier
+                      ones, each followed by hours of circulation, leave no
+                      trace at the wall), the bottoms-up and the trip; the
+                      lower bound on the column at the end of the trip with
+                      the swab allowance, the upper on the column at its
+                      start with the surge allowance.
+
+    Depths: every WINDOW_DZ from one stand above the bit to the casing shoe,
+    and the shoe. Each bound's binding depth is reported. The intersection
+    across scenarios is the prescription: the drilling fluid (drilling,
+    connection and fresh rock) and the trip fluid. If it is empty, the
+    deciding pair of scenarios is named. The site verdict is unchanged; this
+    is a separate output."""
+    import drilling_cycle as dc
+    t = dc.forge_timings()
+    cycle = cycle or out["cycle"]
+    run = run or out["m1"]
+    g = run["geometry"]
+    z, geotherm = out["z"], site.temperature()
+    fluid_w = fluids.water()
+    bp = run.get("backpressure", 0.0)
+    temps_c = pr.circulating_temperatures(run)
+    trip_h = cycle["trip_h"]
+    temps_t = trip_temperatures(site, out, run, trip_h, node)
+    allow = pr.TRIP_ALLOWANCE_SG
+    rhocp_rock = C.RHO_ROCK * C.CP_ROCK
+    rop = out["drill"]["ROP"] * 3600.0
+    stand = t.stand_ft * dc.FT
+    shoe = max(h.md_top for h in g.hole)
+    depths = np.unique(np.concatenate([np.arange(z - stand, shoe, -WINDOW_DZ), [shoe]]))[::-1]
+    # the fresh-rock connection is also checked at the target, on the rock
+    # the bit has just drilled; the trip starts one stand up, as site_cycle's
+    all_depths = np.concatenate([[z - 0.5], depths])
+
+    # each column's pressure at every depth for a range of surface densities
+    def table(temps):
+        tvd, T = temps
+        rows = [pr.column(tvd, T, fluid_w, bp)] + [pr.column(tvd, T, fluids.Mud(r), bp)
+                                                   for r in RHO_GRID[1:]]
+        return np.array(rows), tvd
+    P_c, tvd_c = table(temps_c)
+    P_t, tvd_t = table(temps_t)
+    rho_grid = np.concatenate([[fluid_w.rho_surface], RHO_GRID[1:]])
+
+    def rho_for(P_target, d, which):
+        """The surface density whose static column reaches P_target at depth
+        d; below water's density by proportion if water already exceeds it
+        (no fluid fits), inf past the table."""
+        P, tvd = (P_c, tvd_c) if which == "c" else (P_t, tvd_t)
+        col = np.array([np.interp(g.survey.tvd(d), tvd, row) for row in P])
+        if P_target <= col[0]:
+            return float(rho_grid[0] * (P_target - bp) / (col[0] - bp))
+        if P_target > col[-1]:
+            return float("inf")
+        return float(np.interp(P_target, col, rho_grid))
+
+    bounds = {}      # (state, case label) -> dict(lo, lo_md, hi, hi_md)
+
+    def update(state, label, lo=None, hi=None, md=None):
+        b = bounds.setdefault((state, label), dict(lo=rho_grid[0], lo_md=None,
+                                                   hi=float("inf"), hi_md=None))
+        if lo is not None and lo > b["lo"]:
+            b.update(lo=lo, lo_md=md)
+        if hi is not None and hi < b["hi"]:
+            b.update(hi=hi, hi_md=md)
+
+    # at the bottom: drilling (circulating) and the connection (static)
+    fric_z = pr.annulus_friction(run, z)
+    for c in cycle["cases"]["drilling"]:
+        update("drilling", c["label"], lo=rho_for(c["window"]["Pw_lo"] - fric_z, z, "c"), md=z)
+    for c in cycle["cases"]["connection"]:
+        update("connection", c["label"], lo=rho_for(c["window"]["Pw_lo"], z, "c"),
+               hi=rho_for(c["window"]["Pw_hi"], z, "c"), md=z)
+
+    fresh_s = t.fresh_circ_p10_min * 60
+    conn_s = t.connection_p90_min * 60
+    stand_h = stand / rop
+    for d in all_depths:
+        T_r = float(geotherm(d))
+        bc = _bottom_conditions(run, d)
+        a = bc["r_wall"]
+        sg_d = C.MUD_SG_GRAD * d
+        Pw_c = float(np.interp(g.survey.tvd(d), tvd_c, P_c[0]))
+        Pw_t = float(np.interp(g.survey.tvd(d), tvd_t, P_t[0]))
+        d_ref = _ref_depth(site, d, T_r, Pw_c)
+        r_max = wall_thermal.r_max_for(a, site.k_rock / rhocp_rock, (z - d) / rop * 3600 + 30 * 86400)
+        cap_s, hs_s = _static_node(T_r, d, a, bc["r_string"], run.get("fluid"))
+        cap_o, hs_o = _static_node(T_r, d, a, 0.0, run.get("fluid"))
+        # fresh rock at this depth, when the bit was here
+        r_f = wall_thermal.run([wall_thermal.State("circulating", fresh_s, T_fluid=bc["Tu"], h=bc["h"]),
+                                wall_thermal.State("static", conn_s, h=hs_s, C=cap_s if node else 0.0,
+                                                   T_node0=bc["Tu"])],
+                               T_r, a, site.k_rock, rhocp_rock, n=120, r_max=r_max, growth=1.2)
+        T_f = float(np.interp(a + d_ref, r_f.r, r_f.fields[-1]))
+        # the trip, with this element's history since the bit passed it
+        circ_h = max((z - d) / rop - stand_h / 2, 1e-3)
+        hist = [wall_thermal.State("circulating", circ_h * 3600, T_fluid=bc["Tu"], h=bc["h"]),
+                wall_thermal.State("static", conn_s, h=hs_s, C=cap_s if node else 0.0),
+                wall_thermal.State("circulating", (stand_h / 2 + bc["bu_h"]) * 3600,
+                                   T_fluid=bc["Tu"], h=bc["h"]),
+                wall_thermal.State("static", trip_h * 3600, h=hs_o, C=cap_o if node else 0.0)]
+        r_t = wall_thermal.run(hist, T_r, a, site.k_rock, rhocp_rock, n=120, r_max=r_max, growth=1.2)
+        T_t = float(np.interp(a + d_ref, r_t.r, r_t.fields[-1]))
+        _, cases_f = stability_inputs(site, d, T_r, T_wall=T_f, Pw=Pw_c, P_surface=bp)
+        _, cases_t = stability_inputs(site, d, T_r, T_wall=T_t, Pw=Pw_t - allow * sg_d,
+                                      ecd_SG=allow, P_surface=bp)
+        fric = pr.annulus_friction(run, d)
+        for cf, ct in zip(cases_f, cases_t):
+            wf, wt_ = cf["window"], ct["window"]
+            update("fresh rock", cf["label"], lo=rho_for(wf["Pw_lo"], d, "c"), md=d)
+            # the drilling fluid at circulating pressure below the fracture limit
+            update("drilling", cf["label"], hi=rho_for(wf["Pw_hi"] - fric, d, "c"), md=d)
+            if d <= z - stand + 1e-6:
+                update("trip", ct["label"], lo=rho_for(wt_["Pw_lo"] + allow * sg_d, d, "t"),
+                       hi=rho_for(wt_["Pw_hi"], d, "c"), md=d)
+
+    labels = [c["label"] for c in cycle["cases"]["drilling"]]
+    states = ("drilling", "connection", "fresh rock", "trip")
+    per_state = {st: {lab: bounds[(st, lab)] for lab in labels if (st, lab) in bounds} for st in states}
+
+    def intersect(sts):
+        lo = max(((bounds[(st, lab)]["lo"], st, lab, bounds[(st, lab)]["lo_md"])
+                  for st in sts for lab in labels if (st, lab) in bounds), key=lambda x: x[0])
+        hi = min(((bounds[(st, lab)]["hi"], st, lab, bounds[(st, lab)]["hi_md"])
+                  for st in sts for lab in labels if (st, lab) in bounds), key=lambda x: x[0])
+        res = dict(lo=lo[0], lo_by=dict(state=lo[1], case=lo[2], md=lo[3]),
+                   hi=hi[0], hi_by=dict(state=hi[1], case=hi[2], md=hi[3]), open=lo[0] <= hi[0])
+        res["fluid"] = lo[0] if res["open"] else None
+        if not res["open"]:
+            # the scenario that sets the lower bound, if it has no window of
+            # its own, decides alone; otherwise with the one that sets the upper
+            own_hi = min(bounds[(st, lo[2])]["hi"] for st in sts if (st, lo[2]) in bounds)
+            if own_hi < lo[0]:
+                res["deciding_pair"] = (lo[2], lo[2])
+                res["note"] = "none: no fluid suits the scenario " + lo[2]
+            else:
+                res["deciding_pair"] = (lo[2], hi[2])
+                res["note"] = "none: the scenarios need different fluids"
+        return res
+
+    return dict(depths=depths, states=per_state,
+                drilling_fluid=intersect(("drilling", "connection", "fresh rock")),
+                trip_fluid=intersect(("trip",)))
+
+
 # ------------------------------------------------------- tools and coating
 COATING_RATINGS = {wg.TK_DRAKON.name: 204.0}   # C, NOV's rating "provided that circulation
                                                # is maintained" (data/materials.md)
@@ -1528,16 +1698,76 @@ def tool_gates(site, out, run=None, node=True, trip_h=None):
                 coating=coating)
 
 
-def overall_status(cycle_verdict, tools):
-    """The site's status: NO-GO if the wall cannot be held or the tool fails;
-    otherwise INDETERMINATE if the coating exceeds its rating; otherwise the
-    verdict over the cycle."""
-    v = cycle_verdict.split()[0]
-    if v == "NO-GO" or tools["tool"].startswith("FAIL"):
-        return "NO-GO"
-    if tools["coating"]["status"] == "INDETERMINATE":
-        return "INDETERMINATE"
-    return v
+def component_statuses(out):
+    """The status of each part of an evaluation with the pressure budget:
+    whether every Model 1 run and the fluid iteration converged, the tool,
+    the coating, hole cleaning, the pumps against their limit and the rig,
+    the frictional admissibility of each case, and stability in each state
+    of the cycle."""
+    circ, hyd, cycle = out["circ"], out["circ"]["hyd"], out["cycle"]
+    passes = out.get("fluid_passes", [])
+    solver_ok = bool(out["m1"]["success"]) and all(p["success"] for p in passes if "success" in p)
+    tl = out["tools"]
+    gpm = flow_gpm(out["m1"])
+    cases = cycle["cases"]["drilling"]
+    return dict(
+        solver=dict(ok=solver_ok and out.get("fluid_converged", True),
+                    converged=out.get("fluid_converged", True), runs_ok=solver_ok,
+                    fluid_passes=len(passes)),
+        tool=dict(ok=not tl["tool"].startswith("FAIL"), detail=tl["tool"]),
+        coating=dict(status=tl["coating"]["status"], pipe=tl["coating"]["pipe"]),
+        hole_cleaning=dict(ok=bool(hyd["cleans_hole"]), v_ann_min=float(hyd["v_ann_min"]),
+                           conflict=circ["conflict"]),
+        pumps=dict(ok=not hyd["over_pump_limit"], spp=float(hyd["spp"]),
+                   within_rig=gpm <= rig_capacity_gpm(float(hyd["spp"])), gpm=gpm),
+        admissibility=dict(inadmissible=[c["label"] for c in cases
+                                         if not c["admissible"]["admissible"]]),
+        stability=dict(verdict=cycle["site_verdict"], states=cycle["verdicts"]))
+
+
+def site_status(components, windows=None, tools=None):
+    """The top-level label and its reasons, from component_statuses:
+
+      INDETERMINATE   a prerequisite failed or is unknown: a solver did not
+                      converge (whatever else the evaluation says), or the
+                      coating is above its rating while all else holds;
+      NO-GO           with the failing parts: stability in some state, the
+                      tool, or the pump limit;
+      CONDITIONAL     with the conditions: the drilling and trip fluids, the
+                      schedule the tool needs, the rig, hole cleaning;
+      GO              none of these."""
+    c = components
+    if not c["solver"]["ok"]:
+        why = ("the fluid iteration did not converge" if not c["solver"]["converged"]
+               else "a Model 1 run did not converge")
+        return dict(label="INDETERMINATE", reasons=[why])
+    fails = []
+    st = c["stability"]
+    if st["verdict"].split()[0] == "NO-GO":
+        bad = [k for k, v in st["states"].items() if v == "NO-GO"]
+        fails.append("the wall is not held: " + ", ".join(bad))
+    if not c["tool"]["ok"]:
+        fails.append("tool: " + c["tool"]["detail"][len("FAIL: "):])
+    if not c["pumps"]["ok"]:
+        fails.append("the standpipe pressure exceeds the pump limit")
+    if fails:
+        return dict(label="NO-GO", reasons=fails)
+    if c["coating"]["status"] == "INDETERMINATE":
+        return dict(label="INDETERMINATE",
+                    reasons=[f"the {c['coating']['pipe']} coating is above its rating "
+                             "and its qualification is not known"])
+    conds = []
+    if st["verdict"].split()[0] == "CONDITIONAL":
+        conds.append("a fluid heavier than water")
+    if c["tool"]["detail"] != "PASS":
+        conds.append("the circulation schedule the tool needs")
+    if not c["pumps"]["within_rig"]:
+        conds.append("more pump capacity than the reference rig")
+    if not c["hole_cleaning"]["ok"]:
+        conds.append("hole cleaning below the FORGE annular velocity")
+    if c["admissibility"]["inadmissible"]:
+        conds.append("excluding the frictionally inadmissible cases")
+    return dict(label="CONDITIONAL" if conds else "GO", reasons=conds)
 
 
 def trip_profile(site, out, heights=(0.0, 100.0, 250.0, 500.0, 1000.0, 2000.0, 3000.0, 4000.0,
@@ -1691,7 +1921,8 @@ def drilling_fluid(site, thermal=True, rheology=None):
         bp = o["m1"].get("backpressure", 0.0)
         rho = pr.surface_density_for(need, o["z"], temps, lambda r: fluids.Mud(r, pv, yp), bp)
         passes.append(dict(fluid_SG=None if fluid is None else fluid.sg, need_SG=need,
-                           rho_surface=rho, ecd_SG=ecd_sg(o["m1"], o["z"])))
+                           rho_surface=rho, ecd_SG=ecd_sg(o["m1"], o["z"]),
+                           success=bool(o["m1"]["success"])))
         new = None if rho is None else fluids.Mud(rho, pv, yp)
         old_rho = fluids.water().rho_surface if fluid is None else fluid.rho_surface
         if abs((rho or old_rho) - old_rho) / 1000.0 < FLUID_TOL_SG:
@@ -1714,8 +1945,10 @@ def _evaluate_v13(site, thermal=True, budget=False):
     P_wh = _wellhead(budget)
     out["cycle"] = site_cycle(site, out)
     if budget:
+        out["windows"] = common_windows(site, out)
         out["tools"] = tool_gates(site, out)
-        out["status"] = overall_status(out["cycle"]["site_verdict"], out["tools"])
+        out["components"] = component_statuses(out)
+        out["status"] = site_status(out["components"])
     z, geotherm = out["z"], site.temperature()
     rop = out["circ"]["rop"] * 3600.0
     exposure = m1.exposure_from_rop(z, rop, 0.0)

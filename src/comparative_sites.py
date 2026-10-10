@@ -425,7 +425,9 @@ def print_cycle(title, sites, results):
     print("  allowance and its limit the surge allowance, and the safe pause lets the column heat.")
     if any(o.get("budget") for o in results):
         print_budget(sites, results)
+        print_windows(sites, results)
         print_tools(sites, results)
+        print_status(sites, results)
     print()
     print("Cycle sensitivities (over the cycle; drill SG; safe pause; trip SG)")
     for s, o in zip(sites, results):
@@ -506,6 +508,38 @@ def print_budget(sites, results):
         print("  conventional water-based muds start to break down: " + ", ".join(hot))
 
 
+def print_windows(sites, results):
+    """The fluid that suits every scenario in every state down the hole, as a
+    density at surface, with the bound and depth that bind it."""
+    print()
+    print("Common windows: the fluid's density at surface (20 C) that suits every stress and strength")
+    print("case in every state, down the open hole to the casing shoe; the bound that binds, the state,")
+    print("case and measured depth that set it")
+    f = lambda x: "none" if x == float("inf") else f"{x / 1000:.3f}"
+    for s, o in zip(sites, results):
+        short = s.name.split("(")[0].strip()[:25]
+        for k, name in (("drilling_fluid", "drilling fluid"), ("trip_fluid", "trip fluid")):
+            w = o["windows"][k]
+            lo, hi = w["lo_by"], w["hi_by"]
+            head = f"{f(w['fluid'])}" if w["open"] else w["note"]
+            print(f"  {short:<26}{name:<15}{head}")
+            print(f"  {'':<26}{'':<15}lower {f(w['lo'])}: {lo['state']}, {lo['case']}, {lo['md']:.0f} m")
+            print(f"  {'':<26}{'':<15}upper {f(w['hi'])}: {hi['state']}, {hi['case']}, {hi['md']:.0f} m")
+            short = ""
+    print("  Each state's own window per case is in the result (windows/states). The site verdict")
+    print("  above is unchanged: it is the worst case's; this is the prescription, a separate output.")
+
+
+def print_status(sites, results):
+    print()
+    print("Status: INDETERMINATE where a prerequisite failed or is unknown, NO-GO with the failing parts,")
+    print("CONDITIONAL with its conditions")
+    for s, o in zip(sites, results):
+        short = s.name.split("(")[0].strip()[:25]
+        st = o["status"]
+        print(f"  {short:<26}{st['label']:<15}" + "; ".join(st["reasons"]))
+
+
 def print_tools(sites, results):
     """The tool (the BHA's internal fluid) and the coating through the cycle,
     the schedule each needs, and the site's status."""
@@ -523,7 +557,7 @@ def print_tools(sites, results):
         cmax = max(co["circulating_max"], co["connection"]["max"], co["trip_in"]["max"])
         print(f"  {short:<26}{tl['drilling']['T']:6.0f}{tl['connection']['peak']:7.0f}"
               f"{tl['trip_in']['staged']['peak']:6.0f}{tl['trip_in']['unstaged']['peak']:9.0f}  "
-              f"{tl['tool']:<34}{cmax:12.0f}  {co['status']:<15}{o['status']}")
+              f"{tl['tool']:<34}{cmax:12.0f}  {co['status']:<15}{o['status']['label']}")
     print("  bit: the fluid delivered to the bit while drilling; conn.: the tool's peak through the")
     print("  connection; in / unstaged: its peak running back in with FORGE's staging and without.")
     print("Schedules the tool needs, where FORGE's practice fails")

@@ -1315,6 +1315,231 @@ def site_cycle(site, out, connection="p90", trip_scale=1.0, run=None, label="bas
                 pause_pressure=pause_pressure)
 
 
+# ------------------------------------------------------- tools and coating
+COATING_RATINGS = {wg.TK_DRAKON.name: 204.0}   # C, NOV's rating "provided that circulation
+                                               # is maintained" (data/materials.md)
+CONNECTION_PRECIRC_MIN = (1.0, 2.0, 5.0, 10.0, 20.0)   # circulation before a connection, tried
+CONNECTION_OFF_MIN = (1.0, 0.5)                         # pumps-off times tried after the median
+STAGE_DURATION_FACTORS = (1.0, 2.0, 4.0)
+
+
+def _films(run, md, T_flow, T_out):
+    """Model 1's circulating films [W/m2/K] in the bore and the annulus at
+    measured depth md."""
+    g = run["geometry"]
+    ga = g.at(np.array([min(md, g.md_bit - 0.5)]))
+    P = m1.P_of_z(ga["tvd"])
+    f = run.get("fluid")
+    h_in = float(m1.h_dittus(run["m_dot"], ga["A_bore"], ga["Dh_bore"], np.array([T_flow]), P,
+                             fluid=f)[0])
+    h_out = float(m1.h_dittus(run["m_dot"], ga["A_ann"], ga["Dh_ann"], np.array([T_out]), P,
+                              fluid=f)[0])
+    return h_in, h_out, ga
+
+
+def tool_gates(site, out, run=None, node=True, trip_h=None):
+    """The tool (the BHA's internal fluid) and the coating through the
+    cycle, with the schedule search (tool_thermal.py).
+
+    Tool: while drilling, the fluid delivered to the bit; through the
+    connection on fresh rock (FORGE's 10th-percentile circulation, then the
+    90th-percentile connection), the BHA in the static fluid node; on the way
+    back in, the BHA run at FORGE's speed through the column at the end of
+    the trip, with FORGE's staging and without. Above C.BHA_SURVIVAL_TEMP in
+    any state, the practice fails, and the schedule is searched: circulation
+    before the connection, then shorter pumps-off times; staging more often,
+    then for longer. If no schedule short of continuous circulation keeps
+    the tool below the limit, or the tool is too hot while drilling, the
+    tool fails (NO-GO).
+
+    Coating: the deepest coated pipe's steel-side temperature, while
+    circulating from the circulating solution, through a connection from the
+    static column, and on the way back in, against the coating's rating.
+    Above it, the status is INDETERMINATE: the coating's qualification is not
+    known.
+
+    Two limits of the search and the coating check. A schedule counts as
+    found if it falls short of continuous circulation, however much of the
+    run in it spends circulating; the share is reported, and the reader
+    judges whether it is practical. Staging cools the fluid in the string
+    but not the column: the circulation from each stage also flushes the
+    annulus above the bit, where the coated pipe is, so the coating's time
+    above its rating on the way in is overstated. The BHA always runs into
+    fluid not yet circulated, so its peak is not affected."""
+    import drilling_cycle as dc
+    import tool_thermal as tt
+    t = dc.forge_timings()
+    run = run or out["m1"]
+    z, T_rock = out["z"], out["T_rock"]
+    g = run["geometry"]
+    fluid = run.get("fluid")
+    limit = C.BHA_SURVIVAL_TEMP
+    bc = _bottom_conditions(run, z)
+    a = bc["r_wall"]
+    Td = float(run["T_bottom_delivered"])
+    h_bore, h_ann, ga = _films(run, z, Td, bc["Tu"])
+    rho, cp, mu, k = (float(np.ravel(x)[0]) for x in
+                      m1.fluid_props(np.array([Td]), m1.P_of_z(ga["tvd"]), fluid))
+    bha = tt.Lump.of_pipe(float(ga["r_bore"][0]), float(ga["r_out"][0]), rho * cp)
+    _, hs_out = _static_node(T_rock, z, a, bc["r_string"], fluid)
+    hs_in = wall_thermal.NU_LAMINAR * k / bha.D_in
+    rhocp_rock = C.RHO_ROCK * C.CP_ROCK
+    r_max = wall_thermal.r_max_for(a, site.k_rock / rhocp_rock, 7 * 86400)
+
+    # --- the connection on freshly drilled rock
+    def connection(pre_min, off_min):
+        cap, _ = _static_node(T_rock, z, a, bc["r_string"], fluid)
+        states = [wall_thermal.State("circulating", pre_min * 60, T_fluid=bc["Tu"], h=bc["h"]),
+                  wall_thermal.State("static", off_min * 60, h=hs_out, C=cap if node else 0.0,
+                                     T_node0=bc["Tu"])]
+        res = wall_thermal.run(states, T_rock, a, site.k_rock, rhocp_rock, n=150, r_max=r_max,
+                               growth=1.2)
+        t0 = pre_min * 60
+        after = res.t > t0
+        series = res.T_node if node else res.T_wall
+        tt_s = np.concatenate([[t0], res.t[after]])
+        TT = np.concatenate([[bc["Tu"]], series[after]])
+        T_out = lambda s: float(np.interp(t0 + s, tt_s, TT))
+        T_s0 = tt.steady_steel(Td, bc["Tu"], h_bore, h_ann, bha)
+        hist = tt.run(bha, [tt.Segment(pre_min * 60, bc["Tu"], h_ann, h_bore, T_flow=Td),
+                            tt.Segment(off_min * 60, T_out, hs_out, hs_in)], T_s0, Td, dt=5.0)
+        return hist.peak()[0], float(TT.max())
+
+    practice = (t.fresh_circ_p10_min, t.connection_p90_min)
+    tries = [practice] + [(m, t.connection_p90_min) for m in CONNECTION_PRECIRC_MIN
+                          if m > t.fresh_circ_p10_min]
+    tries += [(CONNECTION_PRECIRC_MIN[-1], off) for off in
+              (t.connection_median_min,) + CONNECTION_OFF_MIN]
+    conn = dict(practice=dict(precirc_min=practice[0], off_min=practice[1]), schedule=None)
+    # with the tool already above its limit while circulating, no schedule helps
+    searching = Td < limit
+    for pre, off in tries if searching else tries[:1]:
+        peak, node_max = connection(pre, off)
+        if (pre, off) == practice:
+            conn.update(peak=peak, node_max=node_max, ok=peak < limit)
+        if peak < limit:
+            conn["schedule"] = dict(precirc_min=pre, off_min=off, peak=peak)
+            break
+
+    # --- running back in through the column at the end of the trip
+    trip_h = trip_h or dc.trip_hours(z, t)
+    temps_t = trip_temperatures(site, out, run, trip_h, node)
+    column = lambda md: float(np.interp(g.survey.tvd(md), *temps_t))
+    speed = t.trip_in_ft_h * dc.FT / 3600.0
+    shoe = max(h.md_top for h in g.hole)
+
+    def circulating(md):
+        T_flow = float(np.interp(md, run["z"], run["Td"]))
+        h_in, h_out, _ = _films(run, md, T_flow, T_flow)
+        return T_flow, h_in, h_out
+
+    def stages_at(spacing):
+        return list(np.arange(shoe + spacing, z, spacing))
+
+    def run_in(spacing=None, factor=1.0):
+        st = stages_at(spacing) if spacing else []
+        hist, depth = tt.trip_in(bha, column, z, speed, C.SURFACE_TEMP, hs_out, hs_in, st,
+                                 factor * t.stage_minutes * 60, circulating)
+        T, when = hist.peak()
+        return T, float(depth[int(np.argmax(hist.T_f))])
+
+    forge_spacing = t.stage_spacing_ft * dc.FT
+    stand = t.stand_ft * dc.FT
+    unstaged, staged = run_in(), run_in(forge_spacing)
+    trip = dict(unstaged=dict(peak=unstaged[0], md=unstaged[1]),
+                staged=dict(peak=staged[0], md=staged[1], spacing_m=forge_spacing,
+                            minutes=t.stage_minutes),
+                ok=staged[0] < limit, schedule=None)
+    for factor in STAGE_DURATION_FACTORS if searching else ():
+        spacing = forge_spacing
+        while spacing >= stand - 1e-9:
+            T, md = staged if (factor == 1.0 and spacing == forge_spacing) else run_in(spacing, factor)
+            if T < limit:
+                n = len(stages_at(spacing))
+                stage_h = n * factor * t.stage_minutes / 60.0
+                run_h = z / speed / 3600.0
+                trip["schedule"] = dict(spacing_m=spacing, minutes=factor * t.stage_minutes,
+                                        peak=T, md=md, stages=n, staging_h=stage_h,
+                                        circulating_fraction=stage_h / (stage_h + run_h))
+                break
+            spacing /= 2.0
+        if trip["schedule"]:
+            break
+
+    drilling = dict(T=Td, ok=Td < limit)
+    if not drilling["ok"]:
+        tool = f"FAIL: {Td:.0f} C at the bit while drilling"
+    elif conn["schedule"] is None:
+        tool = "FAIL: the connection needs continuous circulation"
+    elif trip["schedule"] is None:
+        tool = "FAIL: running in needs continuous circulation"
+    elif conn["ok"] and trip["ok"]:
+        tool = "PASS"
+    else:
+        tool = "PASS with the schedule found"
+
+    # --- the coating, on the deepest coated pipe
+    pipe = g.string[0].pipe
+    rating = COATING_RATINGS.get(pipe.name)
+    md_c = g.string[0].length
+    zz = np.linspace(0.0, md_c - 0.5, 200)
+    Td_c, Tu_c = np.interp(zz, run["z"], run["Td"]), np.interp(zz, run["z"], run["Tu"])
+    gz = g.at(zz)
+    Pz = m1.P_of_z(g.survey.tvd(zz))
+    hd = m1.h_dittus(run["m_dot"], gz["A_bore"], gz["Dh_bore"], Td_c, Pz, fluid=fluid)
+    ha = m1.h_dittus(run["m_dot"], gz["A_ann"], gz["Dh_ann"], Tu_c, Pz, fluid=fluid)
+    R = [L.resistance() for L in pipe.layers]
+    R_in = 1.0 / (hd * 2 * np.pi * pipe.r_bore)
+    R_out = 1.0 / (ha * 2 * np.pi * pipe.r_out)
+    # the coating's hot face: inside the steel for an internal coating, at
+    # the outer face for an external one
+    inner = pipe.layers[0].k < wg.K_STEEL
+    R_to_hot = R_in + (R[0] if inner else sum(R))
+    T_hot = Td_c + (Tu_c - Td_c) * R_to_hot / (R_in + sum(R) + R_out)
+    circ_max = float(T_hot.max())
+    # through a connection: the static column at the deepest coated pipe,
+    # from the end of drilling (the pipe follows the fluid: an upper bound)
+    tvd_p, hrs, T_p = pause_temperatures(site, out, run, node)
+    T_conn_c = np.array([np.interp(g.survey.tvd(md_c), tvd_p, T_p[i]) for i in range(len(hrs))])
+    # under the schedule the tool needs, or FORGE's practice if none is found
+    conn_h = (conn["schedule"] or conn["practice"])["off_min"] / 60.0
+    hh = np.linspace(0.0, conn_h, 50)
+    Tc = np.interp(hh, hrs, T_conn_c)
+    conn_c = dict(max=float(Tc.max()),
+                  minutes_above=None if rating is None else float(60 * conn_h * np.mean(Tc > rating)))
+    # running in: the deepest coated pipe, the BHA and heavy-weight pipe below it
+    offset = z - md_c
+    dp = tt.Lump.of_pipe(pipe.r_bore, pipe.r_out, rho * cp)
+    sch = trip["schedule"] or dict(spacing_m=forge_spacing, minutes=t.stage_minutes)
+    hist_c, _ = tt.trip_in(dp, column, md_c, speed, C.SURFACE_TEMP, hs_out,
+                           wall_thermal.NU_LAMINAR * k / dp.D_in,
+                           [d - offset for d in stages_at(sch["spacing_m"]) if d - offset > 0],
+                           sch["minutes"] * 60, circulating)
+    trip_c = dict(max=float(hist_c.T_s.max()),
+                  minutes_above=None if rating is None else hist_c.time_above(rating, "T_s") / 60)
+    coating = dict(pipe=pipe.name, rating=rating, circulating_max=circ_max,
+                   connection=conn_c, trip_in=trip_c)
+    if rating is None:
+        coating["status"] = "no rating"
+    else:
+        over = circ_max > rating or conn_c["max"] > rating or trip_c["max"] > rating
+        coating["status"] = "INDETERMINATE" if over else "within rating"
+    return dict(limit=limit, drilling=drilling, connection=conn, trip_in=trip, tool=tool,
+                coating=coating)
+
+
+def overall_status(cycle_verdict, tools):
+    """The site's status: NO-GO if the wall cannot be held or the tool fails;
+    otherwise INDETERMINATE if the coating exceeds its rating; otherwise the
+    verdict over the cycle."""
+    v = cycle_verdict.split()[0]
+    if v == "NO-GO" or tools["tool"].startswith("FAIL"):
+        return "NO-GO"
+    if tools["coating"]["status"] == "INDETERMINATE":
+        return "INDETERMINATE"
+    return v
+
+
 def trip_profile(site, out, heights=(0.0, 100.0, 250.0, 500.0, 1000.0, 2000.0, 3000.0, 4000.0,
                                       5000.0, 6000.0)):
     """The trip verdict up the open hole: wall elements at heights above the
@@ -1488,6 +1713,9 @@ def _evaluate_v13(site, thermal=True, budget=False):
     out["circulation"] = "v1.3.3" if budget else "v1.3"
     P_wh = _wellhead(budget)
     out["cycle"] = site_cycle(site, out)
+    if budget:
+        out["tools"] = tool_gates(site, out)
+        out["status"] = overall_status(out["cycle"]["site_verdict"], out["tools"])
     z, geotherm = out["z"], site.temperature()
     rop = out["circ"]["rop"] * 3600.0
     exposure = m1.exposure_from_rop(z, rop, 0.0)

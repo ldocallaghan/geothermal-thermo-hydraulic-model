@@ -425,6 +425,7 @@ def print_cycle(title, sites, results):
     print("  allowance and its limit the surge allowance, and the safe pause lets the column heat.")
     if any(o.get("budget") for o in results):
         print_budget(sites, results)
+        print_tools(sites, results)
     print()
     print("Cycle sensitivities (over the cycle; drill SG; safe pause; trip SG)")
     for s, o in zip(sites, results):
@@ -503,6 +504,61 @@ def print_budget(sites, results):
     if hot:
         print(f"  flag: the circulating bottomhole temperature exceeds the {fluids.MUD_T_LIMIT:.0f} C at which")
         print("  conventional water-based muds start to break down: " + ", ".join(hot))
+
+
+def print_tools(sites, results):
+    """The tool (the BHA's internal fluid) and the coating through the cycle,
+    the schedule each needs, and the site's status."""
+    print()
+    print(f"Tools and coating: the tool against {C.BHA_SURVIVAL_TEMP:.0f} C while drilling, through the connection")
+    print("on fresh rock, and running back in with FORGE's staging (and without); the coating's")
+    print("steel-side temperature against its rating")
+    hdr = (f"  {'Site':<26}{'bit':>6}{'conn.':>7}{'in':>6}{'unstaged':>9}  {'tool':<34}"
+           f"{'coating max':>12}  {'coating':<15}{'status'}")
+    print(hdr)
+    for s, o in zip(sites, results):
+        tl = o["tools"]
+        short = s.name.split("(")[0].strip()[:25]
+        co = tl["coating"]
+        cmax = max(co["circulating_max"], co["connection"]["max"], co["trip_in"]["max"])
+        print(f"  {short:<26}{tl['drilling']['T']:6.0f}{tl['connection']['peak']:7.0f}"
+              f"{tl['trip_in']['staged']['peak']:6.0f}{tl['trip_in']['unstaged']['peak']:9.0f}  "
+              f"{tl['tool']:<34}{cmax:12.0f}  {co['status']:<15}{o['status']}")
+    print("  bit: the fluid delivered to the bit while drilling; conn.: the tool's peak through the")
+    print("  connection; in / unstaged: its peak running back in with FORGE's staging and without.")
+    print("Schedules the tool needs, where FORGE's practice fails")
+    for s, o in zip(sites, results):
+        tl = o["tools"]
+        short = s.name.split("(")[0].strip()[:25]
+        c, tr = tl["connection"], tl["trip_in"]
+        if not tl["drilling"]["ok"]:
+            print(f"  {short:<26}none: the tool is above {C.BHA_SURVIVAL_TEMP:.0f} C while circulating at the bit")
+            continue
+        if not c["ok"]:
+            sc = c["schedule"]
+            print(f"  {short:<26}connection: " + ("none short of continuous circulation" if sc is None else
+                  f"{sc['precirc_min']:.1f} min of circulation before it, pumps off "
+                  f"{sc['off_min']:.1f} min (tool {sc['peak']:.0f} C)"))
+        if not tr["ok"]:
+            sc = tr["schedule"]
+            print(f"  {short:<26}running in: " + ("none short of continuous circulation" if sc is None else
+                  f"staging every {sc['spacing_m']:.0f} m for {sc['minutes']:.0f} min, {sc['stages']} stages, "
+                  f"{sc['staging_h']:.0f} h circulating ({100 * sc['circulating_fraction']:.0f}% of the run in); "
+                  f"tool {sc['peak']:.0f} C"))
+    print("  A schedule counts as found if it falls short of continuous circulation; the share of the")
+    print("  run in spent circulating is given for the reader to judge whether it is practical.")
+    print("Coating: hottest while circulating; through the connection; running in (minutes above rating)")
+    for s, o in zip(sites, results):
+        co = o["tools"]["coating"]
+        short = s.name.split("(")[0].strip()[:25]
+        above = lambda d: "" if d["minutes_above"] is None else f" ({d['minutes_above']:.0f} min above)"
+        rating = "no rating" if co["rating"] is None else f"rating {co['rating']:.0f} C"
+        print(f"  {short:<26}{co['pipe']}, {rating}: {co['circulating_max']:.0f} C; "
+              f"{co['connection']['max']:.0f} C{above(co['connection'])}; "
+              f"{co['trip_in']['max']:.0f} C{above(co['trip_in'])}")
+    print("  Running in, staging is taken to cool the fluid in the string but not the column; its")
+    print("  circulation also flushes the annulus around the coated pipe above the bit, so the time")
+    print("  above the rating on the way in is overstated.")
 
 
 def golden_rows(results):

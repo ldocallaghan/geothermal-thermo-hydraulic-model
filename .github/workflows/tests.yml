@@ -1,0 +1,43 @@
+name: tests
+
+# The fast suite on every push. The slow suite (Model 1 solves, the FORGE
+# validations, the site table) on manual dispatch and weekly, with
+# single-threaded BLAS, on the versions in requirements-lock.txt.
+
+on:
+  push:
+  workflow_dispatch:
+    inputs:
+      python-version:
+        description: "Python version for the slow suite (the lock file's by default)"
+        default: "3.14.4"
+  schedule:
+    - cron: "0 3 * * 1"
+
+jobs:
+  fast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14.4"
+      - run: pip install -r requirements-lock.txt
+      - run: pytest
+
+  slow:
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      OPENBLAS_NUM_THREADS: "1"
+      OMP_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version || '3.14.4' }}
+      - run: pip install -r requirements-lock.txt
+      - run: python src/water_table.py
+      - run: pytest -m "slow or not slow"

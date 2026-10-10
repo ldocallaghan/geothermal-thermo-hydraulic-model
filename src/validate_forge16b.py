@@ -37,7 +37,7 @@ Protocol:
 import csv
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 
 import numpy as np
 from scipy.optimize import brentq, minimize_scalar
@@ -176,8 +176,10 @@ def geometry(run, bit_ft, k_idp=None):
 
 
 # ---------------------------------------------------------------- drilling record
+# The Pason clock carries no zone. The times are read as UTC so that the epochs
+# do not depend on the machine's time zone and print as the record reads.
 def _time(s):
-    return datetime.strptime(s, "%Y-%m-%d %H:%M")
+    return datetime.strptime(s, "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc)
 
 
 def circulation_clock():

@@ -54,7 +54,7 @@ is compared.
 import csv
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 
 import numpy as np
 
@@ -76,7 +76,7 @@ def _minutes():
     out = []
     for r in v.PASON:
         try:
-            out.append(dict(t=datetime.strptime(r["time"], "%Y-%m-%d %H:%M").timestamp(),
+            out.append(dict(t=datetime.strptime(r["time"], "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc).timestamp(),
                             hole=float(r["hole_depth_ft"]), bit=float(r["bit_depth_ft"]),
                             flow=float(r["flow_gpm"]), tin=float(r["temp_in_F"]),
                             tout=float(r["temp_out_F"]),
@@ -90,8 +90,10 @@ M = _minutes()
 T_INDEX = {m["t"]: i for i, m in enumerate(M)}
 
 
+# The Pason clock carries no zone. The times are read as UTC so that the epochs
+# do not depend on the machine's time zone and print as the record reads.
 def _ts(s):
-    return datetime.strptime(s, "%Y-%m-%d %H:%M:%S").timestamp()
+    return datetime.strptime(s, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc).timestamp()
 
 
 CYCLE = list(csv.DictReader(open(os.path.join(v.DATA, "cycle_timings.csv"))))
@@ -306,11 +308,11 @@ def report(c, c0=None):
     for i, r in enumerate(c["rows"]):
         nn = "" if c0 is None else f"{c0['rows'][i]['mod']:9.1f}"
         if r["kind"] == "trip":
-            print(f"{datetime.fromtimestamp(r['start']).strftime('%d May %H:%M'):<14}{r['kind']:<17}"
+            print(f"{datetime.fromtimestamp(r['start'], timezone.utc).strftime('%d May %H:%M'):<14}{r['kind']:<17}"
                   f"{r['hours']:6.1f}{r['depth_ft']:7.0f}{r['minutes']:8d}{r['offset']:+10.1f}"
                   f"{r['obs']:10.1f}{r['mod']:10.1f}{r['pred']:8.1f}{r['pred'] - r['obs']:+8.1f}{nn}")
         else:
-            print(f"{datetime.fromtimestamp(r['start']).strftime('%d May %H:%M'):<14}{r['kind']:<17}"
+            print(f"{datetime.fromtimestamp(r['start'], timezone.utc).strftime('%d May %H:%M'):<14}{r['kind']:<17}"
                   f"{r['hours']:6.1f}{r['depth_ft']:7.0f}{r['minutes']:8d}{r['offset']:+10.1f}"
                   f"{r['obs']:10.1f}{r['mod']:10.1f}{'':8}{'excluded':>8}{nn}")
     print("-" * 112)
@@ -351,7 +353,7 @@ def figure(c, path):
         a.plot(t, r["f_loo"] * cu["mod"], "tab:red", lw=1.5, label="model x f")
         a.plot(t, cu["mod"], "tab:red", lw=0.8, ls=":", label="plug flow")
         a.set(xlabel="minutes after circulation resumed",
-              title=f"trip of {r['hours']:.0f} h, {datetime.fromtimestamp(r['start']).strftime('%d May')}")
+              title=f"trip of {r['hours']:.0f} h, {datetime.fromtimestamp(r['start'], timezone.utc).strftime('%d May')}")
         a.legend(fontsize=7)
     ax[1].set_ylabel("return temperature anomaly [F]")
     for a in ax:

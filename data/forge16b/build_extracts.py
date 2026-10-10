@@ -308,7 +308,7 @@ def connections_10s(full_gpm=500.0):
     were off, and how long the fluid circulated between the last new hole and
     the pumps stopping (the cooling the freshly drilled rock gets before the
     connection)."""
-    from datetime import datetime
+    from datetime import datetime, timezone
     path = os.path.join(RAW, "16B_Pason", "10 Second Data.csv")
     t, hole, bit, q = [], [], [], []
     with open(path, newline="") as fh:
@@ -323,7 +323,7 @@ def connections_10s(full_gpm=500.0):
                 continue
             if -999.25 in (h, b, f):
                 continue
-            t.append(datetime.strptime(r[0] + " " + r[1], "%Y/%m/%d %H:%M:%S"))
+            t.append(datetime.strptime(r[0] + " " + r[1], "%Y/%m/%d %H:%M:%S").replace(tzinfo=timezone.utc))
             hole.append(h); bit.append(b); q.append(f)
     ts = [x.timestamp() for x in t]
     n = len(t)
